@@ -1,144 +1,172 @@
 # boxloom
 
-`boxloom`は、PythonからMinecraft Java Editionのワールドを操作するための、Python SDKとサーバー用Fabric MODを提供するプロジェクトです。
+Boxloom is a Python SDK and server-side Fabric mod for controlling Minecraft Java Edition through an application-facing API.
 
-このリポジトリでは、次の2つの成果物を同じ名前で管理・配布することを想定しています。
+This repository is intended to produce two distributable artifacts under the same name:
 
-- Pythonライブラリ: `boxloom`
-- サーバー用Fabric MOD: `boxloom`
+- Python package: `boxloom`
+- Fabric mod: `boxloom`
 
 > [!IMPORTANT]
-> 現在は設計初期段階です。公開API、通信方式、対応Minecraftバージョン、配布方法はまだ確定していません。
+> Boxloom is in the early design stage. Its public API, wire protocol, supported versions, packaging, and release process are not stable yet.
 
-## 目的
+## Overview
 
-教材で使用するPythonコードと、Minecraftサーバー内のワールド操作を、小さく安定したAPIで接続します。
+Boxloom provides a small Python interface for reading and changing a Minecraft world. The Python SDK sends requests to the server-side Fabric mod, which validates each request and performs the corresponding operation in the Fabric server.
 
 ```mermaid
 flowchart LR
-    Program["生徒のPythonプログラム"]
+    Program["Python application"]
     SDK["boxloom<br/>Python SDK"]
-    MOD["boxloom<br/>server-side Fabric MOD"]
+    MOD["boxloom<br/>server-side Fabric mod"]
     Server["Fabric Dedicated Server"]
-    World["Minecraft World"]
+    World["Minecraft world"]
 
     Program --> SDK
-    SDK -->|"同一学習環境内のprivate API"| MOD
+    SDK -->|"local or private API"| MOD
     MOD --> Server
     Server --> World
 ```
 
-クラウド学習環境では、Python SDKとFabric MODを同じ生徒用VM内で動かします。両者の通信は外部インターネットを経由せず、MODの内部APIをインターネットへ公開しません。
+The SDK and mod are expected to communicate within the same machine or a trusted private network. The mod's internal API is not intended to be exposed directly to the public internet.
 
-## 同じリポジトリで管理する理由
+## Goals
 
-- Python向けAPIとMOD側の実装を、同じ変更単位でレビューできる
-- SDKとMODの互換性テストを1か所で管理できる
-- API契約、サンプル、ドキュメントのずれを検出しやすい
-- Minecraft、Fabric、SDK、MODの対応関係を追跡できる
-- 破壊的変更と移行手順を1つのリリース計画として整理できる
+- Provide a focused, high-level Python API for Minecraft world operations
+- Hide Fabric and Minecraft implementation details from Python applications
+- Define a versioned contract between the Python SDK and the Fabric mod
+- Return structured results and errors instead of relying on console output parsing
+- Enforce operation permissions and limits on the server side
+- Publish tested compatibility information for Minecraft, Fabric, Java, Python, the SDK, and the mod
 
-同じリポジトリで管理しても、PythonパッケージとFabric MODを常に同じバージョン番号にするとは限りません。バージョニングとリリース単位は、互換性方針と合わせて今後決定します。
-
-## コンポーネントの責務
+## Components
 
 ### Python SDK
 
-- 教材から利用するPython APIを提供する
-- MinecraftやFabricの実装詳細を教材コードから隠す
-- 接続先や認証情報の受け渡しを抽象化する
-- MODから返された結果やエラーをPythonから扱える形に変換する
-- ローカル環境とクラウド環境の配置差を、可能な範囲で吸収する
+The Python package is responsible for:
 
-### server-side Fabric MOD
+- Exposing the public Python API
+- Resolving connection configuration and credentials
+- Encoding requests and decoding responses
+- Mapping protocol failures to documented Python exceptions
+- Hiding transport and deployment details from application code
 
-- Fabric Dedicated Server内で動作する
-- Python SDKからの要求を受け取り、Minecraftワールドの操作へ橋渡しする
-- 対象ワールド、プレイヤー、座標、操作種別、操作量をサーバー側で検証する
-- 生徒コードを信頼せず、SDKを迂回した要求も安全側で拒否する
-- Minecraftサーバーの状態と操作結果を、SDKへ返せる形にする
+### Server-side Fabric mod
 
-## APIの利用イメージ
+The Fabric mod is responsible for:
 
-次のコードは方向性を示すための例です。クラス名、関数名、引数、戻り値はまだAPI契約ではありません。
+- Running inside a Fabric Dedicated Server
+- Receiving requests from the Python SDK
+- Validating the requested operation, target world, coordinates, and resource limits
+- Scheduling world reads and changes in the correct Minecraft server execution context
+- Returning structured results and errors
+- Keeping server authority and validation independent from SDK behavior
+
+## API example
+
+The following example illustrates the intended style. The class name, method names, parameters, and return values are not yet a stable API contract.
 
 ```python
 from boxloom import Minecraft
 
 mc = Minecraft()
 
-mc.say("こんにちは")
-mc.set_block(10, 64, 10, "gold_block")
+mc.say("Hello from boxloom!")
+mc.set_block(10, 64, 10, "minecraft:gold_block")
 ```
 
-## セキュリティ上の前提
+## Security model
 
-`boxloom`は、生徒が任意のPythonコードを実行できる環境で使われます。
+Callers of the internal API must be treated as untrusted, even when they use the official Python SDK.
 
-- Python SDKを認可境界として信頼しない
-- MODの内部APIを外部インターネットへ公開しない
-- SDKを経由せず内部APIを直接呼ばれる可能性を前提にする
-- MOD側で入力、権限、対象範囲、件数、頻度を検証する
-- Python実行環境へMinecraft管理権限やクラウド管理資格情報を渡さない
-- RCONやMinecraftサーバーの管理ポートを通常の学習経路に使わない
+- The Python SDK is not an authorization boundary
+- The Fabric mod must validate every operation independently
+- The internal API must not listen on a public network interface by default
+- Authentication and authorization must be enforced at the mod boundary
+- World, coordinate, operation, payload-size, and rate limits must be enforced server-side
+- RCON and other administrative interfaces must not be part of the normal Boxloom API path
+- Credentials for hosting platforms or infrastructure control must never be exposed to Python applications
 
-具体的な認証方式、通信方式、rate limit、操作権限は今後の技術設計で決定します。
+The concrete authentication mechanism, transport security, rate limits, and permission model are still to be designed.
 
-## 想定するリポジトリ構成
+## Planned repository layout
 
-次は現時点の案であり、ビルドツールを選定するときに確定します。
+The directory structure will be finalized together with the build systems. The current proposal is:
 
 ```text
 boxloom/
-├── python/       # Python SDK
-├── fabric/       # server-side Fabric MOD
-├── docs/         # API契約と技術設計
-├── examples/     # Pythonの利用例
-└── README.md
+|-- python/       # Python SDK
+|-- fabric/       # Server-side Fabric mod
+|-- docs/         # API contract and technical design
+|-- examples/     # Python examples
+`-- README.md
 ```
 
-## このリポジトリで扱わないもの
+## Scope
 
-- 学習サービスのWebアプリとカリキュラム
-- GCE VMの起動・停止やDNSを管理するコントロールプレーン
-- `code-server`とworkspace gateway
-- 生徒アカウント、保護者アカウント、講師アカウントの認証・認可
-- Minecraft Java Editionクライアントや公式ランチャーの配布
-- Minecraft本体のアセット
+This repository is expected to contain:
 
-これらはCodorie側のアプリケーションおよびインフラ設計で扱います。
+- The Boxloom Python SDK
+- The Boxloom server-side Fabric mod
+- The SDK-to-mod API specification
+- Compatibility and versioning documentation
+- Integration tests and example programs
+- Packaging and release automation for both artifacts
 
-## 対応バージョン
+The following are outside the scope of this repository:
 
-次の組み合わせを互換性マトリクスとして管理する予定です。具体的なバージョンは未決定です。
+- Hosting or lifecycle management for Minecraft servers
+- Browser-based editors, authentication gateways, and control planes
+- Distribution of Minecraft Java Edition, the official launcher, or Minecraft assets
+- General-purpose remote administration of Minecraft servers
 
-| 対象 | バージョン |
+## Compatibility
+
+Boxloom will publish a tested compatibility matrix. Exact versions have not been selected yet.
+
+| Component | Supported version |
 | --- | --- |
-| Minecraft Java Edition | 未決定 |
-| Fabric Loader | 未決定 |
-| Fabric API | 未決定 |
-| Java | 未決定 |
-| Python | 未決定 |
-| boxloom Python SDK | 未決定 |
-| boxloom Fabric MOD | 未決定 |
+| Minecraft Java Edition | To be determined |
+| Fabric Loader | To be determined |
+| Fabric API | To be determined |
+| Java | To be determined |
+| Python | To be determined |
+| Boxloom Python SDK | To be determined |
+| Boxloom Fabric mod | To be determined |
 
-Snapshotや各依存関係の最新版へ自動追従せず、検証済みの組み合わせを明示して配布する方針です。
+Boxloom will target explicitly tested combinations instead of automatically following snapshots or the newest dependency releases.
 
-## 最初に決めること
+## Current decisions
 
-1. Python SDKとFabric MOD間の最小API契約
-2. 通信方式と、同一VM内での接続方法
-3. 認証、認可、入力検証の境界
-4. Minecraftサーバースレッドへ処理を渡す方法
-5. 最初に提供するワールド操作
-6. SDKとMODのバージョニング、互換性、リリース方法
-7. PythonとFabricのビルド・テスト構成
-8. ライセンス
+- The Python package name is `boxloom`
+- The server-side Fabric mod name is `boxloom`
+- Minecraft operations are exposed through an API rather than console-output parsing
+- The Fabric mod is authoritative for validation and world access
+- The SDK-to-mod endpoint is local or private and is not a public internet API
 
-## 関連ドキュメント
+## Open design questions
 
-- [Codorie Learn: Minecraft Java Edition連携型学習環境 インフラアーキテクチャ設計](https://github.com/k-yokoishi/codorie/blob/develop/apps/learn/docs/minecraft-java-learning-architecture.md)
+- The wire protocol and transport
+- Authentication, authorization, and credential rotation
+- Thread handoff and execution semantics inside the Minecraft server
+- Timeouts, retries, idempotency, and cancellation
+- Batch operations and partial failures
+- The initial public Python API
+- Version negotiation and compatibility policy
+- Build, test, packaging, and release tooling
+- License
 
-## ライセンス
+## Initial roadmap
 
-未決定です。ライセンスが決まるまで、再配布や利用条件を推測しないでください。
+1. Define the smallest useful SDK-to-mod API contract
+2. Select the transport and connection-discovery mechanism
+3. Implement a minimal server-side Fabric mod
+4. Implement the Python SDK client
+5. Verify one read operation and one world-changing operation end to end
+6. Add compatibility and security tests
+7. Define packaging, versioning, and release workflows
+8. Select and publish a license
+
+## License
+
+The license has not been selected yet. Public visibility of the source code does not grant permission to use, modify, or redistribute it until a license is added.
