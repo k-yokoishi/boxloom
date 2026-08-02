@@ -62,6 +62,17 @@ The Fabric mod is responsible for:
 - Returning structured results and errors
 - Keeping server authority and validation independent from SDK behavior
 
+## Connection configuration
+
+The Python SDK will initialize the following connection settings from environment variables:
+
+- The Boxloom Fabric mod API endpoint
+- The API key used to authenticate requests to the Fabric mod
+
+Applications may also provide these values explicitly through the Python API. Explicitly provided values override the defaults read from the environment.
+
+The environment variable names and the exact Python configuration API have not been defined yet. The SDK must not include the API key in normal logs or error messages.
+
 ## API example
 
 The following example illustrates the intended style. The class name, method names, parameters, and return values are not yet a stable API contract.
@@ -143,10 +154,13 @@ Boxloom will target explicitly tested combinations instead of automatically foll
 - Minecraft operations are exposed through an API rather than console-output parsing
 - The Fabric mod is authoritative for validation and world access
 - The SDK-to-mod endpoint is local or private and is not a public internet API
+- The SDK reads the endpoint and Fabric mod API key defaults from environment variables
+- Applications can override the environment-derived defaults through the Python API
 
 ## Open design questions
 
 - The wire protocol and transport
+- Environment variable names and the explicit connection-configuration API
 - Authentication, authorization, and credential rotation
 - Thread handoff and execution semantics inside the Minecraft server
 - Timeouts, retries, idempotency, and cancellation
