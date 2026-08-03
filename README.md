@@ -33,6 +33,7 @@ The SDK and mod are expected to communicate within the same machine or a trusted
 ## Goals
 
 - Provide a focused, high-level Python API for Minecraft world operations
+- Prefer directly exported functions for common operations
 - Hide Fabric and Minecraft implementation details from Python applications
 - Define a versioned contract between the Python SDK and the Fabric mod
 - Return structured results and errors instead of relying on console output parsing
@@ -45,7 +46,8 @@ The SDK and mod are expected to communicate within the same machine or a trusted
 
 The Python package is responsible for:
 
-- Exposing the public Python API
+- Exporting common Minecraft operations as top-level Python functions
+- Providing `init()` for explicit connection configuration
 - Resolving connection configuration and credentials
 - Encoding requests and decoding responses
 - Mapping protocol failures to documented Python exceptions
@@ -64,27 +66,35 @@ The Fabric mod is responsible for:
 
 ## Connection configuration
 
-The Python SDK will initialize the following connection settings from environment variables:
+By default, the Python SDK initializes the following connection settings from environment variables:
 
-- The boxloom Fabric mod API endpoint
-- The API key used to authenticate requests to the Fabric mod
+- `base_url`: the boxloom Fabric mod API endpoint
+- `auth_token`: the token used to authenticate requests to the Fabric mod
 
-Applications may also provide these values explicitly through the Python API. Explicitly provided values override the defaults read from the environment.
+Applications may override the environment-derived defaults by calling `init()` explicitly:
 
-The environment variable names and the exact Python configuration API have not been defined yet. The SDK must not include the API key in normal logs or error messages.
+```python
+from boxloom import init
+
+init(auth_token="...", base_url="http://localhost:28886")
+```
+
+Calling `init()` is optional when the required environment variables are already configured. Values passed to `init()` take precedence over values read from the environment.
+
+The environment variable names have not been defined yet. The SDK must not include the authentication token in normal logs or error messages.
 
 ## API example
 
-The following example illustrates the intended style. The class name, method names, parameters, and return values are not yet a stable API contract.
+The public API should prefer directly imported functions for common Minecraft operations:
 
 ```python
-from boxloom import Minecraft
+from boxloom import say, set_block
 
-mc = Minecraft()
-
-mc.say("Hello from boxloom!")
-mc.set_block(10, 64, 10, "minecraft:gold_block")
+say("Hello from boxloom!")
+set_block(10, 64, 10, "minecraft:gold_block")
 ```
+
+The exported function set and detailed behavior are still under design. These examples document the intended API style, not a stable release contract.
 
 ## Security model
 
@@ -154,13 +164,15 @@ boxloom will target explicitly tested combinations instead of automatically foll
 - Minecraft operations are exposed through an API rather than console-output parsing
 - The Fabric mod is authoritative for validation and world access
 - The SDK-to-mod endpoint is local or private and is not a public internet API
-- The SDK reads the endpoint and Fabric mod API key defaults from environment variables
-- Applications can override the environment-derived defaults through the Python API
+- Common operations should be exported as top-level Python functions
+- The SDK reads `base_url` and `auth_token` defaults from environment variables
+- Applications can override the environment-derived defaults with `init()`
 
 ## Open design questions
 
 - The wire protocol and transport
-- Environment variable names and the explicit connection-configuration API
+- Environment variable names
+- Repeated initialization, thread safety, and the lifecycle of global connection state
 - Authentication, authorization, and credential rotation
 - Thread handoff and execution semantics inside the Minecraft server
 - Timeouts, retries, idempotency, and cancellation
