@@ -1,0 +1,37 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "boxloom: send test message",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "-c",
+        "from boxloom import say; print(say('Hello from code-server!'))"
+      ],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "boxloom: run player example",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "examples/python/say_and_setblock.py",
+        "${input:minecraftUsername}"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "minecraftUsername",
+      "type": "promptString",
+      "description": "接続中のMinecraftユーザー名"
+    }
+  ]
+}

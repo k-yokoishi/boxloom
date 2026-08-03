@@ -150,6 +150,49 @@ mise run fabric-build
 
 mise does not manage the Python interpreter directly in this repository. This keeps uv as the single authority for the Python project while mise coordinates the polyglot toolchain.
 
+## Browser-based Docker environment
+
+The root [`compose.yml`](compose.yml) builds the current Fabric mod, starts a Minecraft Java Edition server with that mod, and starts a browser-based code-server containing Python and the local boxloom SDK source.
+
+1. Optionally copy the settings template. The defaults work as-is for local use.
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Build the mod and start the complete environment.
+
+   ```bash
+   docker compose up --build
+   ```
+
+   The first start downloads the build and Minecraft dependencies, so it can take a few minutes. The environment is ready when the Minecraft log contains `Done` and Compose starts the `code-server` service. From another terminal, `docker compose ps` shows both services and reports `minecraft` as healthy.
+
+3. Connect Minecraft Java Edition 26.2 to `localhost:25566`.
+
+4. Open `http://localhost:8080` in a browser and sign in with password `boxloom-local`.
+
+5. In code-server, open **Terminal > Run Task** and select `boxloom: send test message`. After joining Minecraft, select `boxloom: run player example`, enter the connected Minecraft username, and the example will broadcast a message and place a diamond block next to that player.
+
+The default endpoints are summarized below.
+
+| Purpose | Address | Default credential |
+| --- | --- | --- |
+| Minecraft Java Edition 26.2 | `localhost:25566` | A valid Java Edition account |
+| code-server | `http://localhost:8080` | Password `boxloom-local` |
+
+The boxloom HTTP API is available only inside the Compose network. code-server is preconfigured with `BOXLOOM_BASE_URL`, `BOXLOOM_AUTH_TOKEN`, and `PYTHONPATH`, so Python code can import the SDK without a separate install step. Arbitrary RCON access is disabled.
+
+To change ports, passwords, memory, or the internal API token, edit `.env` after copying [`.env.example`](.env.example). For example, if another local Minecraft server already uses port `25566`, set `MINECRAFT_PORT=25567` and connect to `localhost:25567` instead. The default port bindings use host loopback and are reachable only from the local computer.
+
+Stop the environment while preserving the Minecraft world with:
+
+```bash
+docker compose down
+```
+
+After changing the Fabric mod, run `docker compose up --build` again so the server image contains the newly built JAR.
+
 The Python SDK can be published manually to TestPyPI after adding a GitHub Actions secret. See [Publishing the Python SDK to TestPyPI](docs/python-testpypi-release.md).
 
 ## Scope
@@ -163,10 +206,10 @@ This repository is expected to contain:
 - Integration tests and example programs
 - Packaging and release automation for both artifacts
 
-The following are outside the scope of this repository:
+The following are outside the production scope of this repository (the local Compose environment above is for development and verification only):
 
-- Hosting or lifecycle management for Minecraft servers
-- Browser-based editors, authentication gateways, and control planes
+- Production hosting or lifecycle management for Minecraft servers
+- Production browser-based editors, authentication gateways, and control planes
 - Distribution of Minecraft Java Edition, the official launcher, or Minecraft assets
 - General-purpose remote administration of Minecraft servers
 

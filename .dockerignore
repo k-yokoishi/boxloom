@@ -1,0 +1,9 @@
+.git
+.env
+**/.gradle
+**/.kotlin
+**/.venv
+**/__pycache__
+**/build
+**/dist
+**/*.egg-info
