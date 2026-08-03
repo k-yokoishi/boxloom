@@ -1,0 +1,171 @@
+import json
+import socket
+from typing import Any, Dict, Mapping, Optional
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
+
+from .errors import ApiError, ConfigurationError, ConnectionError, ProtocolError
+from .models import SayResult, SetBlockResult
+
+
+class BoxloomClient:
+    """HTTP client for a boxloom Fabric server."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        auth_token: str,
+        timeout: float = 10.0,
+    ) -> None:
+        self._base_url = _validate_base_url(base_url)
+        if not isinstance(auth_token, str) or not auth_token.strip():
+            raise ConfigurationError("auth_token must be a non-empty string")
+        if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
+            raise ConfigurationError("timeout must be a positive number of seconds")
+
+        self._auth_token = auth_token
+        self._timeout = float(timeout)
+
+    def say(self, message: str) -> SayResult:
+        if not isinstance(message, str) or not message.strip():
+            raise ValueError("message must be a non-empty string")
+        if len(message) > 256:
+            raise ValueError("message must contain at most 256 characters")
+
+        payload = self._post("/v1/chat/messages", {"message": message})
+        returned_message = _require_string(payload, "message")
+        recipients = _require_integer(payload, "recipients")
+        if recipients < 0:
+            raise ProtocolError("response field 'recipients' must not be negative")
+        return SayResult(message=returned_message, recipients=recipients)
+
+    def set_block(
+        self,
+        x: int,
+        y: int,
+        z: int,
+        block: str,
+        *,
+        dimension: str = "minecraft:overworld",
+    ) -> SetBlockResult:
+        for field_name, value in (("x", x), ("y", y), ("z", z)):
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise TypeError(f"{field_name} must be an integer")
+            if not -(2**31) <= value < 2**31:
+                raise ValueError(f"{field_name} must fit in a signed 32-bit integer")
+        if not isinstance(block, str) or not block.strip():
+            raise ValueError("block must be a non-empty namespaced ID")
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise ValueError("dimension must be a non-empty namespaced ID")
+
+        payload = self._post(
+            "/v1/world/blocks",
+            {
+                "dimension": dimension,
+                "x": x,
+                "y": y,
+                "z": z,
+                "block": block,
+            },
+        )
+        changed = payload.get("changed")
+        if not isinstance(changed, bool):
+            raise ProtocolError("response field 'changed' must be a boolean")
+
+        return SetBlockResult(
+            changed=changed,
+            dimension=_require_string(payload, "dimension"),
+            x=_require_integer(payload, "x"),
+            y=_require_integer(payload, "y"),
+            z=_require_integer(payload, "z"),
+            block=_require_string(payload, "block"),
+        )
+
+    def setblock(
+        self,
+        x: int,
+        y: int,
+        z: int,
+        block: str,
+        *,
+        dimension: str = "minecraft:overworld",
+    ) -> SetBlockResult:
+        """Alias for :meth:`set_block`."""
+
+        return self.set_block(x, y, z, block, dimension=dimension)
+
+    def _post(self, path: str, body: Mapping[str, Any]) -> Dict[str, Any]:
+        request = Request(
+            self._base_url + path,
+            data=json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._auth_token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "boxloom-python/0.1.0",
+            },
+            method="POST",
+        )
+
+        try:
+            with urlopen(request, timeout=self._timeout) as response:
+                return _decode_object(response.read())
+        except HTTPError as error:
+            try:
+                payload = _decode_object(error.read())
+                error_value = payload.get("error")
+                if not isinstance(error_value, dict):
+                    raise ProtocolError("error response field 'error' must be an object")
+                code = _require_string(error_value, "code")
+                message = _require_string(error_value, "message")
+            except ProtocolError:
+                code = "HTTP_ERROR"
+                message = "The server returned an invalid error response"
+            raise ApiError(error.code, code, message) from None
+        except (URLError, socket.timeout, TimeoutError, OSError) as error:
+            reason = getattr(error, "reason", error)
+            if isinstance(reason, (socket.timeout, TimeoutError)):
+                detail = "the request timed out"
+            else:
+                detail = "the server could not be reached"
+            raise ConnectionError(f"boxloom connection failed: {detail}") from None
+
+
+def _validate_base_url(base_url: str) -> str:
+    if not isinstance(base_url, str) or not base_url.strip():
+        raise ConfigurationError("base_url must be a non-empty HTTP URL")
+    value = base_url.strip().rstrip("/")
+    parsed = urlsplit(value)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ConfigurationError("base_url must be an absolute HTTP or HTTPS URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ConfigurationError("base_url must not contain credentials")
+    if parsed.query or parsed.fragment:
+        raise ConfigurationError("base_url must not contain a query or fragment")
+    return value
+
+
+def _decode_object(source: bytes) -> Dict[str, Any]:
+    try:
+        value = json.loads(source.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ProtocolError("the server response must be valid UTF-8 JSON") from None
+    if not isinstance(value, dict):
+        raise ProtocolError("the server response must be a JSON object")
+    return value
+
+
+def _require_string(value: Mapping[str, Any], field: str) -> str:
+    result = value.get(field)
+    if not isinstance(result, str):
+        raise ProtocolError(f"response field '{field}' must be a string")
+    return result
+
+
+def _require_integer(value: Mapping[str, Any], field: str) -> int:
+    result = value.get(field)
+    if not isinstance(result, int) or isinstance(result, bool):
+        raise ProtocolError(f"response field '{field}' must be an integer")
+    return result

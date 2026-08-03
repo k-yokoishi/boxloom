@@ -1,0 +1,132 @@
+import json
+import os
+import threading
+import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest.mock import patch
+
+import boxloom
+
+
+class _ApiHandler(BaseHTTPRequestHandler):
+    requests = []
+    response_status = 200
+    response_body = {}
+
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers["Content-Length"]))
+        self.__class__.requests.append(
+            (self.path, dict(self.headers), json.loads(body.decode("utf-8")))
+        )
+        encoded = json.dumps(self.__class__.response_body).encode("utf-8")
+        self.send_response(self.__class__.response_status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def log_message(self, format, *args):
+        return
+
+
+class ClientTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), _ApiHandler)
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.base_url = f"http://127.0.0.1:{cls.server.server_port}"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.thread.join(timeout=2)
+
+    def setUp(self):
+        _ApiHandler.requests = []
+        _ApiHandler.response_status = 200
+        boxloom.init(base_url=self.base_url, auth_token="unit-test-secret")
+
+    def test_say_posts_authenticated_message(self):
+        _ApiHandler.response_body = {"message": "Hello!", "recipients": 2}
+
+        result = boxloom.say("Hello!")
+
+        self.assertEqual(boxloom.SayResult("Hello!", 2), result)
+        path, headers, body = _ApiHandler.requests[0]
+        self.assertEqual("/v1/chat/messages", path)
+        self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+        self.assertEqual({"message": "Hello!"}, body)
+
+    def test_set_block_uses_overworld_by_default(self):
+        _ApiHandler.response_body = {
+            "changed": True,
+            "dimension": "minecraft:overworld",
+            "x": 1,
+            "y": 80,
+            "z": -2,
+            "block": "minecraft:gold_block",
+        }
+
+        result = boxloom.set_block(1, 80, -2, "minecraft:gold_block")
+
+        self.assertTrue(result.changed)
+        self.assertEqual("minecraft:gold_block", result.block)
+        self.assertEqual(
+            {
+                "dimension": "minecraft:overworld",
+                "x": 1,
+                "y": 80,
+                "z": -2,
+                "block": "minecraft:gold_block",
+            },
+            _ApiHandler.requests[0][2],
+        )
+
+    def test_setblock_alias_calls_same_api(self):
+        _ApiHandler.response_body = {
+            "changed": False,
+            "dimension": "minecraft:the_nether",
+            "x": 0,
+            "y": 64,
+            "z": 0,
+            "block": "minecraft:stone",
+        }
+
+        result = boxloom.setblock(
+            0, 64, 0, "minecraft:stone", dimension="minecraft:the_nether"
+        )
+
+        self.assertFalse(result.changed)
+        self.assertEqual("minecraft:the_nether", result.dimension)
+
+    def test_api_error_does_not_expose_auth_token(self):
+        _ApiHandler.response_status = 403
+        _ApiHandler.response_body = {
+            "error": {"code": "FORBIDDEN", "message": "The token is invalid"}
+        }
+
+        with self.assertRaises(boxloom.ApiError) as raised:
+            boxloom.say("Hello")
+
+        self.assertEqual(403, raised.exception.status)
+        self.assertEqual("FORBIDDEN", raised.exception.code)
+        self.assertNotIn("unit-test-secret", str(raised.exception))
+
+    def test_lazy_configuration_reads_environment(self):
+        _ApiHandler.response_body = {"message": "From env", "recipients": 0}
+        boxloom._reset_default_client_for_testing()
+
+        with patch.dict(
+            os.environ,
+            {"BOXLOOM_BASE_URL": self.base_url, "BOXLOOM_AUTH_TOKEN": "env-secret"},
+            clear=False,
+        ):
+            boxloom.say("From env")
+
+        self.assertEqual("Bearer env-secret", _ApiHandler.requests[0][1]["Authorization"])
+
+
+if __name__ == "__main__":
+    unittest.main()

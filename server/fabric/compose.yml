@@ -1,0 +1,33 @@
+services:
+  minecraft:
+    image: itzg/minecraft-server:2026.5.4-java25
+    container_name: boxloom-fabric-poc
+    environment:
+      EULA: "TRUE"
+      TYPE: "FABRIC"
+      VERSION: "26.2"
+      FABRIC_LOADER_VERSION: "0.19.3"
+      MODS: |
+        /mods/boxloom-0.1.0.jar
+        https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.156.0%2B26.2/fabric-api-0.156.0%2B26.2.jar
+        https://maven.fabricmc.net/net/fabricmc/fabric-language-kotlin/1.13.13%2Bkotlin.2.4.10/fabric-language-kotlin-1.13.13%2Bkotlin.2.4.10.jar
+      ONLINE_MODE: "TRUE"
+      ENFORCE_SECURE_PROFILE: "TRUE"
+      MODE: "creative"
+      DIFFICULTY: "peaceful"
+      SPAWN_PROTECTION: "0"
+      MEMORY: "2G"
+      BOXLOOM_BIND_HOST: "0.0.0.0"
+      BOXLOOM_PORT: "28886"
+      BOXLOOM_AUTH_TOKEN: "boxloom-local-poc-token"
+    ports:
+      - "25566:25565"
+      - "127.0.0.1:28886:28886"
+    volumes:
+      - boxloom-fabric-poc-data:/data
+      - ./build/libs/boxloom-0.1.0.jar:/mods/boxloom-0.1.0.jar:ro
+    stop_grace_period: 2m
+
+volumes:
+  boxloom-fabric-poc-data:
+    name: boxloom-fabric-poc-data

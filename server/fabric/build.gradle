@@ -1,0 +1,65 @@
+plugins {
+    id "net.fabricmc.fabric-loom"
+    id "org.jetbrains.kotlin.jvm"
+}
+
+base {
+    archivesName = project.fabric_archives_base_name
+}
+
+dependencies {
+    implementation project(":core")
+    include project(":core")
+
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    implementation "net.fabricmc:fabric-language-kotlin:${project.fabric_language_kotlin_version}"
+}
+
+processResources {
+    inputs.property "version", rootProject.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": inputs.properties.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = "UTF-8"
+}
+
+kotlin {
+    jvmToolchain(25)
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile).configureEach {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+    }
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+tasks.register("verifyNoClientCode") {
+    group = "verification"
+    description = "Fails if the Fabric server adapter references client-only Minecraft classes."
+
+    doLast {
+        def forbidden = "net.minecraft.client."
+        def offenders = fileTree("src/main") {
+            include "**/*.java", "**/*.kt"
+        }.findAll { it.text.contains(forbidden) }
+
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Common source references client-only classes: ${offenders}")
+        }
+    }
+}
+
+check.dependsOn tasks.named("verifyNoClientCode")

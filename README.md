@@ -30,6 +30,8 @@ flowchart LR
 
 The SDK and mod are expected to communicate within the same machine or a trusted private network. The mod's internal API is not intended to be exposed directly to the public internet.
 
+The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say` and `set_block`.
+
 ## Goals
 
 - Provide a focused, high-level Python API for Minecraft world operations
@@ -68,8 +70,8 @@ The Fabric mod is responsible for:
 
 By default, the Python SDK initializes the following connection settings from environment variables:
 
-- `base_url`: the boxloom Fabric mod API endpoint
-- `auth_token`: the token used to authenticate requests to the Fabric mod
+- `base_url` from `BOXLOOM_BASE_URL`: the boxloom Fabric mod API endpoint
+- `auth_token` from `BOXLOOM_AUTH_TOKEN`: the token used to authenticate requests to the Fabric mod
 
 Applications may override the environment-derived defaults by calling `init()` explicitly:
 
@@ -79,9 +81,7 @@ from boxloom import init
 init(auth_token="...", base_url="http://localhost:28886")
 ```
 
-Calling `init()` is optional when the required environment variables are already configured. Values passed to `init()` take precedence over values read from the environment.
-
-The environment variable names have not been defined yet. The SDK must not include the authentication token in normal logs or error messages.
+Calling `init()` is optional when the required environment variables are already configured. Values passed to `init()` take precedence over values read from the environment. The SDK must not include the authentication token in normal logs or error messages.
 
 ## API example
 
@@ -103,25 +103,32 @@ Callers of the internal API must be treated as untrusted, even when they use the
 - The Python SDK is not an authorization boundary
 - The Fabric mod must validate every operation independently
 - The internal API must not listen on a public network interface by default
-- Authentication and authorization must be enforced at the mod boundary
+- Authentication and authorization must be enforced at the server component boundary
 - World, coordinate, operation, payload-size, and rate limits must be enforced server-side
 - RCON and other administrative interfaces must not be part of the normal boxloom API path
 - Credentials for hosting platforms or infrastructure control must never be exposed to Python applications
 
-The concrete authentication mechanism, transport security, rate limits, and permission model are still to be designed.
+The PoC uses a Bearer token. The production authentication mechanism, transport security, rate limits, and permission model are still to be designed.
 
-## Planned repository layout
+## Repository layout
 
-The directory structure will be finalized together with the build systems. The current proposal is:
+boxloom uses a polyglot monorepo layout so the server and each language SDK remain independently buildable and publishable:
 
 ```text
 boxloom/
-|-- python/       # Python SDK
-|-- fabric/       # Server-side Fabric mod
-|-- docs/         # API contract and technical design
-|-- examples/     # Python examples
+|-- server/
+|   |-- core/          # Shared HTTP, authentication, DTOs, and operation interface
+|   `-- fabric/        # Fabric-specific server adapter and distributable mod
+|-- sdks/
+|   `-- <language>/    # Python first; other language SDKs can be siblings
+|-- protocol/          # Language-neutral API contract
+|-- docs/              # Architecture, compatibility, security, and ADRs
+|-- examples/          # Examples grouped by SDK language
+|-- tests/             # Cross-component integration tests
 `-- README.md
 ```
+
+See [Repository layout](docs/repository-layout.md) for the dependency boundaries and extension rules.
 
 ## Scope
 
@@ -143,17 +150,17 @@ The following are outside the scope of this repository:
 
 ## Compatibility
 
-boxloom will publish a tested compatibility matrix. Exact versions have not been selected yet.
+boxloom will publish a tested compatibility matrix. The initial implementation currently fixes the versions below.
 
 | Component | Supported version |
 | --- | --- |
-| Minecraft Java Edition | To be determined |
-| Fabric Loader | To be determined |
-| Fabric API | To be determined |
-| Java | To be determined |
-| Python | To be determined |
-| boxloom Python SDK | To be determined |
-| boxloom Fabric mod | To be determined |
+| Minecraft Java Edition | `26.2` (initial PoC) |
+| Fabric Loader | `0.19.3` (initial PoC) |
+| Fabric API | `0.156.0+26.2` (initial PoC) |
+| Java | `25` (initial PoC) |
+| Python | `3.9+` (initial SDK) |
+| boxloom Python SDK | `0.1.0` (initial implementation) |
+| boxloom Fabric mod | `0.1.0` (initial PoC) |
 
 boxloom will target explicitly tested combinations instead of automatically following snapshots or the newest dependency releases.
 
@@ -161,6 +168,10 @@ boxloom will target explicitly tested combinations instead of automatically foll
 
 - The Python package name is `boxloom`
 - The server-side Fabric mod name is `boxloom`
+- Server transports and validation live in `server/core`; Minecraft platform code lives in adapters
+- Language SDKs live under `sdks/<language>/`
+- The server-to-SDK contract lives under `protocol/`
+- The initial protocol is authenticated JSON over HTTP with `/v1` paths
 - Minecraft operations are exposed through an API rather than console-output parsing
 - The Fabric mod is authoritative for validation and world access
 - The SDK-to-mod endpoint is local or private and is not a public internet API
@@ -170,11 +181,10 @@ boxloom will target explicitly tested combinations instead of automatically foll
 
 ## Open design questions
 
-- The wire protocol and transport
-- Environment variable names
+- How the initial HTTP protocol evolves beyond the PoC operations
 - Repeated initialization, thread safety, and the lifecycle of global connection state
 - Authentication, authorization, and credential rotation
-- Thread handoff and execution semantics inside the Minecraft server
+- Hardening and cancellation semantics for the PoC's Minecraft server-thread handoff
 - Timeouts, retries, idempotency, and cancellation
 - Batch operations and partial failures
 - The initial public Python API
@@ -184,14 +194,10 @@ boxloom will target explicitly tested combinations instead of automatically foll
 
 ## Initial roadmap
 
-1. Define the smallest useful SDK-to-mod API contract
-2. Select the transport and connection-discovery mechanism
-3. Implement a minimal server-side Fabric mod
-4. Implement the Python SDK client
-5. Verify one read operation and one world-changing operation end to end
-6. Add compatibility and security tests
-7. Define packaging, versioning, and release workflows
-8. Select and publish a license
+1. Expand compatibility and security tests
+2. Define packaging, versioning, and release workflows
+3. Add read APIs and batch operations
+4. Select and publish a license
 
 ## License
 
