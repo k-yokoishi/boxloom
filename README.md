@@ -206,15 +206,13 @@ boxloom will target explicitly tested combinations instead of automatically foll
 - The initial public Python API
 - Version negotiation and compatibility policy
 - Build, test, packaging, and release tooling
-- License
 
 ## Initial roadmap
 
 1. Expand compatibility and security tests
 2. Define packaging, versioning, and release workflows
 3. Add read APIs and batch operations
-4. Select and publish a license
 
 ## License
 
-The license has not been selected yet. Public visibility of the source code does not grant permission to use, modify, or redistribute it until a license is added.
+boxloom is available under the [MIT License](LICENSE).
