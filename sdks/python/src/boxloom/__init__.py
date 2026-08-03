@@ -33,7 +33,7 @@ __all__ = [
     "setblock",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.1.0a1"
 
 _DEFAULT_BASE_URL = "http://127.0.0.1:28886"
 _DEFAULT_TIMEOUT = 10.0
