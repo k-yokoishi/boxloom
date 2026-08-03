@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/boxloom-logo-concept-v1.png" alt="boxloom" width="720">
+</p>
+
 # boxloom
 
 boxloom is a Python SDK and server-side Fabric mod for controlling Minecraft Java Edition through an application-facing API.
