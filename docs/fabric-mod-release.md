@@ -77,12 +77,24 @@ Paste the matching section from `server/fabric/CHANGELOG.md` into the version ch
 
 ## GitHub Release
 
-Create a prerelease from the same commit:
+GitHub Actions creates the prerelease when a `fabric-v*` tag is pushed. Before
+tagging, confirm that `server_version` in `server/gradle.properties` and the
+matching heading in `server/fabric/CHANGELOG.md` use the same version.
 
-- Tag: `fabric-v0.1.0-alpha.1`
-- Title: `boxloom Fabric Mod 0.1.0-alpha.1`
-- Mark as a prerelease
-- Attach `boxloom-0.1.0-alpha.1.jar`
-- Copy the release notes from `server/fabric/CHANGELOG.md`
+Create and push an annotated tag from the release commit:
 
-Publish the GitHub prerelease first, then add its link to the Modrinth project and submit the Modrinth draft for review.
+```bash
+git tag -a fabric-v0.1.0-alpha.1 -m "boxloom Fabric Mod 0.1.0-alpha.1"
+git push origin fabric-v0.1.0-alpha.1
+```
+
+The `.github/workflows/fabric-release.yml` workflow then:
+
+- checks that the tag and configured version match
+- builds and tests the Fabric server modules with Java 25
+- copies the matching section from `server/fabric/CHANGELOG.md`
+- publishes a GitHub prerelease with `boxloom-0.1.0-alpha.1.jar` attached
+
+No additional GitHub secret is required; the workflow uses the repository's
+short-lived `GITHUB_TOKEN`. After it succeeds, add the release link to the
+Modrinth project and submit the Modrinth draft for review.
