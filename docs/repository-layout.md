@@ -20,6 +20,8 @@ boxloom/
 |-- tests/
 |   `-- integration/       # end-to-end tests added when an SDK exists
 |-- docs/                  # architecture, compatibility, security, and ADRs
+|-- mise.toml              # shared development tools and tasks
+|-- mise.lock              # exact Java and uv tool versions
 `-- README.md
 ```
 
@@ -45,6 +47,10 @@ tests/integration  -> sdks/<language> + running server adapter
 ```
 
 The OpenAPI file begins as a reviewed contract rather than a code-generation requirement. Once the Python SDK exists, CI should check both implementations against the contract and can add generated models or clients only if they improve maintainability without weakening the public SDK design.
+
+## Development tool ownership
+
+The repository root uses mise to install the shared Java and uv toolchain and to expose common tasks. The Python SDK uses uv as the sole owner of its Python interpreter, `.venv`, dependency resolution, and package build. `sdks/python/.python-version` selects the normal development interpreter, while `requires-python` in `pyproject.toml` remains the SDK compatibility range.
 
 ## Naming and releases
 

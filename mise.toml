@@ -1,0 +1,29 @@
+min_version = "2026.5.6"
+
+[tools]
+java = "temurin-25"
+uv = "latest"
+
+[settings]
+lockfile = true
+lockfile_platforms = ["macos-arm64", "linux-x64"]
+
+[tasks.python-sync]
+description = "Synchronize the Python SDK virtual environment"
+dir = "sdks/python"
+run = "uv sync"
+
+[tasks.python-test]
+description = "Run the Python SDK unit tests"
+dir = "sdks/python"
+run = "uv run python -m unittest discover -s tests -v"
+
+[tasks.python-build]
+description = "Build the Python SDK distributions"
+dir = "sdks/python"
+run = "uv build"
+
+[tasks.fabric-build]
+description = "Build and verify the Fabric server mod"
+dir = "server"
+run = "./gradlew build"

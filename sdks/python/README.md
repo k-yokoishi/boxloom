@@ -18,8 +18,16 @@ Explicit `init()` is optional. Without it, the SDK reads `BOXLOOM_BASE_URL` (def
 
 The SDK uses only the Python standard library at runtime and supports Python 3.9 or newer.
 
-Run its unit tests from this directory with:
+The project uses uv for its Python interpreter, virtual environment, dependency lock, and package build. From the repository root, install the mise-managed tools and synchronize the SDK environment with:
 
 ```bash
-python3 -m unittest discover -s tests -v
+mise install
+mise run python-sync
+```
+
+Run the tests or build the package with:
+
+```bash
+mise run python-test
+mise run python-build
 ```

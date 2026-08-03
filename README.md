@@ -130,6 +130,20 @@ boxloom/
 
 See [Repository layout](docs/repository-layout.md) for the dependency boundaries and extension rules.
 
+## Development setup
+
+The repository uses mise for the shared development toolchain and tasks. mise installs Java 25 and uv at the versions resolved in `mise.lock`. The Python SDK then uses uv to select Python from `sdks/python/.python-version`, synchronize `.venv`, and lock Python dependencies in `uv.lock`.
+
+```bash
+mise install
+mise run python-sync
+mise run python-test
+mise run python-build
+mise run fabric-build
+```
+
+mise does not manage the Python interpreter directly in this repository. This keeps uv as the single authority for the Python project while mise coordinates the polyglot toolchain.
+
 ## Scope
 
 This repository is expected to contain:
