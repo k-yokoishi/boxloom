@@ -13,11 +13,19 @@ class _ApiHandler(BaseHTTPRequestHandler):
     response_status = 200
     response_body = {}
 
+    def do_GET(self):
+        self.__class__.requests.append((self.path, dict(self.headers), None))
+        self._send_response()
+
     def do_POST(self):
         body = self.rfile.read(int(self.headers["Content-Length"]))
         self.__class__.requests.append(
             (self.path, dict(self.headers), json.loads(body.decode("utf-8")))
         )
+
+        self._send_response()
+
+    def _send_response(self):
         encoded = json.dumps(self.__class__.response_body).encode("utf-8")
         self.send_response(self.__class__.response_status)
         self.send_header("Content-Type", "application/json")
@@ -58,6 +66,34 @@ class ClientTest(unittest.TestCase):
         self.assertEqual("/v1/chat/messages", path)
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
         self.assertEqual({"message": "Hello!"}, body)
+
+    def test_get_player_position_reads_authenticated_position(self):
+        _ApiHandler.response_body = {
+            "username": "Player_123",
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+            "dimension": "minecraft:the_nether",
+            "x": -0.2,
+            "y": 64,
+            "z": -3.2,
+            "yaw": 90,
+            "pitch": -12.5,
+        }
+
+        result = boxloom.get_player_position("Player_123")
+
+        self.assertEqual("Player_123", result.username)
+        self.assertEqual("minecraft:the_nether", result.dimension)
+        self.assertEqual((-1, 64, -4), result.block_coordinates())
+        path, headers, body = _ApiHandler.requests[0]
+        self.assertEqual("/v1/players/Player_123/position", path)
+        self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+        self.assertIsNone(body)
+
+    def test_get_player_position_rejects_invalid_username(self):
+        with self.assertRaises(ValueError):
+            boxloom.get_player_position("not/a/player")
+
+        self.assertEqual([], _ApiHandler.requests)
 
     def test_set_block_uses_overworld_by_default(self):
         _ApiHandler.response_body = {

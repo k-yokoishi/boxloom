@@ -30,7 +30,7 @@ flowchart LR
 
 The SDK and mod are expected to communicate within the same machine or a trusted private network. The mod's internal API is not intended to be exposed directly to the public internet.
 
-The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say` and `set_block`.
+The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say`, `get_player_position`, and `set_block`.
 
 ## Goals
 
@@ -88,10 +88,12 @@ Calling `init()` is optional when the required environment variables are already
 The public API should prefer directly imported functions for common Minecraft operations:
 
 ```python
-from boxloom import say, set_block
+from boxloom import get_player_position, say, set_block
 
 say("Hello from boxloom!")
-set_block(10, 64, 10, "minecraft:gold_block")
+position = get_player_position("PlayerName")
+x, y, z = position.block_coordinates()
+set_block(x + 1, y - 1, z, "minecraft:gold_block", dimension=position.dimension)
 ```
 
 The exported function set and detailed behavior are still under design. These examples document the intended API style, not a stable release contract.

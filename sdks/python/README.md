@@ -1,9 +1,9 @@
 # boxloom Python SDK
 
-The initial SDK provides `say` and `set_block` (`setblock` is also available as an alias) for a running boxloom Fabric server.
+The initial SDK provides `say`, `get_player_position`, and `set_block` (`setblock` is also available as an alias) for a running boxloom Fabric server.
 
 ```python
-from boxloom import init, say, set_block
+from boxloom import get_player_position, init, say, set_block
 
 init(
     base_url="http://127.0.0.1:28886",
@@ -11,8 +11,12 @@ init(
 )
 
 say("Hello from Python!")
-set_block(0, 100, 0, "minecraft:diamond_block")
+position = get_player_position("PlayerName")
+x, y, z = position.block_coordinates()
+set_block(x + 1, y - 1, z, "minecraft:diamond_block", dimension=position.dimension)
 ```
+
+Position lookup and block placement are separate requests. The example uses the sampled position even if the player moves before `set_block` reaches the server.
 
 Explicit `init()` is optional. Without it, the SDK reads `BOXLOOM_BASE_URL` (default: `http://127.0.0.1:28886`) and the required `BOXLOOM_AUTH_TOKEN` environment variable. The default request timeout is 10 seconds and can be changed with `BOXLOOM_TIMEOUT_SECONDS` or `init(timeout=...)`.
 

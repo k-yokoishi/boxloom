@@ -1,12 +1,16 @@
 import json
+import re
 import socket
 from typing import Any, Dict, Mapping, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
 from .errors import ApiError, ConfigurationError, ConnectionError, ProtocolError
-from .models import SayResult, SetBlockResult
+from .models import PlayerPosition, SayResult, SetBlockResult
+
+
+_USERNAME = re.compile(r"^[A-Za-z0-9_]{3,16}$")
 
 
 class BoxloomClient:
@@ -40,6 +44,24 @@ class BoxloomClient:
         if recipients < 0:
             raise ProtocolError("response field 'recipients' must not be negative")
         return SayResult(message=returned_message, recipients=recipients)
+
+    def get_player_position(self, username: str) -> PlayerPosition:
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+
+        payload = self._get(
+            f"/v1/players/{quote(username, safe='')}/position",
+        )
+        return PlayerPosition(
+            username=_require_string(payload, "username"),
+            uuid=_require_string(payload, "uuid"),
+            dimension=_require_string(payload, "dimension"),
+            x=_require_number(payload, "x"),
+            y=_require_number(payload, "y"),
+            z=_require_number(payload, "z"),
+            yaw=_require_number(payload, "yaw"),
+            pitch=_require_number(payload, "pitch"),
+        )
 
     def set_block(
         self,
@@ -96,17 +118,33 @@ class BoxloomClient:
 
         return self.set_block(x, y, z, block, dimension=dimension)
 
+    def _get(self, path: str) -> Dict[str, Any]:
+        return self._request("GET", path)
+
     def _post(self, path: str, body: Mapping[str, Any]) -> Dict[str, Any]:
+        return self._request("POST", path, body)
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        data = None
+        headers = {
+            "Authorization": f"Bearer {self._auth_token}",
+            "Accept": "application/json",
+            "User-Agent": "boxloom-python/0.1.0",
+        }
+        if body is not None:
+            data = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+
         request = Request(
             self._base_url + path,
-            data=json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self._auth_token}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "User-Agent": "boxloom-python/0.1.0",
-            },
-            method="POST",
+            data=data,
+            headers=headers,
+            method=method,
         )
 
         try:
@@ -169,3 +207,10 @@ def _require_integer(value: Mapping[str, Any], field: str) -> int:
     if not isinstance(result, int) or isinstance(result, bool):
         raise ProtocolError(f"response field '{field}' must be an integer")
     return result
+
+
+def _require_number(value: Mapping[str, Any], field: str) -> float:
+    result = value.get(field)
+    if not isinstance(result, (int, float)) or isinstance(result, bool):
+        raise ProtocolError(f"response field '{field}' must be a number")
+    return float(result)

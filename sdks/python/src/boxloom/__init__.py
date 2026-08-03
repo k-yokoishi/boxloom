@@ -12,7 +12,7 @@ from .errors import (
     ConnectionError,
     ProtocolError,
 )
-from .models import SayResult, SetBlockResult
+from .models import PlayerPosition, SayResult, SetBlockResult
 
 __all__ = [
     "ApiError",
@@ -20,9 +20,11 @@ __all__ = [
     "BoxloomError",
     "ConfigurationError",
     "ConnectionError",
+    "PlayerPosition",
     "ProtocolError",
     "SayResult",
     "SetBlockResult",
+    "get_player_position",
     "init",
     "say",
     "set_block",
@@ -65,6 +67,12 @@ def say(message: str) -> SayResult:
     """Broadcast a system message to all connected players."""
 
     return _default_client().say(message)
+
+
+def get_player_position(username: str) -> PlayerPosition:
+    """Read a connected player's position and look direction."""
+
+    return _default_client().get_player_position(username)
 
 
 def set_block(
