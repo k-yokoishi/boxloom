@@ -1,6 +1,6 @@
 # boxloom
 
-Boxloom is a Python SDK and server-side Fabric mod for controlling Minecraft Java Edition through an application-facing API.
+boxloom is a Python SDK and server-side Fabric mod for controlling Minecraft Java Edition through an application-facing API.
 
 This repository is intended to produce two distributable artifacts under the same name:
 
@@ -8,11 +8,11 @@ This repository is intended to produce two distributable artifacts under the sam
 - Fabric mod: `boxloom`
 
 > [!IMPORTANT]
-> Boxloom is in the early design stage. Its public API, wire protocol, supported versions, packaging, and release process are not stable yet.
+> boxloom is in the early design stage. Its public API, wire protocol, supported versions, packaging, and release process are not stable yet.
 
 ## Overview
 
-Boxloom provides a small Python interface for reading and changing a Minecraft world. The Python SDK sends requests to the server-side Fabric mod, which validates each request and performs the corresponding operation in the Fabric server.
+boxloom provides a small Python interface for reading and changing a Minecraft world. The Python SDK sends requests to the server-side Fabric mod, which validates each request and performs the corresponding operation in the Fabric server.
 
 ```mermaid
 flowchart LR
@@ -66,7 +66,7 @@ The Fabric mod is responsible for:
 
 The Python SDK will initialize the following connection settings from environment variables:
 
-- The Boxloom Fabric mod API endpoint
+- The boxloom Fabric mod API endpoint
 - The API key used to authenticate requests to the Fabric mod
 
 Applications may also provide these values explicitly through the Python API. Explicitly provided values override the defaults read from the environment.
@@ -95,7 +95,7 @@ Callers of the internal API must be treated as untrusted, even when they use the
 - The internal API must not listen on a public network interface by default
 - Authentication and authorization must be enforced at the mod boundary
 - World, coordinate, operation, payload-size, and rate limits must be enforced server-side
-- RCON and other administrative interfaces must not be part of the normal Boxloom API path
+- RCON and other administrative interfaces must not be part of the normal boxloom API path
 - Credentials for hosting platforms or infrastructure control must never be exposed to Python applications
 
 The concrete authentication mechanism, transport security, rate limits, and permission model are still to be designed.
@@ -117,8 +117,8 @@ boxloom/
 
 This repository is expected to contain:
 
-- The Boxloom Python SDK
-- The Boxloom server-side Fabric mod
+- The boxloom Python SDK
+- The boxloom server-side Fabric mod
 - The SDK-to-mod API specification
 - Compatibility and versioning documentation
 - Integration tests and example programs
@@ -133,7 +133,7 @@ The following are outside the scope of this repository:
 
 ## Compatibility
 
-Boxloom will publish a tested compatibility matrix. Exact versions have not been selected yet.
+boxloom will publish a tested compatibility matrix. Exact versions have not been selected yet.
 
 | Component | Supported version |
 | --- | --- |
@@ -142,10 +142,10 @@ Boxloom will publish a tested compatibility matrix. Exact versions have not been
 | Fabric API | To be determined |
 | Java | To be determined |
 | Python | To be determined |
-| Boxloom Python SDK | To be determined |
-| Boxloom Fabric mod | To be determined |
+| boxloom Python SDK | To be determined |
+| boxloom Fabric mod | To be determined |
 
-Boxloom will target explicitly tested combinations instead of automatically following snapshots or the newest dependency releases.
+boxloom will target explicitly tested combinations instead of automatically following snapshots or the newest dependency releases.
 
 ## Current decisions
 
