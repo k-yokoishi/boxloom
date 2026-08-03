@@ -13,25 +13,17 @@
       "problemMatcher": []
     },
     {
-      "label": "boxloom: run player example",
+      "label": "boxloom: run sample",
       "type": "shell",
       "command": "python3",
       "args": [
-        "examples/python/say_and_setblock.py",
-        "${input:minecraftUsername}"
+        "sample.py"
       ],
       "group": {
         "kind": "test",
         "isDefault": true
       },
       "problemMatcher": []
-    }
-  ],
-  "inputs": [
-    {
-      "id": "minecraftUsername",
-      "type": "promptString",
-      "description": "接続中のMinecraftユーザー名"
     }
   ]
 }

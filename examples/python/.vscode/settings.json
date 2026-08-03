@@ -1,0 +1,8 @@
+{
+  "python.defaultInterpreterPath": "/usr/bin/python3",
+  "python.analysis.extraPaths": [
+    "/home/coder/boxloom/sdks/python/src"
+  ],
+  "python.terminal.activateEnvironment": false,
+  "git.openRepositoryInParentFolders": "never"
+}

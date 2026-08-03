@@ -89,6 +89,42 @@ class ClientTest(unittest.TestCase):
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
         self.assertIsNone(body)
 
+    def test_get_players_reads_authenticated_player_list(self):
+        _ApiHandler.response_body = {
+            "players": [
+                {
+                    "username": "Player_123",
+                    "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+                },
+                {
+                    "username": "Builder",
+                    "uuid": "9ec7c42e-b767-4a47-b8c8-a68dc65bbde7",
+                },
+            ]
+        }
+
+        result = boxloom.get_players()
+
+        self.assertEqual(
+            [
+                boxloom.Player(
+                    "Player_123", "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af"
+                ),
+                boxloom.Player("Builder", "9ec7c42e-b767-4a47-b8c8-a68dc65bbde7"),
+            ],
+            result,
+        )
+        path, headers, body = _ApiHandler.requests[0]
+        self.assertEqual("/v1/players", path)
+        self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+        self.assertIsNone(body)
+
+    def test_get_players_rejects_invalid_player_list(self):
+        _ApiHandler.response_body = {"players": ["not-an-object"]}
+
+        with self.assertRaises(boxloom.ProtocolError):
+            boxloom.get_players()
+
     def test_get_player_position_rejects_invalid_username(self):
         with self.assertRaises(ValueError):
             boxloom.get_player_position("not/a/player")

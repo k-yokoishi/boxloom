@@ -59,6 +59,29 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/players:
+    get:
+      operationId: getPlayers
+      summary: List players currently connected to the server
+      responses:
+        '200':
+          description: The connected players in server list order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayersResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/players/{username}/position:
     get:
       operationId: getPlayerPosition
@@ -174,6 +197,28 @@ components:
         recipients:
           type: integer
           minimum: 0
+    Player:
+      type: object
+      additionalProperties: false
+      required:
+        - username
+        - uuid
+      properties:
+        username:
+          type: string
+        uuid:
+          type: string
+          format: uuid
+    PlayersResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - players
+      properties:
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/Player'
     PlayerPosition:
       type: object
       additionalProperties: false

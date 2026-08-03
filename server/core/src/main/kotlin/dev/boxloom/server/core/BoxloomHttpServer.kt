@@ -2,6 +2,7 @@ package dev.boxloom.server.core
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
@@ -79,6 +80,11 @@ class BoxloomHttpServer(
                 handleSay(exchange)
             }
 
+            path == PLAYERS_PATH -> {
+                requireMethod(exchange, "GET")
+                handlePlayers(exchange)
+            }
+
             playerPosition.matches() -> {
                 requireMethod(exchange, "GET")
                 handlePlayerPosition(exchange, decodePathSegment(playerPosition.group(1)))
@@ -113,6 +119,22 @@ class BoxloomHttpServer(
         val response = buildJsonObject {
             put("message", result.message)
             put("recipients", result.recipients)
+        }.toString()
+
+        sendJson(exchange, 200, response)
+    }
+
+    private fun handlePlayers(exchange: HttpExchange) {
+        val players = await(minecraft.players())
+        val response = buildJsonObject {
+            put("players", buildJsonArray {
+                players.forEach { player ->
+                    add(buildJsonObject {
+                        put("username", player.username)
+                        put("uuid", player.uuid)
+                    })
+                }
+            })
         }.toString()
 
         sendJson(exchange, 200, response)
@@ -296,6 +318,7 @@ class BoxloomHttpServer(
         private val PLAYER_POSITION_PATH = Pattern.compile("^/v1/players/([^/]+)/position$")
         private val USERNAME = Pattern.compile("^[A-Za-z0-9_]{3,16}$")
         private const val SAY_PATH = "/v1/chat/messages"
+        private const val PLAYERS_PATH = "/v1/players"
         private const val SET_BLOCK_PATH = "/v1/world/blocks"
         private const val MAX_REQUEST_BODY_BYTES = 16 * 1_024
         private const val MAX_CHAT_MESSAGE_LENGTH = 256

@@ -1,9 +1,9 @@
 # boxloom Python SDK
 
-The initial SDK provides `say`, `get_player_position`, and `set_block` (`setblock` is also available as an alias) for a running boxloom Fabric server.
+The initial SDK provides `say`, `get_players`, `get_player_position`, and `set_block` (`setblock` is also available as an alias) for a running boxloom Fabric server.
 
 ```python
-from boxloom import get_player_position, init, say, set_block
+from boxloom import get_player_position, get_players, init, say, set_block
 
 init(
     base_url="http://127.0.0.1:28886",
@@ -11,7 +11,8 @@ init(
 )
 
 say("Hello from Python!")
-position = get_player_position("PlayerName")
+players = get_players()
+position = get_player_position(players[0].username)
 x, y, z = position.block_coordinates()
 set_block(x + 1, y - 1, z, "minecraft:diamond_block", dimension=position.dimension)
 ```

@@ -1,14 +1,20 @@
 from importlib.metadata import version
 
 import boxloom
-from boxloom import PlayerPosition, get_player_position, init, say, set_block
+from boxloom import Player, PlayerPosition, get_player_position, get_players, init, say, set_block
 
 
 assert version("boxloom") == boxloom.__version__
 assert callable(init)
 assert callable(say)
 assert callable(get_player_position)
+assert callable(get_players)
 assert callable(set_block)
+player = Player(
+    username="Player",
+    uuid="00000000-0000-0000-0000-000000000000",
+)
+assert player.username == "Player"
 position = PlayerPosition(
     username="Player",
     uuid="00000000-0000-0000-0000-000000000000",

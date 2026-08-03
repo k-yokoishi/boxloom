@@ -2,9 +2,10 @@
 
 This directory contains the initial Kotlin-based, server-side Fabric mod PoC. It connects Minecraft and Fabric to the platform-independent [`../core`](../core) module and is designed to work in both a Fabric Dedicated Server and an integrated server.
 
-The PoC implements three Minecraft operations:
+The PoC implements four Minecraft operations:
 
 - Broadcast a system message to connected players
+- List connected players
 - Read a connected player's position and look direction
 - Set one block
 
@@ -97,6 +98,14 @@ After joining the server with Minecraft Java Edition 26.2, get a player position
 curl --fail-with-body \
   -H 'Authorization: Bearer boxloom-local-poc-token' \
   http://127.0.0.1:28886/v1/players/example/position
+```
+
+List connected players:
+
+```bash
+curl --fail-with-body \
+  -H 'Authorization: Bearer boxloom-local-poc-token' \
+  http://127.0.0.1:28886/v1/players
 ```
 
 Set a block:

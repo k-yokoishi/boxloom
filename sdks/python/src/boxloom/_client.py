@@ -1,13 +1,13 @@
 import json
 import re
 import socket
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
 from .errors import ApiError, ConfigurationError, ConnectionError, ProtocolError
-from .models import PlayerPosition, SayResult, SetBlockResult
+from .models import Player, PlayerPosition, SayResult, SetBlockResult
 
 
 _USERNAME = re.compile(r"^[A-Za-z0-9_]{3,16}$")
@@ -62,6 +62,24 @@ class BoxloomClient:
             yaw=_require_number(payload, "yaw"),
             pitch=_require_number(payload, "pitch"),
         )
+
+    def get_players(self) -> List[Player]:
+        payload = self._get("/v1/players")
+        players_value = payload.get("players")
+        if not isinstance(players_value, list):
+            raise ProtocolError("response field 'players' must be an array")
+
+        players = []
+        for index, player_value in enumerate(players_value):
+            if not isinstance(player_value, dict):
+                raise ProtocolError(f"response field 'players[{index}]' must be an object")
+            players.append(
+                Player(
+                    username=_require_string(player_value, "username"),
+                    uuid=_require_string(player_value, "uuid"),
+                )
+            )
+        return players
 
     def set_block(
         self,

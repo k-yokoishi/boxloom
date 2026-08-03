@@ -12,6 +12,14 @@ class SayResult:
 
 
 @dataclass(frozen=True)
+class Player:
+    """A player currently connected to the Minecraft server."""
+
+    username: str
+    uuid: str
+
+
+@dataclass(frozen=True)
 class PlayerPosition:
     """A connected player's position and look direction."""
 

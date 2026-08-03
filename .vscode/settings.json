@@ -1,7 +1,0 @@
-{
-  "python.defaultInterpreterPath": "/usr/bin/python3",
-  "python.analysis.extraPaths": [
-    "${workspaceFolder}/sdks/python/src"
-  ],
-  "python.terminal.activateEnvironment": false
-}

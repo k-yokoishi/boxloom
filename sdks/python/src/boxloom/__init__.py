@@ -2,7 +2,7 @@
 
 import os
 import threading
-from typing import Optional
+from typing import List, Optional
 
 from ._client import BoxloomClient
 from .errors import (
@@ -12,7 +12,7 @@ from .errors import (
     ConnectionError,
     ProtocolError,
 )
-from .models import PlayerPosition, SayResult, SetBlockResult
+from .models import Player, PlayerPosition, SayResult, SetBlockResult
 
 __all__ = [
     "ApiError",
@@ -20,11 +20,13 @@ __all__ = [
     "BoxloomError",
     "ConfigurationError",
     "ConnectionError",
+    "Player",
     "PlayerPosition",
     "ProtocolError",
     "SayResult",
     "SetBlockResult",
     "get_player_position",
+    "get_players",
     "init",
     "say",
     "set_block",
@@ -73,6 +75,12 @@ def get_player_position(username: str) -> PlayerPosition:
     """Read a connected player's position and look direction."""
 
     return _default_client().get_player_position(username)
+
+
+def get_players() -> List[Player]:
+    """List players currently connected to the Minecraft server."""
+
+    return _default_client().get_players()
 
 
 def set_block(

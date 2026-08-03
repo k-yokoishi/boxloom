@@ -34,7 +34,7 @@ flowchart LR
 
 The SDK and mod are expected to communicate within the same machine or a trusted private network. The mod's internal API is not intended to be exposed directly to the public internet.
 
-The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say`, `get_player_position`, and `set_block`.
+The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say`, `get_players`, `get_player_position`, and `set_block`.
 
 ## Goals
 
@@ -92,10 +92,11 @@ Calling `init()` is optional when the required environment variables are already
 The public API should prefer directly imported functions for common Minecraft operations:
 
 ```python
-from boxloom import get_player_position, say, set_block
+from boxloom import get_player_position, get_players, say, set_block
 
 say("Hello from boxloom!")
-position = get_player_position("PlayerName")
+players = get_players()
+position = get_player_position(players[0].username)
 x, y, z = position.block_coordinates()
 set_block(x + 1, y - 1, z, "minecraft:gold_block", dimension=position.dimension)
 ```
@@ -152,7 +153,7 @@ mise does not manage the Python interpreter directly in this repository. This ke
 
 ## Browser-based Docker environment
 
-The root [`compose.yml`](compose.yml) builds the current Fabric mod, starts a Minecraft Java Edition server with that mod, and starts a browser-based code-server containing Python and the local boxloom SDK source.
+The root [`compose.yml`](compose.yml) builds the current Fabric mod, starts a Minecraft Java Edition server with that mod, and starts a browser-based code-server containing Python and the local boxloom SDK source. code-server opens [`examples/python`](examples/python) as its workspace so the demo stays focused on the runnable Python examples.
 
 1. Optionally copy the settings template. The defaults work as-is for local use.
 
@@ -170,20 +171,20 @@ The root [`compose.yml`](compose.yml) builds the current Fabric mod, starts a Mi
 
 3. Connect Minecraft Java Edition 26.2 to `localhost:25566`.
 
-4. Open `http://localhost:8080` in a browser and sign in with password `boxloom-local`.
+4. Open `http://localhost:8080` in a browser. The local Compose environment disables code-server authentication and workspace trust prompts, so the `examples/python` workspace opens directly.
 
-5. In code-server, open **Terminal > Run Task** and select `boxloom: send test message`. After joining Minecraft, select `boxloom: run player example`, enter the connected Minecraft username, and the example will broadcast a message and place a diamond block next to that player.
+5. In code-server, open **Terminal > Run Task** and select `boxloom: send test message`. After joining Minecraft, select `boxloom: run sample`; the example selects the first connected player, broadcasts a message, and places a diamond block next to that player.
 
 The default endpoints are summarized below.
 
 | Purpose | Address | Default credential |
 | --- | --- | --- |
 | Minecraft Java Edition 26.2 | `localhost:25566` | A valid Java Edition account |
-| code-server | `http://localhost:8080` | Password `boxloom-local` |
+| code-server | `http://localhost:8080` | None (host loopback only) |
 
-The boxloom HTTP API is available only inside the Compose network. code-server is preconfigured with `BOXLOOM_BASE_URL`, `BOXLOOM_AUTH_TOKEN`, and `PYTHONPATH`, so Python code can import the SDK without a separate install step. Arbitrary RCON access is disabled.
+The boxloom HTTP API is available only inside the Compose network. code-server is preconfigured with `BOXLOOM_BASE_URL`, `BOXLOOM_AUTH_TOKEN`, and `PYTHONPATH`, so Python code can import the SDK without a separate install step. Arbitrary RCON access is disabled. Because code-server authentication is disabled for this local environment, its host binding is fixed to `127.0.0.1`; do not expose it to a network without enabling authentication and transport security.
 
-To change ports, passwords, memory, or the internal API token, edit `.env` after copying [`.env.example`](.env.example). For example, if another local Minecraft server already uses port `25566`, set `MINECRAFT_PORT=25567` and connect to `localhost:25567` instead. The default port bindings use host loopback and are reachable only from the local computer.
+To change ports, memory, or the internal API token, edit `.env` after copying [`.env.example`](.env.example). For example, if another local Minecraft server already uses port `25566`, set `MINECRAFT_PORT=25567` and connect to `localhost:25567` instead. The default port bindings use host loopback and are reachable only from the local computer.
 
 Stop the environment while preserving the Minecraft world with:
 

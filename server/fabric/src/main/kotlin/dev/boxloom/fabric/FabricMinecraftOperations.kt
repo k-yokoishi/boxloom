@@ -2,6 +2,7 @@ package dev.boxloom.fabric
 
 import dev.boxloom.server.core.ApiException
 import dev.boxloom.server.core.MinecraftOperations
+import dev.boxloom.server.core.Player
 import dev.boxloom.server.core.PlayerPosition
 import dev.boxloom.server.core.SayRequest
 import dev.boxloom.server.core.SayResult
@@ -27,6 +28,16 @@ internal class FabricMinecraftOperations(
             val recipients = server.playerList.playerCount
             server.playerList.broadcastSystemMessage(Component.literal(request.message), false)
             SayResult(request.message, recipients)
+        }
+
+    override fun players(): CompletableFuture<List<Player>> =
+        onServerThread { server ->
+            server.playerList.players.map { player ->
+                Player(
+                    player.name.string,
+                    player.uuid.toString(),
+                )
+            }
         }
 
     override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =

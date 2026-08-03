@@ -5,6 +5,8 @@ import java.util.concurrent.CompletableFuture
 interface MinecraftOperations {
     fun say(request: SayRequest): CompletableFuture<SayResult>
 
+    fun players(): CompletableFuture<List<Player>>
+
     fun playerPosition(username: String): CompletableFuture<PlayerPosition>
 
     fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult>
@@ -17,6 +19,11 @@ data class SayRequest(
 data class SayResult(
     val message: String,
     val recipients: Int,
+)
+
+data class Player(
+    val username: String,
+    val uuid: String,
 )
 
 data class PlayerPosition(
