@@ -8,7 +8,7 @@ services:
       VERSION: "26.2"
       FABRIC_LOADER_VERSION: "0.19.3"
       MODS: |
-        /mods/boxloom-0.1.0.jar
+        /mods/boxloom-0.1.0-alpha.1.jar
         https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.156.0%2B26.2/fabric-api-0.156.0%2B26.2.jar
         https://maven.fabricmc.net/net/fabricmc/fabric-language-kotlin/1.13.13%2Bkotlin.2.4.10/fabric-language-kotlin-1.13.13%2Bkotlin.2.4.10.jar
       ONLINE_MODE: "TRUE"
@@ -25,7 +25,7 @@ services:
       - "127.0.0.1:28886:28886"
     volumes:
       - boxloom-fabric-poc-data:/data
-      - ./build/libs/boxloom-0.1.0.jar:/mods/boxloom-0.1.0.jar:ro
+      - ./build/libs/boxloom-0.1.0-alpha.1.jar:/mods/boxloom-0.1.0-alpha.1.jar:ro
     stop_grace_period: 2m
 
 volumes:

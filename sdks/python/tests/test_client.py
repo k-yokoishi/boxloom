@@ -67,6 +67,16 @@ class ClientTest(unittest.TestCase):
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
         self.assertEqual({"message": "Hello!"}, body)
 
+    def test_say_omits_authorization_when_token_is_not_configured(self):
+        _ApiHandler.response_body = {"message": "Local", "recipients": 1}
+
+        with patch.dict(os.environ, {}, clear=True):
+            boxloom.init(base_url=self.base_url)
+            result = boxloom.say("Local")
+
+        self.assertEqual(boxloom.SayResult("Local", 1), result)
+        self.assertNotIn("Authorization", _ApiHandler.requests[0][1])
+
     def test_get_player_position_reads_authenticated_position(self):
         _ApiHandler.response_body = {
             "username": "Player_123",

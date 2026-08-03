@@ -31,7 +31,7 @@ These versions were validated by the original Codorie Learn PoC and are kept fix
 
 The mod uses a common `main` entrypoint and does not reference `net.minecraft.client.*`. `ServerLifecycleEvents.SERVER_STARTED` and `SERVER_STOPPED` track the current server, allowing one JAR to work with dedicated and integrated servers.
 
-`server/core` owns HTTP, authentication, input validation, JSON, errors, and shared operation types. This adapter implements `MinecraftOperations`; all player and world access is handed to `MinecraftServer#execute`, and a `CompletableFuture` returns the result to the core HTTP worker. Operations time out after five seconds by default.
+`server/core` owns HTTP, optional Bearer authentication, input validation, JSON, errors, and shared operation types. This adapter implements `MinecraftOperations`; all player and world access is handed to `MinecraftServer#execute`, and a `CompletableFuture` returns the result to the core HTTP worker. Operations time out after five seconds by default.
 
 The distributable Fabric JAR embeds the core JAR, so installation still requires only one file.
 
@@ -39,14 +39,27 @@ The HTTP API is described independently in [`../../protocol/openapi.yaml`](../..
 
 ## Configuration
 
-| Environment variable | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `BOXLOOM_AUTH_TOKEN` | Yes | None | Bearer token accepted by the internal API |
-| `BOXLOOM_BIND_HOST` | No | `127.0.0.1` | Address on which the internal API listens |
-| `BOXLOOM_PORT` | No | `28886` | Internal API port |
-| `BOXLOOM_REQUEST_TIMEOUT_MS` | No | `5000` | Minecraft server-thread timeout, from `100` to `60000` ms |
+The first launch creates `config/boxloom.json` inside the Minecraft instance:
 
-The default bind address is loopback. Do not expose this API to the public internet.
+```json
+{
+  "bindHost": "127.0.0.1",
+  "port": 28886,
+  "authToken": "",
+  "requestTimeoutMs": 5000
+}
+```
+
+Environment variables remain available and take precedence over the matching file settings.
+
+| JSON setting | Environment variable | Default | Purpose |
+| --- | --- | --- | --- |
+| `authToken` | `BOXLOOM_AUTH_TOKEN` | Empty | Optional Bearer token accepted by the internal API |
+| `bindHost` | `BOXLOOM_BIND_HOST` | `127.0.0.1` | Address on which the internal API listens |
+| `port` | `BOXLOOM_PORT` | `28886` | Internal API port |
+| `requestTimeoutMs` | `BOXLOOM_REQUEST_TIMEOUT_MS` | `5000` | Minecraft server-thread timeout, from `100` to `60000` ms |
+
+An empty token enables unauthenticated local access and logs a warning. This mode is restricted to a loopback bind address. A non-loopback bind address requires a non-empty token.
 
 ## Build
 
@@ -57,7 +70,7 @@ cd server
 ./gradlew :fabric:clean :fabric:build
 ```
 
-The mod JAR is written to `fabric/build/libs/boxloom-0.1.0.jar`.
+The mod JAR is written to `fabric/build/libs/boxloom-0.1.0-alpha.1.jar`.
 
 ## Docker PoC
 
@@ -127,9 +140,9 @@ curl --fail-with-body \
 
 ## PoC security constraints
 
-- Every route requires a Bearer token.
+- Bearer authentication is optional for loopback-only use and required for non-loopback listeners.
 - The default listener is loopback only.
 - The server accepts no arbitrary Minecraft commands.
 - Request bodies are limited to 16 KiB.
 - The server validates JSON shape, usernames, dimensions, block IDs, and integer coordinates.
-- Production deployments must replace the fixed local PoC token and add operation, range, quantity, and rate limits.
+- Production deployments must configure an authentication token and add operation, range, quantity, and rate limits.

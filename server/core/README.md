@@ -3,8 +3,8 @@
 `core` contains the platform-independent implementation shared by Minecraft server adapters:
 
 - HTTP routing and `/v1` JSON responses
-- Bearer authentication and request-size limits
-- Environment-based listener and timeout configuration
+- Optional Bearer authentication and request-size limits
+- JSON-file and environment-based listener, authentication, and timeout configuration
 - Request validation and structured API errors
 - Operation request and response types
 - The asynchronous `MinecraftOperations` interface

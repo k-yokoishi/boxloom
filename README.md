@@ -75,7 +75,7 @@ The Fabric mod is responsible for:
 By default, the Python SDK initializes the following connection settings from environment variables:
 
 - `base_url` from `BOXLOOM_BASE_URL`: the boxloom Fabric mod API endpoint
-- `auth_token` from `BOXLOOM_AUTH_TOKEN`: the token used to authenticate requests to the Fabric mod
+- `auth_token` from `BOXLOOM_AUTH_TOKEN`: the optional token used to authenticate requests to the Fabric mod
 
 Applications may override the environment-derived defaults by calling `init()` explicitly:
 
@@ -85,7 +85,7 @@ from boxloom import init
 init(auth_token="...", base_url="http://localhost:28886")
 ```
 
-Calling `init()` is optional when the required environment variables are already configured. Values passed to `init()` take precedence over values read from the environment. The SDK must not include the authentication token in normal logs or error messages.
+Calling `init()` is optional. Values passed to `init()` take precedence over values read from the environment. When no token is configured, the SDK connects without an Authorization header to the mod's loopback-only mode. The SDK must not include authentication tokens in normal logs or error messages.
 
 ## API example
 
@@ -110,12 +110,12 @@ Callers of the internal API must be treated as untrusted, even when they use the
 - The Python SDK is not an authorization boundary
 - The Fabric mod must validate every operation independently
 - The internal API must not listen on a public network interface by default
-- Authentication and authorization must be enforced at the server component boundary
+- Authentication is required when the server listens beyond the local computer
 - World, coordinate, operation, payload-size, and rate limits must be enforced server-side
 - RCON and other administrative interfaces must not be part of the normal boxloom API path
 - Credentials for hosting platforms or infrastructure control must never be exposed to Python applications
 
-The PoC uses a Bearer token. The production authentication mechanism, transport security, rate limits, and permission model are still to be designed.
+The PoC supports an optional Bearer token for loopback-only use and requires one for non-loopback listeners. The production authentication mechanism, transport security, rate limits, and permission model are still to be designed.
 
 ## Repository layout
 
@@ -225,8 +225,8 @@ boxloom will publish a tested compatibility matrix. The initial implementation c
 | Fabric API | `0.156.0+26.2` (initial PoC) |
 | Java | `25` (initial PoC) |
 | Python | `3.9+` (initial SDK) |
-| boxloom Python SDK | `0.1.0` (initial implementation) |
-| boxloom Fabric mod | `0.1.0` (initial PoC) |
+| boxloom Python SDK | `0.1.0a1` (initial alpha) |
+| boxloom Fabric mod | `0.1.0-alpha.1` (initial alpha) |
 
 boxloom will target explicitly tested combinations instead of automatically following snapshots or the newest dependency releases.
 
@@ -237,12 +237,12 @@ boxloom will target explicitly tested combinations instead of automatically foll
 - Server transports and validation live in `server/core`; Minecraft platform code lives in adapters
 - Language SDKs live under `sdks/<language>/`
 - The server-to-SDK contract lives under `protocol/`
-- The initial protocol is authenticated JSON over HTTP with `/v1` paths
+- The initial protocol is JSON over HTTP with `/v1` paths and optional Bearer authentication for loopback use
 - Minecraft operations are exposed through an API rather than console-output parsing
 - The Fabric mod is authoritative for validation and world access
 - The SDK-to-mod endpoint is local or private and is not a public internet API
 - Common operations should be exported as top-level Python functions
-- The SDK reads `base_url` and `auth_token` defaults from environment variables
+- The SDK reads `base_url` and the optional `auth_token` default from environment variables
 - Applications can override the environment-derived defaults with `init()`
 
 ## Open design questions

@@ -49,7 +49,11 @@ def init(
 ) -> None:
     """Configure the process-wide client used by top-level API functions."""
 
-    resolved_token = auth_token if auth_token is not None else os.getenv("BOXLOOM_AUTH_TOKEN")
+    resolved_token = (
+        auth_token
+        if auth_token is not None
+        else (os.getenv("BOXLOOM_AUTH_TOKEN") or None)
+    )
     resolved_url = base_url if base_url is not None else os.getenv(
         "BOXLOOM_BASE_URL", _DEFAULT_BASE_URL
     )
@@ -57,7 +61,7 @@ def init(
 
     client = BoxloomClient(
         base_url=resolved_url,
-        auth_token=resolved_token or "",
+        auth_token=resolved_token,
         timeout=resolved_timeout,
     )
     global _client

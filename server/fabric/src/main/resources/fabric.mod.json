@@ -3,10 +3,16 @@
   "id": "boxloom",
   "version": "${version}",
   "name": "boxloom",
-  "description": "An authenticated server-side API for controlling Minecraft with boxloom SDKs.",
+  "icon": "assets/boxloom/icon.png",
+  "description": "Control Minecraft from Python through a local HTTP API provided by a server-side Fabric mod.",
   "authors": [
-    "boxloom contributors"
+    "k-yokoishi"
   ],
+  "contact": {
+    "homepage": "https://github.com/k-yokoishi/boxloom",
+    "sources": "https://github.com/k-yokoishi/boxloom",
+    "issues": "https://github.com/k-yokoishi/boxloom/issues"
+  },
   "license": "MIT",
   "environment": "*",
   "entrypoints": {

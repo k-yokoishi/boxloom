@@ -19,7 +19,7 @@ set_block(x + 1, y - 1, z, "minecraft:diamond_block", dimension=position.dimensi
 
 Position lookup and block placement are separate requests. The example uses the sampled position even if the player moves before `set_block` reaches the server.
 
-Explicit `init()` is optional. Without it, the SDK reads `BOXLOOM_BASE_URL` (default: `http://127.0.0.1:28886`) and the required `BOXLOOM_AUTH_TOKEN` environment variable. The default request timeout is 10 seconds and can be changed with `BOXLOOM_TIMEOUT_SECONDS` or `init(timeout=...)`.
+Explicit `init()` is optional. Without it, the SDK reads `BOXLOOM_BASE_URL` (default: `http://127.0.0.1:28886`) and the optional `BOXLOOM_AUTH_TOKEN` environment variable. When no token is configured, the SDK omits the Authorization header for a loopback-only boxloom server. The default request timeout is 10 seconds and can be changed with `BOXLOOM_TIMEOUT_SECONDS` or `init(timeout=...)`.
 
 The SDK uses only the Python standard library at runtime and supports Python 3.9 or newer.
 

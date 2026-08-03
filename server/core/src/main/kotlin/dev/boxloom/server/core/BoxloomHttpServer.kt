@@ -34,6 +34,9 @@ class BoxloomHttpServer(
         server.executor = executor
     }
 
+    internal val boundPort: Int
+        get() = server.address.port
+
     fun start() {
         server.start()
         LOGGER.log(
@@ -211,6 +214,7 @@ class BoxloomHttpServer(
     }
 
     private fun requireAuthorization(exchange: HttpExchange) {
+        val expectedToken = config.authToken ?: return
         val authorization = exchange.requestHeaders.getFirst("Authorization")
 
         if (authorization == null || !authorization.startsWith("Bearer ", ignoreCase = true)) {
@@ -220,7 +224,7 @@ class BoxloomHttpServer(
         val suppliedToken = authorization.substring(7)
         val matches = MessageDigest.isEqual(
             suppliedToken.toByteArray(StandardCharsets.UTF_8),
-            config.authToken.toByteArray(StandardCharsets.UTF_8),
+            expectedToken.toByteArray(StandardCharsets.UTF_8),
         )
 
         if (!matches) {

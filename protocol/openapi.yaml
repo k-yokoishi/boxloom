@@ -4,11 +4,13 @@ info:
   version: 0.1.0
   description: >-
     The versioned, private API shared by the boxloom Fabric mod and language SDKs.
-    It is intended for loopback or a trusted private network, not the public internet.
+    Bearer authentication is optional on loopback and required for a non-loopback
+    listener. The API is intended for loopback or a trusted private network.
 servers:
   - url: http://127.0.0.1:28886
 security:
   - bearerAuth: []
+  - {}
 paths:
   /v1/chat/messages:
     post:

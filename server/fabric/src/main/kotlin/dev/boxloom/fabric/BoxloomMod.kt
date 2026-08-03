@@ -4,6 +4,7 @@ import dev.boxloom.server.core.BoxloomConfig
 import dev.boxloom.server.core.BoxloomHttpServer
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
+import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.server.MinecraftServer
 import org.slf4j.LoggerFactory
 import java.io.IOException
@@ -28,7 +29,16 @@ object BoxloomMod : ModInitializer {
             logger.info("boxloom detached from the stopped Minecraft server")
         }
 
-        val config = BoxloomConfig.fromEnvironment(System.getenv())
+        val configPath = FabricLoader.getInstance().configDir.resolve("boxloom.json")
+        val config = BoxloomConfig.load(configPath, System.getenv())
+
+        if (!config.authenticationEnabled) {
+            logger.warn(
+                "boxloom authentication is disabled; unauthenticated access is limited to " +
+                    "this computer. Set authToken in {} to enable authentication.",
+                configPath,
+            )
+        }
 
         try {
             val boxloomHttpServer = BoxloomHttpServer(

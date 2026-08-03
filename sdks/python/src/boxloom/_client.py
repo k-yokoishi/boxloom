@@ -20,12 +20,14 @@ class BoxloomClient:
         self,
         *,
         base_url: str,
-        auth_token: str,
+        auth_token: Optional[str] = None,
         timeout: float = 10.0,
     ) -> None:
         self._base_url = _validate_base_url(base_url)
-        if not isinstance(auth_token, str) or not auth_token.strip():
-            raise ConfigurationError("auth_token must be a non-empty string")
+        if auth_token is not None and (
+            not isinstance(auth_token, str) or not auth_token.strip()
+        ):
+            raise ConfigurationError("auth_token must be a non-empty string or None")
         if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
             raise ConfigurationError("timeout must be a positive number of seconds")
 
@@ -150,10 +152,11 @@ class BoxloomClient:
     ) -> Dict[str, Any]:
         data = None
         headers = {
-            "Authorization": f"Bearer {self._auth_token}",
             "Accept": "application/json",
             "User-Agent": "boxloom-python/0.1.0",
         }
+        if self._auth_token is not None:
+            headers["Authorization"] = f"Bearer {self._auth_token}"
         if body is not None:
             data = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
             headers["Content-Type"] = "application/json"
