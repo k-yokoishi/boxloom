@@ -21,7 +21,22 @@ run = "uv run python -m unittest discover -s tests -v"
 [tasks.python-build]
 description = "Build the Python SDK distributions"
 dir = "sdks/python"
-run = "uv build"
+run = "uv build --clear"
+
+[tasks.python-publish-testpypi]
+description = "Test, build, and publish the Python SDK to TestPyPI"
+dir = "sdks/python"
+run = '''
+if [ -z "${UV_PUBLISH_TOKEN:-}" ]; then
+  echo "UV_PUBLISH_TOKEN is required" >&2
+  exit 1
+fi
+
+uv sync --locked
+uv run python -m unittest discover -s tests -v
+uv build --clear
+uv publish --index testpypi dist/*
+'''
 
 [tasks.fabric-build]
 description = "Build and verify the Fabric server mod"

@@ -35,3 +35,5 @@ Run the tests or build the package with:
 mise run python-test
 mise run python-build
 ```
+
+TestPyPI releases are performed manually through GitHub Actions after configuring the `TEST_PYPI_API_TOKEN` repository secret. See the [TestPyPI release guide](../../docs/python-testpypi-release.md) for the one-time setup and release procedure.

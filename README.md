@@ -146,6 +146,8 @@ mise run fabric-build
 
 mise does not manage the Python interpreter directly in this repository. This keeps uv as the single authority for the Python project while mise coordinates the polyglot toolchain.
 
+The Python SDK can be published manually to TestPyPI after adding a GitHub Actions secret. See [Publishing the Python SDK to TestPyPI](docs/python-testpypi-release.md).
+
 ## Scope
 
 This repository is expected to contain:
