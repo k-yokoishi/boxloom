@@ -2,7 +2,7 @@
 
 import os
 import threading
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from ._client import BoxloomClient
 from .errors import (
@@ -12,7 +12,7 @@ from .errors import (
     ConnectionError,
     ProtocolError,
 )
-from .models import Player, PlayerPosition, SayResult, SetBlockResult
+from .models import Player, PlayerPosition, SayResult, SetBlockResult, SummonResult
 
 __all__ = [
     "ApiError",
@@ -25,12 +25,14 @@ __all__ = [
     "ProtocolError",
     "SayResult",
     "SetBlockResult",
+    "SummonResult",
     "get_player_position",
     "get_players",
     "init",
     "say",
     "set_block",
     "setblock",
+    "summon",
 ]
 
 __version__ = "0.1.0a1"
@@ -111,6 +113,27 @@ def setblock(
     """Alias for :func:`set_block`."""
 
     return set_block(x, y, z, block, dimension=dimension)
+
+
+def summon(
+    entity: str,
+    x: float,
+    y: float,
+    z: float,
+    *,
+    nbt: Optional[Dict[str, Any]] = None,
+    dimension: str = "minecraft:overworld",
+) -> SummonResult:
+    """Summon an entity in a loaded Minecraft dimension."""
+
+    return _default_client().summon(
+        entity,
+        x,
+        y,
+        z,
+        nbt=nbt,
+        dimension=dimension,
+    )
 
 
 def _default_client() -> BoxloomClient:

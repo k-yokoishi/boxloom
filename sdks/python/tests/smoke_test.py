@@ -1,7 +1,17 @@
 from importlib.metadata import version
 
 import boxloom
-from boxloom import Player, PlayerPosition, get_player_position, get_players, init, say, set_block
+from boxloom import (
+    Player,
+    PlayerPosition,
+    SummonResult,
+    get_player_position,
+    get_players,
+    init,
+    say,
+    set_block,
+    summon,
+)
 
 
 assert version("boxloom") == boxloom.__version__
@@ -10,6 +20,7 @@ assert callable(say)
 assert callable(get_player_position)
 assert callable(get_players)
 assert callable(set_block)
+assert callable(summon)
 player = Player(
     username="Player",
     uuid="00000000-0000-0000-0000-000000000000",
@@ -30,3 +41,12 @@ assert position.block_coordinates() == (
     64,
     -1,
 )
+summon_result = SummonResult(
+    uuid="00000000-0000-0000-0000-000000000001",
+    entity="minecraft:pig",
+    dimension="minecraft:overworld",
+    x=1.0,
+    y=64.0,
+    z=2.0,
+)
+assert summon_result.entity == "minecraft:pig"

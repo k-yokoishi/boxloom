@@ -8,6 +8,7 @@ Initial public alpha release.
 - List connected players
 - Read a connected player's position and look direction
 - Set one block in a loaded dimension
+- Summon one entity with optional NBT in a loaded dimension
 - Support Fabric dedicated servers and integrated singleplayer servers
 - Configure the listener through `config/boxloom.json` or environment variables
 - Allow unauthenticated loopback use and optional Bearer authentication

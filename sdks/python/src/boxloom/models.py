@@ -48,3 +48,15 @@ class SetBlockResult:
     y: int
     z: int
     block: str
+
+
+@dataclass(frozen=True)
+class SummonResult:
+    """Result returned after summoning an entity."""
+
+    uuid: str
+    entity: str
+    dimension: str
+    x: float
+    y: float
+    z: float

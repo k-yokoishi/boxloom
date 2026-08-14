@@ -10,6 +10,8 @@ interface MinecraftOperations {
     fun playerPosition(username: String): CompletableFuture<PlayerPosition>
 
     fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult>
+
+    fun summon(request: SummonRequest): CompletableFuture<SummonResult>
 }
 
 data class SayRequest(
@@ -53,3 +55,37 @@ data class SetBlockResult(
     val z: Int,
     val block: String,
 )
+
+data class SummonRequest(
+    val dimension: String,
+    val entity: String,
+    val x: Double,
+    val y: Double,
+    val z: Double,
+    val nbt: NbtValue.Compound? = null,
+)
+
+data class SummonResult(
+    val uuid: String,
+    val entity: String,
+    val dimension: String,
+    val x: Double,
+    val y: Double,
+    val z: Double,
+)
+
+sealed interface NbtValue {
+    data class Compound(val values: Map<String, NbtValue>) : NbtValue
+
+    data class ListValue(val values: List<NbtValue>) : NbtValue
+
+    data class StringValue(val value: String) : NbtValue
+
+    data class BooleanValue(val value: Boolean) : NbtValue
+
+    data class IntValue(val value: Int) : NbtValue
+
+    data class LongValue(val value: Long) : NbtValue
+
+    data class DoubleValue(val value: Double) : NbtValue
+}

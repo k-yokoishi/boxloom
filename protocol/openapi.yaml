@@ -171,6 +171,61 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/world/entities:
+    post:
+      operationId: summon
+      summary: Summon one entity in a loaded dimension
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SummonRequest'
+      responses:
+        '200':
+          description: The summoned entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummonResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The requested dimension is not loaded, or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: An entity with the supplied NBT UUID already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
 components:
   securitySchemes:
     bearerAuth:
@@ -306,6 +361,76 @@ components:
           format: int32
         block:
           type: string
+    SummonRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - dimension
+        - entity
+        - x
+        - y
+        - z
+      properties:
+        dimension:
+          type: string
+          examples:
+            - minecraft:overworld
+        entity:
+          type: string
+          examples:
+            - minecraft:arrow
+        x:
+          type: number
+        y:
+          type: number
+        z:
+          type: number
+        nbt:
+          $ref: '#/components/schemas/NbtCompound'
+    SummonResult:
+      type: object
+      additionalProperties: false
+      required:
+        - uuid
+        - entity
+        - dimension
+        - x
+        - y
+        - z
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        entity:
+          type: string
+        dimension:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+        z:
+          type: number
+    NbtCompound:
+      type: object
+      description: >-
+        A plain JSON object converted recursively to an NBT compound. JSON integers
+        become IntTag or LongTag, floating-point values become DoubleTag, booleans
+        become ByteTag, and null is not supported.
+      additionalProperties:
+        $ref: '#/components/schemas/NbtValue'
+    NbtValue:
+      anyOf:
+        - $ref: '#/components/schemas/NbtCompound'
+        - type: array
+          items:
+            $ref: '#/components/schemas/NbtValue'
+        - type: string
+        - type: boolean
+        - type: integer
+          format: int64
+        - type: number
+          format: double
     ErrorResponse:
       type: object
       additionalProperties: false

@@ -1,13 +1,14 @@
 import json
 import re
 import socket
+from math import isfinite
 from typing import Any, Dict, List, Mapping, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
 from .errors import ApiError, ConfigurationError, ConnectionError, ProtocolError
-from .models import Player, PlayerPosition, SayResult, SetBlockResult
+from .models import Player, PlayerPosition, SayResult, SetBlockResult, SummonResult
 
 
 _USERNAME = re.compile(r"^[A-Za-z0-9_]{3,16}$")
@@ -138,6 +139,50 @@ class BoxloomClient:
 
         return self.set_block(x, y, z, block, dimension=dimension)
 
+    def summon(
+        self,
+        entity: str,
+        x: float,
+        y: float,
+        z: float,
+        *,
+        nbt: Optional[Dict[str, Any]] = None,
+        dimension: str = "minecraft:overworld",
+    ) -> SummonResult:
+        if not isinstance(entity, str) or not entity.strip():
+            raise ValueError("entity must be a non-empty namespaced ID")
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise ValueError("dimension must be a non-empty namespaced ID")
+        for field_name, value in (("x", x), ("y", y), ("z", z)):
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise TypeError(f"{field_name} must be a number")
+            if not isfinite(value):
+                raise ValueError(f"{field_name} must be finite")
+        if nbt is not None:
+            if not isinstance(nbt, dict):
+                raise TypeError("nbt must be a dict or None")
+            _validate_nbt_value(nbt, "nbt", depth=0)
+
+        body: Dict[str, Any] = {
+            "dimension": dimension,
+            "entity": entity,
+            "x": x,
+            "y": y,
+            "z": z,
+        }
+        if nbt is not None:
+            body["nbt"] = nbt
+
+        payload = self._post("/v1/world/entities", body)
+        return SummonResult(
+            uuid=_require_string(payload, "uuid"),
+            entity=_require_string(payload, "entity"),
+            dimension=_require_string(payload, "dimension"),
+            x=_require_number(payload, "x"),
+            y=_require_number(payload, "y"),
+            z=_require_number(payload, "z"),
+        )
+
     def _get(self, path: str) -> Dict[str, Any]:
         return self._request("GET", path)
 
@@ -235,3 +280,31 @@ def _require_number(value: Mapping[str, Any], field: str) -> float:
     if not isinstance(result, (int, float)) or isinstance(result, bool):
         raise ProtocolError(f"response field '{field}' must be a number")
     return float(result)
+
+
+def _validate_nbt_value(value: Any, path: str, depth: int) -> None:
+    if depth > 128:
+        raise ValueError("nbt exceeds the maximum nesting depth of 128")
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if not isinstance(key, str):
+                raise TypeError(f"{path} keys must be strings")
+            _validate_nbt_value(child, f"{path}.{key}", depth + 1)
+        return
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            _validate_nbt_value(child, f"{path}[{index}]", depth + 1)
+        return
+    if isinstance(value, (str, bool)):
+        return
+    if isinstance(value, int):
+        if not -(2**63) <= value < 2**63:
+            raise ValueError(f"{path} must fit in a signed 64-bit integer")
+        return
+    if isinstance(value, float):
+        if not isfinite(value):
+            raise ValueError(f"{path} must be finite")
+        return
+    raise TypeError(
+        f"{path} must contain only dict, list, string, boolean, integer, or float values"
+    )

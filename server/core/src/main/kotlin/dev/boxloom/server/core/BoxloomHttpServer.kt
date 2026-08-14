@@ -98,6 +98,11 @@ class BoxloomHttpServer(
                 handleSetBlock(exchange)
             }
 
+            path == SUMMON_PATH -> {
+                requireMethod(exchange, "POST")
+                handleSummon(exchange)
+            }
+
             else -> throw ApiException(
                 404,
                 "ROUTE_NOT_FOUND",
@@ -183,6 +188,32 @@ class BoxloomHttpServer(
             put("y", result.y)
             put("z", result.z)
             put("block", result.block)
+        }.toString()
+
+        sendJson(exchange, 200, response)
+    }
+
+    private fun handleSummon(exchange: HttpExchange) {
+        requireJsonContentType(exchange)
+        val objectValue = JsonSupport.parseObject(readRequestBody(exchange))
+        JsonSupport.requireOnlyFields(objectValue, SUMMON_FIELDS)
+
+        val request = SummonRequest(
+            JsonSupport.requireString(objectValue, "dimension"),
+            JsonSupport.requireString(objectValue, "entity"),
+            JsonSupport.requireFiniteDouble(objectValue, "x"),
+            JsonSupport.requireFiniteDouble(objectValue, "y"),
+            JsonSupport.requireFiniteDouble(objectValue, "z"),
+            JsonSupport.optionalNbt(objectValue, "nbt"),
+        )
+        val result = await(minecraft.summon(request))
+        val response = buildJsonObject {
+            put("uuid", result.uuid)
+            put("entity", result.entity)
+            put("dimension", result.dimension)
+            put("x", result.x)
+            put("y", result.y)
+            put("z", result.z)
         }.toString()
 
         sendJson(exchange, 200, response)
@@ -324,9 +355,11 @@ class BoxloomHttpServer(
         private const val SAY_PATH = "/v1/chat/messages"
         private const val PLAYERS_PATH = "/v1/players"
         private const val SET_BLOCK_PATH = "/v1/world/blocks"
+        private const val SUMMON_PATH = "/v1/world/entities"
         private const val MAX_REQUEST_BODY_BYTES = 16 * 1_024
         private const val MAX_CHAT_MESSAGE_LENGTH = 256
         private val SAY_FIELDS = setOf("message")
         private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block")
+        private val SUMMON_FIELDS = setOf("dimension", "entity", "x", "y", "z", "nbt")
     }
 }

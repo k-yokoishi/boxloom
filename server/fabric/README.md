@@ -2,14 +2,15 @@
 
 This directory contains the initial Kotlin-based, server-side Fabric mod PoC. It connects Minecraft and Fabric to the platform-independent [`../core`](../core) module and is designed to work in both a Fabric Dedicated Server and an integrated server.
 
-The PoC implements four Minecraft operations:
+The PoC implements five Minecraft operations:
 
 - Broadcast a system message to connected players
 - List connected players
 - Read a connected player's position and look direction
 - Set one block
+- Summon one entity with optional NBT
 
-Arbitrary command execution and entity operations are intentionally outside this PoC.
+Arbitrary command execution is intentionally outside this PoC.
 
 ## Fixed compatibility versions
 
@@ -138,11 +139,32 @@ curl --fail-with-body \
   http://127.0.0.1:28886/v1/world/blocks
 ```
 
+Summon an entity with optional NBT:
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H 'Authorization: Bearer boxloom-local-poc-token' \
+  -H 'Content-Type: application/json' \
+  --data '{
+    "dimension": "minecraft:overworld",
+    "entity": "minecraft:arrow",
+    "x": 0.0,
+    "y": 100.0,
+    "z": 0.0,
+    "nbt": {
+      "Motion": [0.0, -1.5, 0.0],
+      "Rotation": [0.0, 90.0]
+    }
+  }' \
+  http://127.0.0.1:28886/v1/world/entities
+```
+
 ## PoC security constraints
 
 - Bearer authentication is optional for loopback-only use and required for non-loopback listeners.
 - The default listener is loopback only.
 - The server accepts no arbitrary Minecraft commands.
 - Request bodies are limited to 16 KiB.
-- The server validates JSON shape, usernames, dimensions, block IDs, and integer coordinates.
+- The server validates JSON shape, usernames, dimensions, block and entity IDs, coordinates, and NBT-compatible values.
 - Production deployments must configure an authentication token and add operation, range, quantity, and rate limits.
