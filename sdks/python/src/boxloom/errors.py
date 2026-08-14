@@ -22,3 +22,19 @@ class ApiError(BoxloomError):
         self.code = code
         self.message = message
         super().__init__(f"boxloom API error {status} ({code}): {message}")
+
+
+class EventCursorExpiredError(ApiError):
+    """The event stream can no longer resume from the requested cursor."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(410, "EVENT_CURSOR_EXPIRED", message)
+
+
+class EventStreamError(BoxloomError):
+    """The server reported an error after opening the event stream."""
+
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+        super().__init__(f"boxloom event stream error ({code}): {message}")

@@ -15,19 +15,18 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
 
 class BoxloomHttpServer(
     private val config: BoxloomConfig,
     private val minecraft: MinecraftOperations,
+    private val events: BoxloomEventBroker,
 ) : AutoCloseable {
     private val server = HttpServer.create(InetSocketAddress(config.bindAddress, config.port), 0)
     private val executor: ExecutorService =
-        Executors.newFixedThreadPool(4, DaemonThreadFactory())
+        Executors.newVirtualThreadPerTaskExecutor()
 
     init {
         server.createContext("/", ::handleSafely)
@@ -46,6 +45,7 @@ class BoxloomHttpServer(
     }
 
     override fun close() {
+        events.close()
         server.stop(1)
         executor.shutdown()
 
@@ -96,6 +96,11 @@ class BoxloomHttpServer(
             path == SET_BLOCK_PATH -> {
                 requireMethod(exchange, "POST")
                 handleSetBlock(exchange)
+            }
+
+            path == EVENTS_PATH -> {
+                requireMethod(exchange, "GET")
+                handleEvents(exchange)
             }
 
             else -> throw ApiException(
@@ -188,6 +193,101 @@ class BoxloomHttpServer(
         sendJson(exchange, 200, response)
     }
 
+    private fun handleEvents(exchange: HttpExchange) {
+        requireEventStreamAccept(exchange)
+        val cursor = try {
+            events.openCursor(exchange.requestHeaders.getFirst("Last-Event-ID"))
+        } catch (exception: InvalidEventCursorException) {
+            throw ApiException(400, "INVALID_EVENT_CURSOR", exception.message.orEmpty())
+        } catch (exception: EventCursorExpiredException) {
+            throw ApiException(410, "EVENT_CURSOR_EXPIRED", exception.message.orEmpty())
+        }
+
+        exchange.responseHeaders.apply {
+            set("Content-Type", "text/event-stream; charset=utf-8")
+            set("Cache-Control", "no-cache, no-transform")
+            set("X-Content-Type-Options", "nosniff")
+        }
+        exchange.sendResponseHeaders(200, 0)
+
+        val output = exchange.responseBody
+        var currentCursor = cursor
+
+        try {
+            writeEventRetry(output)
+            writeSseEvent(
+                output,
+                "stream.ready",
+                currentCursor.toString(),
+                buildJsonObject {
+                    put("type", "stream.ready")
+                    put("cursor", currentCursor.toString())
+                }.toString(),
+            )
+
+            while (true) {
+                val available = try {
+                    events.awaitAfter(currentCursor, EVENT_HEARTBEAT_INTERVAL)
+                } catch (exception: EventCursorExpiredException) {
+                    writeSseEvent(
+                        output,
+                        "stream.reset",
+                        null,
+                        buildJsonObject {
+                            put("type", "stream.reset")
+                            put("code", "EVENT_CURSOR_EXPIRED")
+                            put("message", exception.message.orEmpty())
+                        }.toString(),
+                    )
+                    return
+                }
+
+                if (available == null) return
+                if (available.isEmpty()) {
+                    writeEventHeartbeat(output)
+                    continue
+                }
+
+                available.forEach { event ->
+                    writeSseEvent(
+                        output,
+                        "chat.message",
+                        event.id,
+                        buildJsonObject {
+                            put("type", "chat.message")
+                            put("id", event.id)
+                            put("timestamp", event.timestamp.toString())
+                            put("message", event.message)
+                            put("player", buildJsonObject {
+                                put("username", event.username)
+                                put("uuid", event.uuid)
+                            })
+                        }.toString(),
+                    )
+                    currentCursor = event.cursor
+                }
+            }
+        } catch (exception: IOException) {
+            LOGGER.log(System.Logger.Level.DEBUG, "boxloom event stream disconnected", exception)
+        } catch (throwable: Throwable) {
+            LOGGER.log(System.Logger.Level.ERROR, "boxloom event stream failed", throwable)
+            try {
+                writeSseEvent(
+                    output,
+                    "error",
+                    null,
+                    buildJsonObject {
+                        put("type", "error")
+                        put("code", "INTERNAL_ERROR")
+                        put("message", "The boxloom event stream failed")
+                    }.toString(),
+                )
+            } catch (_: IOException) {
+                // The connection is already unusable.
+            }
+        }
+    }
+
     private fun <T> await(future: CompletableFuture<T>): T {
         try {
             return future.get(config.requestTimeout.toMillis(), TimeUnit.MILLISECONDS)
@@ -251,6 +351,24 @@ class BoxloomHttpServer(
         }
     }
 
+    private fun requireEventStreamAccept(exchange: HttpExchange) {
+        val accept = exchange.requestHeaders.getFirst("Accept") ?: return
+        val accepted = accept.split(',').any { mediaRange ->
+            val mediaType = mediaRange.substringBefore(';').trim()
+            mediaType.equals("text/event-stream", ignoreCase = true) ||
+                mediaType.equals("text/*", ignoreCase = true) ||
+                mediaType == "*/*"
+        }
+
+        if (!accepted) {
+            throw ApiException(
+                406,
+                "NOT_ACCEPTABLE",
+                "Accept must allow text/event-stream",
+            )
+        }
+    }
+
     private fun readRequestBody(exchange: HttpExchange): String {
         try {
             exchange.requestBody.use { input ->
@@ -308,13 +426,32 @@ class BoxloomHttpServer(
         }
     }
 
-    private class DaemonThreadFactory : ThreadFactory {
-        private val sequence = AtomicInteger()
+    private fun writeEventRetry(output: java.io.OutputStream) {
+        output.write("retry: $EVENT_RETRY_MS\n\n".toByteArray(StandardCharsets.UTF_8))
+        output.flush()
+    }
 
-        override fun newThread(runnable: Runnable): Thread =
-            Thread(runnable, "boxloom-http-${sequence.incrementAndGet()}").apply {
-                isDaemon = true
+    private fun writeEventHeartbeat(output: java.io.OutputStream) {
+        output.write(": keepalive\n\n".toByteArray(StandardCharsets.UTF_8))
+        output.flush()
+    }
+
+    private fun writeSseEvent(
+        output: java.io.OutputStream,
+        eventType: String,
+        id: String?,
+        data: String,
+    ) {
+        val frame = buildString {
+            append("event: ").append(eventType).append('\n')
+            id?.let { append("id: ").append(it).append('\n') }
+            data.lineSequence().forEach { line ->
+                append("data: ").append(line).append('\n')
             }
+            append('\n')
+        }
+        output.write(frame.toByteArray(StandardCharsets.UTF_8))
+        output.flush()
     }
 
     companion object {
@@ -324,8 +461,11 @@ class BoxloomHttpServer(
         private const val SAY_PATH = "/v1/chat/messages"
         private const val PLAYERS_PATH = "/v1/players"
         private const val SET_BLOCK_PATH = "/v1/world/blocks"
+        private const val EVENTS_PATH = "/v1/events"
         private const val MAX_REQUEST_BODY_BYTES = 16 * 1_024
         private const val MAX_CHAT_MESSAGE_LENGTH = 256
+        private const val EVENT_RETRY_MS = 1_000
+        private val EVENT_HEARTBEAT_INTERVAL = java.time.Duration.ofSeconds(5)
         private val SAY_FIELDS = setOf("message")
         private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block")
     }

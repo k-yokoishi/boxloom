@@ -34,7 +34,7 @@ flowchart LR
 
 The SDK and mod are expected to communicate within the same machine or a trusted private network. The mod's internal API is not intended to be exposed directly to the public internet.
 
-The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say`, `get_players`, `get_player_position`, and `set_block`.
+The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say`, `get_players`, `get_player_position`, `set_block`, and the `watch_chat` player-chat event stream.
 
 ## Goals
 
@@ -57,6 +57,7 @@ The Python package is responsible for:
 - Resolving connection configuration and credentials
 - Encoding requests and decoding responses
 - Mapping protocol failures to documented Python exceptions
+- Reconnecting the player-chat stream from its most recently received event cursor
 - Hiding transport and deployment details from application code
 
 ### Server-side Fabric mod
@@ -68,6 +69,7 @@ The Fabric mod is responsible for:
 - Validating the requested operation, target world, coordinates, and resource limits
 - Scheduling world reads and changes in the correct Minecraft server execution context
 - Returning structured results and errors
+- Publishing player chat messages through a resumable Server-Sent Events stream
 - Keeping server authority and validation independent from SDK behavior
 
 ## Connection configuration
@@ -92,14 +94,20 @@ Calling `init()` is optional. Values passed to `init()` take precedence over val
 The public API should prefer directly imported functions for common Minecraft operations:
 
 ```python
-from boxloom import get_player_position, get_players, say, set_block
+from boxloom import get_player_position, get_players, say, set_block, watch_chat
 
 say("Hello from boxloom!")
 players = get_players()
 position = get_player_position(players[0].username)
 x, y, z = position.block_coordinates()
 set_block(x + 1, y - 1, z, "minecraft:gold_block", dimension=position.dimension)
+
+with watch_chat() as events:
+    for event in events:
+        print(f"<{event.player.username}> {event.message}")
 ```
+
+`watch_chat()` keeps one HTTP response open using Server-Sent Events; it does not poll. If the connection drops, the SDK reconnects with the most recently received `Last-Event-ID` and the mod replays events still held in its bounded in-memory history. A server restart or an evicted cursor raises `EventCursorExpiredError`, allowing the application to decide whether to resume from the new live position.
 
 The exported function set and detailed behavior are still under design. These examples document the intended API style, not a stable release contract.
 
@@ -237,7 +245,7 @@ boxloom will target explicitly tested combinations instead of automatically foll
 - Server transports and validation live in `server/core`; Minecraft platform code lives in adapters
 - Language SDKs live under `sdks/<language>/`
 - The server-to-SDK contract lives under `protocol/`
-- The initial protocol is JSON over HTTP with `/v1` paths and optional Bearer authentication for loopback use
+- The initial protocol is JSON request/response plus Server-Sent Events over HTTP with `/v1` paths and optional Bearer authentication for loopback use
 - Minecraft operations are exposed through an API rather than console-output parsing
 - The Fabric mod is authoritative for validation and world access
 - The SDK-to-mod endpoint is local or private and is not a public internet API

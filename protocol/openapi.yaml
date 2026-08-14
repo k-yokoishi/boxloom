@@ -12,6 +12,75 @@ security:
   - bearerAuth: []
   - {}
 paths:
+  /v1/events:
+    get:
+      operationId: watchEvents
+      summary: Stream player chat messages
+      description: >-
+        Opens a Server-Sent Events stream. With no Last-Event-ID, the stream starts
+        at the current live position. Reconnecting with the last received event ID
+        replays retained events after that cursor. Event IDs are opaque and valid
+        only while the corresponding server session and retained history remain
+        available. The stream sends retry fields and comment heartbeats.
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: Opaque ID of the last event completely processed by the caller
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: >-
+            A live SSE stream containing stream.ready, chat.message, stream.reset,
+            and error events
+          headers:
+            Cache-Control:
+              description: Prevents intermediaries from caching or transforming the stream
+              schema:
+                type: string
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                chatMessage:
+                  summary: One player chat event
+                  value: |-
+                    retry: 1000
+
+                    event: chat.message
+                    id: 2f5e31b8-1a7b-40ec-a17e-3daf8e2938a0:42
+                    data: {"type":"chat.message","id":"2f5e31b8-1a7b-40ec-a17e-3daf8e2938a0:42","timestamp":"2026-08-14T00:00:00Z","message":"hello","player":{"username":"Steve","uuid":"58f6e634-15d9-4d4c-8ca0-8a4b23fe38af"}}
+        '400':
+          description: Last-Event-ID is malformed or ahead of the live stream
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '406':
+          description: The Accept header does not allow text/event-stream
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: >-
+            Last-Event-ID belongs to another server session or its following events
+            are no longer retained
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/chat/messages:
     post:
       operationId: say

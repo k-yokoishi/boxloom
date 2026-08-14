@@ -4,22 +4,28 @@ import os
 import threading
 from typing import List, Optional
 
-from ._client import BoxloomClient
+from ._client import BoxloomClient, ChatEventStream
 from .errors import (
     ApiError,
     BoxloomError,
     ConfigurationError,
     ConnectionError,
+    EventCursorExpiredError,
+    EventStreamError,
     ProtocolError,
 )
-from .models import Player, PlayerPosition, SayResult, SetBlockResult
+from .models import ChatEvent, Player, PlayerPosition, SayResult, SetBlockResult
 
 __all__ = [
     "ApiError",
     "BoxloomClient",
     "BoxloomError",
+    "ChatEvent",
+    "ChatEventStream",
     "ConfigurationError",
     "ConnectionError",
+    "EventCursorExpiredError",
+    "EventStreamError",
     "Player",
     "PlayerPosition",
     "ProtocolError",
@@ -31,6 +37,7 @@ __all__ = [
     "say",
     "set_block",
     "setblock",
+    "watch_chat",
 ]
 
 __version__ = "0.1.0a1"
@@ -85,6 +92,19 @@ def get_players() -> List[Player]:
     """List players currently connected to the Minecraft server."""
 
     return _default_client().get_players()
+
+
+def watch_chat(
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> ChatEventStream:
+    """Open a resumable stream of player chat messages."""
+
+    return _default_client().watch_chat(
+        last_event_id=last_event_id,
+        reconnect=reconnect,
+    )
 
 
 def set_block(
