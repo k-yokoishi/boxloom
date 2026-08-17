@@ -4,17 +4,21 @@ import os
 import threading
 from typing import List, Optional
 
-from ._client import BoxloomClient, ChatEventStream
+from ._client import BoxloomClient
 from .errors import (
     ApiError,
     BoxloomError,
     ConfigurationError,
     ConnectionError,
-    EventCursorExpiredError,
-    EventStreamError,
     ProtocolError,
 )
-from .models import ChatEvent, Player, PlayerPosition, SayResult, SetBlockResult
+from .events import (
+    ChatEvent,
+    ChatEventStream,
+    EventCursorExpiredError,
+    EventStreamError,
+)
+from .models import Player, PlayerPosition, SayResult, SetBlockResult
 
 __all__ = [
     "ApiError",

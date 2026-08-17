@@ -1,6 +1,7 @@
 from importlib.metadata import version
 
 import boxloom
+from boxloom.events import ChatEventStream
 from boxloom import (
     ChatEvent,
     EventCursorExpiredError,
@@ -22,6 +23,7 @@ assert callable(get_player_position)
 assert callable(get_players)
 assert callable(set_block)
 assert callable(watch_chat)
+assert boxloom.ChatEventStream is ChatEventStream
 assert issubclass(EventCursorExpiredError, boxloom.ApiError)
 player = Player(
     username="Player",
