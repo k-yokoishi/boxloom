@@ -16,6 +16,7 @@ from boxloom import (
     init,
     say,
     set_block,
+    summon,
     watch_chat,
 )
 
@@ -26,6 +27,7 @@ assert callable(say)
 assert callable(get_player_position)
 assert callable(get_players)
 assert callable(set_block)
+assert callable(summon)
 assert callable(watch_chat)
 assert boxloom.ChatEventStream is ChatEventStream
 assert issubclass(EventCursorExpiredError, boxloom.ApiError)
@@ -90,3 +92,12 @@ event = ChatEvent(
     player=player,
 )
 assert event.player.username == "Player"
+summon_result = boxloom.SummonResult(
+    uuid="00000000-0000-0000-0000-000000000001",
+    entity="minecraft:pig",
+    dimension="minecraft:overworld",
+    x=0.0,
+    y=64.0,
+    z=0.0,
+)
+assert summon_result.entity == "minecraft:pig"

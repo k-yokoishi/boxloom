@@ -1,6 +1,7 @@
 package dev.boxloom.server.core
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 internal data class PlayersResponse(
@@ -38,4 +39,14 @@ internal data class StreamFailurePayload(
     val type: String,
     val code: String,
     val message: String,
+)
+
+@Serializable
+internal data class SummonRequestBody(
+    val dimension: String,
+    val entity: String,
+    val x: Double,
+    val y: Double,
+    val z: Double,
+    val nbt: JsonObject? = null,
 )

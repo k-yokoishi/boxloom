@@ -10,6 +10,8 @@ interface MinecraftOperations {
     suspend fun playerPosition(username: String): PlayerPosition
 
     suspend fun setBlock(request: SetBlockRequest): SetBlockResult
+
+    suspend fun summon(request: SummonRequest): SummonResult
 }
 
 @Serializable
@@ -59,3 +61,38 @@ data class SetBlockResult(
     val z: Int,
     val block: String,
 )
+
+data class SummonRequest(
+    val dimension: String,
+    val entity: String,
+    val x: Double,
+    val y: Double,
+    val z: Double,
+    val nbt: NbtValue.Compound? = null,
+)
+
+@Serializable
+data class SummonResult(
+    val uuid: String,
+    val entity: String,
+    val dimension: String,
+    val x: Double,
+    val y: Double,
+    val z: Double,
+)
+
+sealed interface NbtValue {
+    data class Compound(val values: Map<String, NbtValue>) : NbtValue
+
+    data class ListValue(val values: List<NbtValue>) : NbtValue
+
+    data class StringValue(val value: String) : NbtValue
+
+    data class BooleanValue(val value: Boolean) : NbtValue
+
+    data class IntValue(val value: Int) : NbtValue
+
+    data class LongValue(val value: Long) : NbtValue
+
+    data class DoubleValue(val value: Double) : NbtValue
+}

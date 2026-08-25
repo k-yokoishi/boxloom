@@ -341,6 +341,86 @@ class ClientTest(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertEqual("minecraft:the_nether", result.dimension)
 
+    def test_summon_posts_nested_nbt(self):
+        _ApiHandler.response_body = {
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+            "entity": "minecraft:arrow",
+            "dimension": "minecraft:overworld",
+            "x": 1.5,
+            "y": 72.0,
+            "z": -2.25,
+        }
+        nbt = {
+            "Motion": [0.0, -1.5, 0.0],
+            "Rotation": [0.0, 90.0],
+            "NoGravity": False,
+            "Tags": ["boxloom", "example"],
+        }
+
+        result = boxloom.summon("minecraft:arrow", 1.5, 72, -2.25, nbt=nbt)
+
+        self.assertEqual(
+            boxloom.SummonResult(
+                "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+                "minecraft:arrow",
+                "minecraft:overworld",
+                1.5,
+                72.0,
+                -2.25,
+            ),
+            result,
+        )
+        self.assertEqual("/v1/world/entities", _ApiHandler.requests[0][0])
+        self.assertEqual(
+            {
+                "dimension": "minecraft:overworld",
+                "entity": "minecraft:arrow",
+                "x": 1.5,
+                "y": 72,
+                "z": -2.25,
+                "nbt": nbt,
+            },
+            _ApiHandler.requests[0][2],
+        )
+
+    def test_summon_omits_nbt_when_not_supplied(self):
+        _ApiHandler.response_body = {
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+            "entity": "minecraft:pig",
+            "dimension": "minecraft:the_nether",
+            "x": 0,
+            "y": 64,
+            "z": 0,
+        }
+
+        boxloom.summon(
+            "minecraft:pig", 0, 64, 0, dimension="minecraft:the_nether"
+        )
+
+        self.assertNotIn("nbt", _ApiHandler.requests[0][2])
+
+    def test_summon_rejects_values_without_nbt_representation(self):
+        invalid_values = (
+            {"value": None},
+            {"value": float("nan")},
+            {"value": 2**63},
+            {1: "non-string key"},
+            {"value": (1, 2, 3)},
+        )
+
+        for nbt in invalid_values:
+            with self.subTest(nbt=nbt):
+                with self.assertRaises((TypeError, ValueError)):
+                    boxloom.summon("minecraft:pig", 0, 64, 0, nbt=nbt)
+
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_summon_rejects_non_finite_coordinates(self):
+        with self.assertRaises(ValueError):
+            boxloom.summon("minecraft:pig", float("inf"), 64, 0)
+
+        self.assertEqual([], _ApiHandler.requests)
+
     def test_api_error_does_not_expose_auth_token(self):
         _ApiHandler.response_status = 403
         _ApiHandler.response_body = {

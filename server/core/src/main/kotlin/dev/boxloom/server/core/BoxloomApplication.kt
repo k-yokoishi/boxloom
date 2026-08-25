@@ -42,7 +42,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.security.MessageDigest
 import java.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -183,6 +188,36 @@ private fun Route.boxloomRoutes(
                 throw invalid("Field 'block' must be a non-empty string")
             }
             call.respondJson(withMinecraftTimeout(config) { minecraft.setBlock(request) })
+        }
+        methodNotAllowed(HttpMethod.Post)
+    }
+
+    route(SUMMON_PATH) {
+        install(RequestBodyLimit) {
+            bodyLimit { MAX_REQUEST_BODY_BYTES.toLong() }
+        }
+        post {
+            call.requireJsonContentType()
+            val body = call.receive<SummonRequestBody>()
+            if (body.dimension.isBlank()) {
+                throw invalid("Field 'dimension' must be a non-empty string")
+            }
+            if (body.entity.isBlank()) {
+                throw invalid("Field 'entity' must be a non-empty string")
+            }
+            if (!body.x.isFinite()) throw invalid("Field 'x' must be a finite number")
+            if (!body.y.isFinite()) throw invalid("Field 'y' must be a finite number")
+            if (!body.z.isFinite()) throw invalid("Field 'z' must be a finite number")
+
+            val request = SummonRequest(
+                body.dimension,
+                body.entity,
+                body.x,
+                body.y,
+                body.z,
+                body.nbt?.let { parseNbtCompound(it, depth = 0) },
+            )
+            call.respondJson(withMinecraftTimeout(config) { minecraft.summon(request) })
         }
         methodNotAllowed(HttpMethod.Post)
     }
@@ -363,6 +398,59 @@ private fun tokensMatch(supplied: String, expected: String?): Boolean {
 private fun invalid(message: String): ApiException =
     ApiException(400, "INVALID_REQUEST", message)
 
+private fun parseNbtCompound(value: JsonObject, depth: Int): NbtValue.Compound {
+    requireNbtDepth(depth)
+    return NbtValue.Compound(
+        value.mapValues { (_, element) -> parseNbtValue(element, depth + 1) },
+    )
+}
+
+private fun parseNbtValue(value: JsonElement, depth: Int): NbtValue {
+    requireNbtDepth(depth)
+    return when (value) {
+        is JsonObject -> parseNbtCompound(value, depth)
+        is JsonArray -> NbtValue.ListValue(
+            value.map { element -> parseNbtValue(element, depth + 1) },
+        )
+        JsonNull -> throw invalid("NBT values cannot be null")
+        is JsonPrimitive -> parseNbtPrimitive(value)
+    }
+}
+
+private fun parseNbtPrimitive(value: JsonPrimitive): NbtValue {
+    if (value.isString) return NbtValue.StringValue(value.content)
+
+    return when (value.content) {
+        "true" -> NbtValue.BooleanValue(true)
+        "false" -> NbtValue.BooleanValue(false)
+        else -> parseNbtNumber(value.content)
+    }
+}
+
+private fun parseNbtNumber(token: String): NbtValue {
+    if (NBT_INTEGER_TOKEN.matches(token)) {
+        val value = token.toLongOrNull()
+            ?: throw invalid("NBT integers must fit in a signed 64-bit integer")
+        return if (value in Int.MIN_VALUE..Int.MAX_VALUE) {
+            NbtValue.IntValue(value.toInt())
+        } else {
+            NbtValue.LongValue(value)
+        }
+    }
+
+    val value = token.toDoubleOrNull()
+    if (value == null || !value.isFinite()) {
+        throw invalid("NBT floating-point values must be finite numbers")
+    }
+    return NbtValue.DoubleValue(value)
+}
+
+private fun requireNbtDepth(depth: Int) {
+    if (depth > MAX_NBT_DEPTH) {
+        throw invalid("Field 'nbt' exceeds the maximum nesting depth of $MAX_NBT_DEPTH")
+    }
+}
+
 private val PROTOCOL_JSON = Json {
     encodeDefaults = true
     ignoreUnknownKeys = false
@@ -370,14 +458,17 @@ private val PROTOCOL_JSON = Json {
 }
 private val LOGGER = System.getLogger("boxloom-http")
 private val USERNAME = Regex("^[A-Za-z0-9_]{3,16}$")
+private val NBT_INTEGER_TOKEN = Regex("-?(0|[1-9][0-9]*)")
 private val EVENT_WAIT_INTERVAL = Duration.ofSeconds(5)
 private const val AUTH_PROVIDER = "boxloom-bearer"
 private const val SAY_PATH = "/v1/chat/messages"
 private const val PLAYERS_PATH = "/v1/players"
 private const val PLAYER_POSITION_PATH = "/v1/players/{username}/position"
 private const val SET_BLOCK_PATH = "/v1/world/blocks"
+private const val SUMMON_PATH = "/v1/world/entities"
 private const val EVENTS_PATH = "/v1/events"
 private const val MAX_REQUEST_BODY_BYTES = 16 * 1_024
 private const val MAX_CHAT_MESSAGE_LENGTH = 256
+private const val MAX_NBT_DEPTH = 128
 private const val EVENT_RETRY_MS = 1_000L
 private const val EVENT_HEARTBEAT_INTERVAL_SECONDS = 5

@@ -34,7 +34,7 @@ flowchart LR
 
 The SDK and mod are expected to communicate within the same machine or a trusted private network. The mod's internal API is not intended to be exposed directly to the public internet.
 
-The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say`, `get_players`, `get_player_position`, `set_block`, and the `watch_chat` player-chat event stream.
+The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say`, `get_players`, `get_player_position`, `set_block`, `summon`, and the `watch_chat` player-chat event stream.
 
 ## Goals
 
@@ -94,13 +94,21 @@ Calling `init()` is optional. Values passed to `init()` take precedence over val
 The public API should prefer directly imported functions for common Minecraft operations:
 
 ```python
-from boxloom import get_player_position, get_players, say, set_block, watch_chat
+from boxloom import get_player_position, get_players, say, set_block, summon, watch_chat
 
 say("Hello from boxloom!")
 players = get_players()
 position = get_player_position(players[0].username)
 x, y, z = position.block_coordinates()
 set_block(x + 1, y - 1, z, "minecraft:gold_block", dimension=position.dimension)
+summon(
+    "minecraft:arrow",
+    x,
+    y + 10,
+    z,
+    nbt={"Motion": [0.0, -1.5, 0.0], "Rotation": [0.0, 90.0]},
+    dimension=position.dimension,
+)
 
 with watch_chat() as events:
     for event in events:
