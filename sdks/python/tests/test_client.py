@@ -12,9 +12,13 @@ class _ApiHandler(BaseHTTPRequestHandler):
     requests = []
     response_status = 200
     response_body = {}
+    stream_responses = []
 
     def do_GET(self):
         self.__class__.requests.append((self.path, dict(self.headers), None))
+        if self.path == "/v1/events" and self.__class__.stream_responses:
+            self._send_stream_response()
+            return
         self._send_response()
 
     def do_POST(self):
@@ -32,6 +36,15 @@ class _ApiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
+
+    def _send_stream_response(self):
+        status, content_type, encoded = self.__class__.stream_responses.pop(0)
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+        self.wfile.flush()
 
     def log_message(self, format, *args):
         return
@@ -54,6 +67,8 @@ class ClientTest(unittest.TestCase):
     def setUp(self):
         _ApiHandler.requests = []
         _ApiHandler.response_status = 200
+        _ApiHandler.response_body = {}
+        _ApiHandler.stream_responses = []
         boxloom.init(base_url=self.base_url, auth_token="unit-test-secret")
 
     def test_say_posts_authenticated_message(self):
@@ -134,6 +149,149 @@ class ClientTest(unittest.TestCase):
 
         with self.assertRaises(boxloom.ProtocolError):
             boxloom.get_players()
+
+    def test_watch_chat_streams_an_authenticated_player_message(self):
+        event_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:1"
+        _ApiHandler.stream_responses = [
+            (
+                200,
+                "text/event-stream; charset=utf-8",
+                _sse(
+                    "chat.message",
+                    event_id,
+                    {
+                        "type": "chat.message",
+                        "id": event_id,
+                        "timestamp": "2026-08-14T00:00:00Z",
+                        "message": "hello from Minecraft",
+                        "player": {
+                            "username": "Player_123",
+                            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+                        },
+                    },
+                ),
+            )
+        ]
+
+        with boxloom.watch_chat(reconnect=False) as events:
+            event = next(events)
+            self.assertEqual(event_id, events.last_event_id)
+
+        self.assertEqual(event_id, event.id)
+        self.assertEqual("hello from Minecraft", event.message)
+        self.assertEqual("Player_123", event.player.username)
+        path, headers, body = _ApiHandler.requests[0]
+        self.assertEqual("/v1/events", path)
+        self.assertEqual("text/event-stream", headers["Accept"])
+        self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+        self.assertIsNone(body)
+
+    def test_watch_chat_skips_ready_and_unknown_events(self):
+        ready_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:0"
+        event_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:1"
+        _ApiHandler.stream_responses = [
+            (
+                200,
+                "text/event-stream",
+                _sse(
+                    "stream.ready",
+                    ready_id,
+                    {"type": "stream.ready", "cursor": ready_id},
+                )
+                + _sse(
+                    "future.event",
+                    ready_id,
+                    {"type": "future.event", "value": "ignored"},
+                )
+                + _chat_sse(event_id, "hello"),
+            )
+        ]
+
+        with boxloom.watch_chat(reconnect=False) as events:
+            event = next(events)
+
+        self.assertEqual(event_id, event.id)
+        self.assertEqual("hello", event.message)
+
+    def test_watch_chat_rejects_a_mismatched_event_discriminator(self):
+        event_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:1"
+        _ApiHandler.stream_responses = [
+            (
+                200,
+                "text/event-stream",
+                _sse(
+                    "chat.message",
+                    event_id,
+                    {"type": "stream.reset"},
+                ),
+            )
+        ]
+
+        with boxloom.watch_chat(reconnect=False) as events:
+            with self.assertRaises(boxloom.ProtocolError):
+                next(events)
+
+    def test_watch_chat_reconnects_with_the_last_event_id(self):
+        first_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:1"
+        second_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:2"
+        _ApiHandler.stream_responses = [
+            (
+                200,
+                "text/event-stream",
+                b"retry: 1\n\n" + _chat_sse(first_id, "one"),
+            ),
+            (200, "text/event-stream", _chat_sse(second_id, "two")),
+        ]
+
+        with boxloom.watch_chat() as events:
+            first = next(events)
+            second = next(events)
+
+        self.assertEqual("one", first.message)
+        self.assertEqual("two", second.message)
+        self.assertEqual(2, len(_ApiHandler.requests))
+        first_headers = {
+            name.lower(): value for name, value in _ApiHandler.requests[0][1].items()
+        }
+        second_headers = {
+            name.lower(): value for name, value in _ApiHandler.requests[1][1].items()
+        }
+        self.assertNotIn("last-event-id", first_headers)
+        self.assertEqual(first_id, second_headers["last-event-id"])
+
+    def test_watch_chat_maps_an_expired_cursor_response(self):
+        _ApiHandler.response_status = 410
+        _ApiHandler.response_body = {
+            "error": {
+                "code": "EVENT_CURSOR_EXPIRED",
+                "message": "The requested events are no longer retained",
+            }
+        }
+
+        with boxloom.watch_chat(last_event_id="old:1") as events:
+            with self.assertRaises(boxloom.EventCursorExpiredError):
+                next(events)
+
+    def test_watch_chat_maps_a_stream_reset(self):
+        _ApiHandler.stream_responses = [
+            (
+                200,
+                "text/event-stream",
+                _sse(
+                    "stream.reset",
+                    None,
+                    {
+                        "type": "stream.reset",
+                        "code": "EVENT_CURSOR_EXPIRED",
+                        "message": "The server session changed",
+                    },
+                ),
+            )
+        ]
+
+        with boxloom.watch_chat(reconnect=False) as events:
+            with self.assertRaises(boxloom.EventCursorExpiredError):
+                next(events)
 
     def test_get_player_position_rejects_invalid_username(self):
         with self.assertRaises(ValueError):
@@ -241,6 +399,33 @@ class ClientTest(unittest.TestCase):
         self.assertEqual([], result)
         self.assertEqual("/v1/players", _ApiHandler.requests[0][0])
         self.assertNotIn("Authorization", _ApiHandler.requests[0][1])
+
+
+def _sse(event, event_id, payload):
+    fields = [f"event: {event}"]
+    if event_id is not None:
+        fields.append(f"id: {event_id}")
+    fields.append(
+        "data: " + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    )
+    return ("\n".join(fields) + "\n\n").encode("utf-8")
+
+
+def _chat_sse(event_id, message):
+    return _sse(
+        "chat.message",
+        event_id,
+        {
+            "type": "chat.message",
+            "id": event_id,
+            "timestamp": "2026-08-14T00:00:00Z",
+            "message": message,
+            "player": {
+                "username": "Player_123",
+                "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+            },
+        },
+    )
 
 
 if __name__ == "__main__":

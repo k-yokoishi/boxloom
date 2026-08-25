@@ -3,6 +3,7 @@
 This directory is the language-neutral contract between the boxloom server and every SDK.
 
 - [`openapi.yaml`](openapi.yaml) describes the current PoC HTTP API.
+- [`events.md`](events.md) defines cursor, replay, framing, and failure semantics for the `GET /v1/events` Server-Sent Events stream.
 - Breaking protocol changes require a new API version rather than silently changing `/v1` behavior.
 - SDK-specific conveniences belong under `sdks/<language>/`; they must not redefine wire behavior.
 - Protocol-facing server behavior belongs under `server/core/`; Fabric and other Minecraft platform details belong in their `server/<platform>/` adapters.

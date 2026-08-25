@@ -1,9 +1,11 @@
 package dev.boxloom.fabric
 
 import dev.boxloom.server.core.BoxloomConfig
+import dev.boxloom.server.core.BoxloomEventBroker
 import dev.boxloom.server.core.BoxloomHttpServer
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
+import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
 import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.server.MinecraftServer
 import org.slf4j.LoggerFactory
@@ -16,6 +18,7 @@ object BoxloomMod : ModInitializer {
     private val logger = LoggerFactory.getLogger(MOD_ID)
     private val currentServer = AtomicReference<MinecraftServer?>(null)
     private val httpServer = AtomicReference<BoxloomHttpServer?>(null)
+    private val events = BoxloomEventBroker()
 
     override fun onInitialize() {
         logger.info("Initializing boxloom")
@@ -26,7 +29,15 @@ object BoxloomMod : ModInitializer {
         }
         ServerLifecycleEvents.SERVER_STOPPED.register { server ->
             currentServer.compareAndSet(server, null)
+            events.reset()
             logger.info("boxloom detached from the stopped Minecraft server")
+        }
+        ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
+            events.publishChatMessage(
+                message.signedContent(),
+                sender.name.string,
+                sender.uuid.toString(),
+            )
         }
 
         val configPath = FabricLoader.getInstance().configDir.resolve("boxloom.json")
@@ -44,6 +55,7 @@ object BoxloomMod : ModInitializer {
             val boxloomHttpServer = BoxloomHttpServer(
                 config,
                 FabricMinecraftOperations(currentServer),
+                events,
             )
 
             if (!httpServer.compareAndSet(null, boxloomHttpServer)) {
