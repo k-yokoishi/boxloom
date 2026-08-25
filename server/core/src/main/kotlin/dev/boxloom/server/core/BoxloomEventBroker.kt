@@ -1,5 +1,8 @@
 package dev.boxloom.server.core
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -13,7 +16,7 @@ class BoxloomEventBroker(
     private val clock: Clock = Clock.systemUTC(),
 ) : AutoCloseable {
     private val lock = ReentrantLock()
-    private val changed = lock.newCondition()
+    private val revision = MutableStateFlow(0L)
     private val events = ArrayDeque<ChatMessageEvent>()
     private var instanceId = UUID.randomUUID().toString()
     private var sequence = 0L
@@ -41,7 +44,7 @@ class BoxloomEventBroker(
                 events.removeFirst()
             }
 
-            changed.signalAll()
+            signalChanged()
             event
         }
 
@@ -55,22 +58,24 @@ class BoxloomEventBroker(
         }
     }
 
-    fun awaitAfter(cursor: EventCursor, timeout: Duration): List<ChatMessageEvent>? {
-        return lock.withLock {
-            require(!timeout.isNegative) { "Event wait timeout must not be negative" }
-            var remainingNanos = timeout.toNanos()
+    suspend fun awaitAfter(cursor: EventCursor, timeout: Duration): List<ChatMessageEvent>? {
+        require(!timeout.isNegative) { "Event wait timeout must not be negative" }
 
-            while (!closed) {
+        while (true) {
+            val snapshot = lock.withLock {
+                if (closed) return null
                 validateCursor(cursor)
 
                 val available = events.filter { it.cursor.sequence > cursor.sequence }
-                if (available.isNotEmpty()) return@withLock available
-                if (remainingNanos <= 0) return@withLock emptyList()
-
-                remainingNanos = changed.awaitNanos(remainingNanos)
+                if (available.isNotEmpty()) return available
+                revision.value
             }
 
-            null
+            if (timeout.isZero) return emptyList()
+            val changed = withTimeoutOrNull(timeout.toMillis()) {
+                revision.first { it != snapshot }
+            }
+            if (changed == null) return emptyList()
         }
     }
 
@@ -80,7 +85,7 @@ class BoxloomEventBroker(
             instanceId = UUID.randomUUID().toString()
             sequence = 0
             events.clear()
-            changed.signalAll()
+            signalChanged()
         }
     }
 
@@ -89,8 +94,12 @@ class BoxloomEventBroker(
             if (closed) return
             closed = true
             events.clear()
-            changed.signalAll()
+            signalChanged()
         }
+    }
+
+    private fun signalChanged() {
+        revision.value = Math.incrementExact(revision.value)
     }
 
     private fun parseCursor(value: String): EventCursor {
