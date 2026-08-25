@@ -186,6 +186,51 @@ class ClientTest(unittest.TestCase):
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
         self.assertIsNone(body)
 
+    def test_watch_chat_skips_ready_and_unknown_events(self):
+        ready_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:0"
+        event_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:1"
+        _ApiHandler.stream_responses = [
+            (
+                200,
+                "text/event-stream",
+                _sse(
+                    "stream.ready",
+                    ready_id,
+                    {"type": "stream.ready", "cursor": ready_id},
+                )
+                + _sse(
+                    "future.event",
+                    ready_id,
+                    {"type": "future.event", "value": "ignored"},
+                )
+                + _chat_sse(event_id, "hello"),
+            )
+        ]
+
+        with boxloom.watch_chat(reconnect=False) as events:
+            event = next(events)
+
+        self.assertEqual(event_id, event.id)
+        self.assertEqual("hello", event.message)
+
+    def test_watch_chat_rejects_a_mismatched_event_discriminator(self):
+        event_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:1"
+        _ApiHandler.stream_responses = [
+            (
+                200,
+                "text/event-stream",
+                _sse(
+                    "chat.message",
+                    event_id,
+                    {"type": "stream.reset"},
+                ),
+            )
+        ]
+
+        with boxloom.watch_chat(reconnect=False) as events:
+            with self.assertRaises(boxloom.ProtocolError):
+                next(events)
+
     def test_watch_chat_reconnects_with_the_last_event_id(self):
         first_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:1"
         second_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:2"

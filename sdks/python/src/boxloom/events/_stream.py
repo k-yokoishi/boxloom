@@ -1,6 +1,7 @@
 import socket
 import threading
-from typing import Any, Iterator, List, Mapping, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Iterator, List, Literal, Mapping, Optional, Union
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -19,6 +20,60 @@ from ..errors import (
     ProtocolError,
 )
 from ..models import ChatEvent, Player
+
+
+@dataclass(frozen=True)
+class _SseFrame:
+    event_name: str
+    event_id: Optional[str]
+    data: Optional[str]
+    retry_milliseconds: Optional[int]
+
+
+@dataclass(frozen=True)
+class _StreamReadyEvent:
+    cursor: str
+    event_name: Literal["stream.ready"] = field(
+        default="stream.ready",
+        init=False,
+    )
+
+
+@dataclass(frozen=True)
+class _ChatMessageEvent:
+    chat_event: ChatEvent
+    event_name: Literal["chat.message"] = field(
+        default="chat.message",
+        init=False,
+    )
+
+
+@dataclass(frozen=True)
+class _StreamResetEvent:
+    code: str
+    message: str
+    event_name: Literal["stream.reset"] = field(
+        default="stream.reset",
+        init=False,
+    )
+
+
+@dataclass(frozen=True)
+class _ErrorEvent:
+    code: str
+    message: str
+    event_name: Literal["error"] = field(
+        default="error",
+        init=False,
+    )
+
+
+_BoxloomEvent = Union[
+    _StreamReadyEvent,
+    _ChatMessageEvent,
+    _StreamResetEvent,
+    _ErrorEvent,
+]
 
 
 class ChatEventStream(Iterator[ChatEvent]):
@@ -99,32 +154,25 @@ class ChatEventStream(Iterator[ChatEvent]):
                 self._wait_to_reconnect()
                 continue
 
-            event_name, event_id, data, retry_milliseconds = frame
-            if retry_milliseconds is not None:
+            if frame.retry_milliseconds is not None:
                 self._retry_seconds = max(
                     0.001,
-                    min(retry_milliseconds / 1000.0, 30.0),
+                    min(frame.retry_milliseconds / 1000.0, 30.0),
                 )
-            if event_id is not None:
-                self._last_event_id = event_id
-            if data is None:
-                continue
-
+            if frame.event_id is not None:
+                self._last_event_id = frame.event_id
             try:
-                payload = _decode_object(data.encode("utf-8"))
-                if event_name == "chat.message":
-                    return _decode_chat_event(payload, event_id)
-                if event_name == "stream.reset":
-                    code = _require_string(payload, "code")
-                    message = _require_string(payload, "message")
-                    if code == "EVENT_CURSOR_EXPIRED":
-                        raise EventCursorExpiredError(message)
-                    raise EventStreamError(code, message)
-                if event_name == "error":
-                    raise EventStreamError(
-                        _require_string(payload, "code"),
-                        _require_string(payload, "message"),
-                    )
+                event = _decode_boxloom_event(frame)
+                if event is None or event.event_name == "stream.ready":
+                    continue
+                if event.event_name == "chat.message":
+                    return event.chat_event
+                if event.event_name == "stream.reset":
+                    if event.code == "EVENT_CURSOR_EXPIRED":
+                        raise EventCursorExpiredError(event.message)
+                    raise EventStreamError(event.code, event.message)
+                if event.event_name == "error":
+                    raise EventStreamError(event.code, event.message)
             except (ProtocolError, EventCursorExpiredError, EventStreamError):
                 self._disconnect()
                 raise
@@ -172,9 +220,7 @@ class ChatEventStream(Iterator[ChatEvent]):
         if self._closed.wait(self._retry_seconds):
             raise StopIteration
 
-    def _read_frame(
-        self,
-    ) -> Optional[Tuple[str, Optional[str], Optional[str], Optional[int]]]:
+    def _read_frame(self) -> Optional[_SseFrame]:
         event_name = "message"
         event_id = None
         data_lines: List[str] = []
@@ -191,11 +237,11 @@ class ChatEventStream(Iterator[ChatEvent]):
             line = line.rstrip("\r\n")
 
             if not line:
-                return (
-                    event_name,
-                    event_id,
-                    "\n".join(data_lines) if data_lines else None,
-                    retry_milliseconds,
+                return _SseFrame(
+                    event_name=event_name,
+                    event_id=event_id,
+                    data="\n".join(data_lines) if data_lines else None,
+                    retry_milliseconds=retry_milliseconds,
                 )
             if line.startswith(":"):
                 continue
@@ -211,6 +257,39 @@ class ChatEventStream(Iterator[ChatEvent]):
                 event_id = value
             elif field == "retry" and value.isdigit():
                 retry_milliseconds = int(value)
+
+
+def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
+    if frame.data is None:
+        return None
+    if frame.event_name not in {
+        "stream.ready",
+        "chat.message",
+        "stream.reset",
+        "error",
+    }:
+        return None
+
+    payload = _decode_object(frame.data.encode("utf-8"))
+    payload_type = _require_string(payload, "type")
+    if payload_type != frame.event_name:
+        raise ProtocolError("event payload type must match the SSE event name")
+
+    if frame.event_name == "stream.ready":
+        cursor = _require_string(payload, "cursor")
+        if frame.event_id is None or frame.event_id != cursor:
+            raise ProtocolError("stream ready cursor must match the SSE event id")
+        return _StreamReadyEvent(cursor=cursor)
+    if frame.event_name == "chat.message":
+        return _ChatMessageEvent(
+            chat_event=_decode_chat_event(payload, frame.event_id),
+        )
+
+    code = _require_string(payload, "code")
+    message = _require_string(payload, "message")
+    if frame.event_name == "stream.reset":
+        return _StreamResetEvent(code=code, message=message)
+    return _ErrorEvent(code=code, message=message)
 
 
 def _decode_chat_event(payload: Mapping[str, Any], event_id: Optional[str]) -> ChatEvent:
