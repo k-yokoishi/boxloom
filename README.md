@@ -233,7 +233,7 @@ boxloom will publish a tested compatibility matrix. The initial implementation c
 | Fabric API | `0.156.0+26.2` (initial PoC) |
 | Java | `25` (initial PoC) |
 | Python | `3.9+` (initial SDK) |
-| boxloom Python SDK | `0.1.0a1` (initial alpha) |
+| boxloom Python SDK | `0.1.0a2` (fixes tokenless loopback initialization) |
 | boxloom Fabric mod | `0.1.0-alpha.1` (initial alpha) |
 
 boxloom will target explicitly tested combinations instead of automatically following snapshots or the newest dependency releases.

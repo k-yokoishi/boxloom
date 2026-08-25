@@ -24,18 +24,20 @@ The workflow can publish only from `main`. It uses the Python version in `sdks/p
 
 TestPyPI does not allow a published distribution file to be replaced. Increment the package version before publishing another build.
 
+Python SDK `0.1.0a2` fixes the initialization failure in the published `0.1.0a1` package when `BOXLOOM_AUTH_TOKEN` is unset or empty. In this mode the SDK omits the Authorization header for a loopback-only Fabric server. The Fabric mod still requires a non-empty token when binding to a non-loopback address.
+
 ## Verify the published package
 
 The current SDK has no third-party runtime dependencies, so it can be installed directly from TestPyPI in a clean environment:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a2
 ```
 
 Then verify the installed package:
 
 ```bash
-python -c "import boxloom; print(boxloom.__all__)"
+env -u BOXLOOM_AUTH_TOKEN python -c "import boxloom; boxloom.init(); print(boxloom.__version__)"
 ```
 
 ## Optional local publishing

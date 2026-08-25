@@ -367,6 +367,39 @@ class ClientTest(unittest.TestCase):
 
         self.assertEqual("Bearer env-secret", _ApiHandler.requests[0][1]["Authorization"])
 
+    def test_get_players_lazily_initializes_without_auth_token(self):
+        _ApiHandler.response_body = {"players": []}
+        boxloom._reset_default_client_for_testing()
+
+        with patch.dict(
+            os.environ,
+            {"BOXLOOM_BASE_URL": self.base_url},
+            clear=True,
+        ):
+            result = boxloom.get_players()
+
+        self.assertEqual([], result)
+        self.assertEqual("/v1/players", _ApiHandler.requests[0][0])
+        self.assertNotIn("Authorization", _ApiHandler.requests[0][1])
+
+    def test_get_players_lazily_initializes_with_empty_auth_token(self):
+        _ApiHandler.response_body = {"players": []}
+        boxloom._reset_default_client_for_testing()
+
+        with patch.dict(
+            os.environ,
+            {
+                "BOXLOOM_BASE_URL": self.base_url,
+                "BOXLOOM_AUTH_TOKEN": "",
+            },
+            clear=True,
+        ):
+            result = boxloom.get_players()
+
+        self.assertEqual([], result)
+        self.assertEqual("/v1/players", _ApiHandler.requests[0][0])
+        self.assertNotIn("Authorization", _ApiHandler.requests[0][1])
+
 
 def _sse(event, event_id, payload):
     fields = [f"event: {event}"]
