@@ -11,7 +11,6 @@ import dev.boxloom.server.core.SetBlockRequest
 import dev.boxloom.server.core.SetBlockResult
 import dev.boxloom.server.core.SummonRequest
 import dev.boxloom.server.core.SummonResult
-import kotlinx.coroutines.suspendCancellableCoroutine
 import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.core.registries.Registries
@@ -34,21 +33,20 @@ import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.Mob
 import net.minecraft.world.level.Level
 import java.util.Locale
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 internal class FabricMinecraftOperations(
     private val currentServer: AtomicReference<MinecraftServer?>,
 ) : MinecraftOperations {
-    override suspend fun say(request: SayRequest): SayResult =
+    override fun say(request: SayRequest): CompletableFuture<SayResult> =
         onServerThread { server ->
             val recipients = server.playerList.playerCount
             server.playerList.broadcastSystemMessage(Component.literal(request.message), false)
             SayResult(request.message, recipients)
         }
 
-    override suspend fun players(): List<Player> =
+    override fun players(): CompletableFuture<List<Player>> =
         onServerThread { server ->
             server.playerList.players.map { player ->
                 Player(
@@ -58,7 +56,7 @@ internal class FabricMinecraftOperations(
             }
         }
 
-    override suspend fun playerPosition(username: String): PlayerPosition =
+    override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
         onServerThread { server ->
             val player = server.playerList.getPlayerByName(username)
                 ?: throw ApiException(
@@ -79,7 +77,7 @@ internal class FabricMinecraftOperations(
             )
         }
 
-    override suspend fun setBlock(request: SetBlockRequest): SetBlockResult =
+    override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
         onServerThread { server ->
             val dimensionId = parseIdentifier(request.dimension, "dimension")
             val blockId = parseIdentifier(request.block, "block")
@@ -111,7 +109,7 @@ internal class FabricMinecraftOperations(
             )
         }
 
-    override suspend fun summon(request: SummonRequest): SummonResult =
+    override fun summon(request: SummonRequest): CompletableFuture<SummonResult> =
         onServerThread { server ->
             val dimensionId = parseIdentifier(request.dimension, "dimension")
             val entityId = parseIdentifier(request.entity, "entity")
@@ -212,46 +210,46 @@ internal class FabricMinecraftOperations(
                 "Field '$field' is not a valid namespaced ID",
             )
 
-    private suspend fun <T> onServerThread(operation: (MinecraftServer) -> T): T =
-        suspendCancellableCoroutine { continuation ->
-            val server = currentServer.get()
-            if (server == null) {
-                continuation.resumeWithException(
-                    ApiException(
-                        503,
-                        "WORLD_NOT_LOADED",
-                        "No Minecraft server world is currently loaded",
-                    ),
-                )
-                return@suspendCancellableCoroutine
-            }
+    private fun <T> onServerThread(operation: (MinecraftServer) -> T): CompletableFuture<T> {
+        val server = currentServer.get()
+            ?: return CompletableFuture.failedFuture(
+                ApiException(
+                    503,
+                    "WORLD_NOT_LOADED",
+                    "No Minecraft server world is currently loaded",
+                ),
+            )
+        val future = CompletableFuture<T>()
 
-            try {
-                server.execute(Runnable {
-                    if (!continuation.isActive) {
-                        return@Runnable
-                    }
-                    if (currentServer.get() !== server) {
-                        continuation.resumeWithException(
-                            ApiException(
-                                503,
-                                "WORLD_NOT_LOADED",
-                                "No Minecraft server world is currently loaded",
-                            ),
-                        )
-                        return@Runnable
-                    }
+        try {
+            server.execute(Runnable {
+                if (future.isDone) {
+                    return@Runnable
+                }
+                if (currentServer.get() !== server) {
+                    future.completeExceptionally(
+                        ApiException(
+                            503,
+                            "WORLD_NOT_LOADED",
+                            "No Minecraft server world is currently loaded",
+                        ),
+                    )
+                    return@Runnable
+                }
 
-                    try {
-                        continuation.resume(operation(server))
-                    } catch (throwable: Throwable) {
-                        continuation.resumeWithException(throwable)
-                    }
-                })
-            } catch (throwable: Throwable) {
-                continuation.resumeWithException(throwable)
-            }
+                try {
+                    future.complete(operation(server))
+                } catch (throwable: Throwable) {
+                    future.completeExceptionally(throwable)
+                }
+            })
+        } catch (throwable: Throwable) {
+            future.completeExceptionally(throwable)
         }
+
+        return future
+    }
+
 }
 
 private fun NbtValue.Compound.toCompoundTag(): CompoundTag =

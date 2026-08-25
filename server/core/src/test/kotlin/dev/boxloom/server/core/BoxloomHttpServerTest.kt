@@ -9,9 +9,11 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
+import java.util.concurrent.CompletableFuture
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class BoxloomHttpServerTest {
     @Test
@@ -45,7 +47,7 @@ class BoxloomHttpServerTest {
     }
 
     @Test
-    fun `deserializes and serializes JSON through Ktor`() {
+    fun `deserializes and serializes JSON`() {
         withServer(authToken = null, minecraft = SayMinecraftOperations) { server, _ ->
             val request = HttpRequest.newBuilder()
                 .uri(URI("http://127.0.0.1:${server.boundPort}/v1/chat/messages"))
@@ -63,18 +65,54 @@ class BoxloomHttpServerTest {
     }
 
     @Test
-    fun `accepts a summon request with nested nbt through Ktor`() {
+    fun `times out a Minecraft server thread operation`() {
+        val pending = CompletableFuture<List<Player>>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun players(): CompletableFuture<List<Player>> = pending
+        }
+
+        withServer(
+            authToken = null,
+            minecraft = minecraft,
+            requestTimeout = Duration.ofMillis(100),
+        ) { server, _ ->
+            val response = request(server)
+
+            assertEquals(504, response.statusCode())
+            assertContains(response.body(), "TIMEOUT")
+            assertTrue(pending.isCancelled)
+        }
+    }
+
+    @Test
+    fun `rejects a JSON request body larger than 16 KiB`() {
+        withServer(authToken = null, minecraft = SayMinecraftOperations) { server, _ ->
+            val response = post(
+                server,
+                "/v1/chat/messages",
+                "{\"message\":\"${"a".repeat(16 * 1_024)}\"}",
+            )
+
+            assertEquals(413, response.statusCode())
+            assertContains(response.body(), "REQUEST_TOO_LARGE")
+        }
+    }
+
+    @Test
+    fun `accepts a summon request with nested nbt`() {
         var capturedRequest: SummonRequest? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
-            override suspend fun summon(request: SummonRequest): SummonResult {
+            override fun summon(request: SummonRequest): CompletableFuture<SummonResult> {
                 capturedRequest = request
-                return SummonResult(
-                    "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
-                    "minecraft:arrow",
-                    "minecraft:overworld",
-                    1.5,
-                    72.0,
-                    -2.25,
+                return CompletableFuture.completedFuture(
+                    SummonResult(
+                        "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+                        "minecraft:arrow",
+                        "minecraft:overworld",
+                        1.5,
+                        72.0,
+                        -2.25,
+                    ),
                 )
             }
         }
@@ -315,17 +353,50 @@ class BoxloomHttpServerTest {
         }
     }
 
+    @Test
+    fun `closing the server terminates an open event stream`() {
+        val events = BoxloomEventBroker()
+        val config = BoxloomConfig(
+            InetAddress.getLoopbackAddress(),
+            0,
+            null,
+            Duration.ofSeconds(1),
+        )
+        val server = BoxloomHttpServer(config, TestMinecraftOperations, events)
+        server.start()
+
+        val request = HttpRequest.newBuilder()
+            .uri(URI("http://127.0.0.1:${server.boundPort}/v1/events"))
+            .header("Accept", "text/event-stream")
+            .GET()
+            .build()
+        val response = HttpClient.newHttpClient().send(
+            request,
+            HttpResponse.BodyHandlers.ofInputStream(),
+        )
+
+        response.body().use { body ->
+            val reader = BufferedReader(InputStreamReader(body, StandardCharsets.UTF_8))
+            assertEquals("stream.ready", readSseEvent(reader)["event"])
+
+            server.close()
+
+            assertEquals(null, reader.readLine())
+        }
+    }
+
     private fun withServer(
         authToken: String?,
         events: BoxloomEventBroker = BoxloomEventBroker(),
         minecraft: MinecraftOperations = TestMinecraftOperations,
+        requestTimeout: Duration = Duration.ofSeconds(1),
         block: (BoxloomHttpServer, BoxloomEventBroker) -> Unit,
     ) {
         val config = BoxloomConfig(
             InetAddress.getLoopbackAddress(),
             0,
             authToken,
-            Duration.ofSeconds(1),
+            requestTimeout,
         )
         val server = BoxloomHttpServer(config, minecraft, events)
 
@@ -395,35 +466,36 @@ class BoxloomHttpServerTest {
     }
 
     private object TestMinecraftOperations : MinecraftOperations {
-        override suspend fun players(): List<Player> = emptyList()
+        override fun players(): CompletableFuture<List<Player>> =
+            CompletableFuture.completedFuture(emptyList())
 
-        override suspend fun say(request: SayRequest): SayResult =
+        override fun say(request: SayRequest): CompletableFuture<SayResult> =
             throw AssertionError("Unexpected say request")
 
-        override suspend fun playerPosition(username: String): PlayerPosition =
+        override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")
 
-        override suspend fun setBlock(request: SetBlockRequest): SetBlockResult =
+        override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")
 
-        override suspend fun summon(request: SummonRequest): SummonResult =
+        override fun summon(request: SummonRequest): CompletableFuture<SummonResult> =
             throw AssertionError("Unexpected summon request")
     }
 
     private object SayMinecraftOperations : MinecraftOperations {
-        override suspend fun say(request: SayRequest): SayResult =
-            SayResult(request.message, 2)
+        override fun say(request: SayRequest): CompletableFuture<SayResult> =
+            CompletableFuture.completedFuture(SayResult(request.message, 2))
 
-        override suspend fun players(): List<Player> =
+        override fun players(): CompletableFuture<List<Player>> =
             throw AssertionError("Unexpected players request")
 
-        override suspend fun playerPosition(username: String): PlayerPosition =
+        override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")
 
-        override suspend fun setBlock(request: SetBlockRequest): SetBlockResult =
+        override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")
 
-        override suspend fun summon(request: SummonRequest): SummonResult =
+        override fun summon(request: SummonRequest): CompletableFuture<SummonResult> =
             throw AssertionError("Unexpected summon request")
     }
 
