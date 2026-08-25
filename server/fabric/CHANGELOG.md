@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Stream player chat messages through a resumable Server-Sent Events API
+
 ## 0.1.0-alpha.1
 
 Initial public alpha release.

@@ -20,6 +20,16 @@ class Player:
 
 
 @dataclass(frozen=True)
+class ChatEvent:
+    """A player chat message received from the live event stream."""
+
+    id: str
+    timestamp: str
+    message: str
+    player: Player
+
+
+@dataclass(frozen=True)
 class PlayerPosition:
     """A connected player's position and look direction."""
 

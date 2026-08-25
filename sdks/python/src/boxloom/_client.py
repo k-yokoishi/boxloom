@@ -7,7 +7,19 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
-from .errors import ApiError, ConfigurationError, ConnectionError, ProtocolError
+from .errors import (
+    ConfigurationError,
+    ProtocolError,
+)
+from ._transport import (
+    _api_error,
+    _connection_error,
+    _decode_object,
+    _require_integer,
+    _require_number,
+    _require_string,
+)
+from .events import ChatEventStream
 from .models import Player, PlayerPosition, SayResult, SetBlockResult, SummonResult
 
 
@@ -83,6 +95,22 @@ class BoxloomClient:
                 )
             )
         return players
+
+    def watch_chat(
+        self,
+        *,
+        last_event_id: Optional[str] = None,
+        reconnect: bool = True,
+    ) -> "ChatEventStream":
+        """Open a resumable stream of player chat messages."""
+
+        return ChatEventStream(
+            base_url=self._base_url,
+            auth_token=self._auth_token,
+            timeout=self._timeout,
+            last_event_id=last_event_id,
+            reconnect=reconnect,
+        )
 
     def set_block(
         self,
@@ -198,7 +226,7 @@ class BoxloomClient:
         data = None
         headers = {
             "Accept": "application/json",
-            "User-Agent": "boxloom-python/0.1.0",
+            "User-Agent": "boxloom-python/0.1.0a2",
         }
         if self._auth_token is not None:
             headers["Authorization"] = f"Bearer {self._auth_token}"
@@ -217,24 +245,9 @@ class BoxloomClient:
             with urlopen(request, timeout=self._timeout) as response:
                 return _decode_object(response.read())
         except HTTPError as error:
-            try:
-                payload = _decode_object(error.read())
-                error_value = payload.get("error")
-                if not isinstance(error_value, dict):
-                    raise ProtocolError("error response field 'error' must be an object")
-                code = _require_string(error_value, "code")
-                message = _require_string(error_value, "message")
-            except ProtocolError:
-                code = "HTTP_ERROR"
-                message = "The server returned an invalid error response"
-            raise ApiError(error.code, code, message) from None
+            raise _api_error(error) from None
         except (URLError, socket.timeout, TimeoutError, OSError) as error:
-            reason = getattr(error, "reason", error)
-            if isinstance(reason, (socket.timeout, TimeoutError)):
-                detail = "the request timed out"
-            else:
-                detail = "the server could not be reached"
-            raise ConnectionError(f"boxloom connection failed: {detail}") from None
+            raise _connection_error(error) from None
 
 
 def _validate_base_url(base_url: str) -> str:
@@ -249,37 +262,6 @@ def _validate_base_url(base_url: str) -> str:
     if parsed.query or parsed.fragment:
         raise ConfigurationError("base_url must not contain a query or fragment")
     return value
-
-
-def _decode_object(source: bytes) -> Dict[str, Any]:
-    try:
-        value = json.loads(source.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        raise ProtocolError("the server response must be valid UTF-8 JSON") from None
-    if not isinstance(value, dict):
-        raise ProtocolError("the server response must be a JSON object")
-    return value
-
-
-def _require_string(value: Mapping[str, Any], field: str) -> str:
-    result = value.get(field)
-    if not isinstance(result, str):
-        raise ProtocolError(f"response field '{field}' must be a string")
-    return result
-
-
-def _require_integer(value: Mapping[str, Any], field: str) -> int:
-    result = value.get(field)
-    if not isinstance(result, int) or isinstance(result, bool):
-        raise ProtocolError(f"response field '{field}' must be an integer")
-    return result
-
-
-def _require_number(value: Mapping[str, Any], field: str) -> float:
-    result = value.get(field)
-    if not isinstance(result, (int, float)) or isinstance(result, bool):
-        raise ProtocolError(f"response field '{field}' must be a number")
-    return float(result)
 
 
 def _validate_nbt_value(value: Any, path: str, depth: int) -> None:

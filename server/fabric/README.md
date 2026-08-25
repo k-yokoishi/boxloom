@@ -2,13 +2,14 @@
 
 This directory contains the initial Kotlin-based, server-side Fabric mod PoC. It connects Minecraft and Fabric to the platform-independent [`../core`](../core) module and is designed to work in both a Fabric Dedicated Server and an integrated server.
 
-The PoC implements five Minecraft operations:
+The PoC implements five Minecraft operations and one event stream:
 
 - Broadcast a system message to connected players
 - List connected players
 - Read a connected player's position and look direction
 - Set one block
 - Summon one entity with optional NBT
+- Stream player chat messages as resumable Server-Sent Events
 
 Arbitrary command execution is intentionally outside this PoC.
 
@@ -23,6 +24,7 @@ Arbitrary command execution is intentionally outside this PoC.
 | Fabric API | `0.156.0+26.2` |
 | Fabric Language Kotlin | `1.13.13+kotlin.2.4.10` |
 | Fabric Loom | `1.17.17` |
+| Ktor | `3.5.2` |
 | Gradle Wrapper | `9.5.1` |
 | Docker image | `itzg/minecraft-server:2026.5.4-java25` |
 
@@ -32,9 +34,11 @@ These versions were validated by the original Codorie Learn PoC and are kept fix
 
 The mod uses a common `main` entrypoint and does not reference `net.minecraft.client.*`. `ServerLifecycleEvents.SERVER_STARTED` and `SERVER_STOPPED` track the current server, allowing one JAR to work with dedicated and integrated servers.
 
-`server/core` owns HTTP, optional Bearer authentication, input validation, JSON, errors, and shared operation types. This adapter implements `MinecraftOperations`; all player and world access is handed to `MinecraftServer#execute`, and a `CompletableFuture` returns the result to the core HTTP worker. Operations time out after five seconds by default.
+`server/core` owns the Ktor/CIO HTTP server, optional Bearer authentication, input validation, JSON serialization, errors, and shared operation types. This adapter implements the suspending `MinecraftOperations` interface; all player and world access is handed to `MinecraftServer#execute`, and coroutine cancellation prevents work that has not reached the server thread from running after the request is gone. Operations time out after five seconds by default.
 
-The distributable Fabric JAR embeds the core JAR, so installation still requires only one file.
+Fabric's `ServerMessageEvents.CHAT_MESSAGE` callback publishes signed player chat content to an in-memory history containing the most recent 1,024 events. `GET /v1/events` holds an HTTP response open and emits SSE frames as messages arrive. Event IDs combine a per-server-session identity and a monotonic sequence. Clients reconnect with `Last-Event-ID`; retained messages after that cursor are replayed, while a cursor from another session or evicted history returns `410 EVENT_CURSOR_EXPIRED`. Cursors are provided by boxloom, not persisted by Fabric or Minecraft.
+
+The distributable Fabric JAR embeds the core JAR and every Ktor runtime JAR it needs under `META-INF/jars`, so installation still requires only one top-level file. Libraries already supplied by Fabric Language Kotlin or Minecraft, including the Kotlin standard library, coroutine core, kotlinx serialization core/JSON, kotlinx-io, and SLF4J API, are deliberately not embedded a second time.
 
 The HTTP API is described independently in [`../../protocol/openapi.yaml`](../../protocol/openapi.yaml).
 
@@ -72,6 +76,13 @@ cd server
 ```
 
 The mod JAR is written to `fabric/build/libs/boxloom-0.1.0-alpha.1.jar`.
+
+The build also verifies the remapped distribution artifact. Loom's `include` configuration is non-transitive, so this check compares the explicitly bundled JARs with the core runtime dependency graph, verifies `fabric.mod.json` against `META-INF/jars`, rejects duplicate classes and duplicate platform-provided libraries, and fails if a Ktor runtime dependency is missing:
+
+```bash
+cd server
+./gradlew :fabric:verifyDistributionJar
+```
 
 ## Docker PoC
 
@@ -121,6 +132,17 @@ curl --fail-with-body \
   -H 'Authorization: Bearer boxloom-local-poc-token' \
   http://127.0.0.1:28886/v1/players
 ```
+
+Stream new player chat messages without polling:
+
+```bash
+curl --no-buffer --fail-with-body \
+  -H 'Accept: text/event-stream' \
+  -H 'Authorization: Bearer boxloom-local-poc-token' \
+  http://127.0.0.1:28886/v1/events
+```
+
+To resume a disconnected stream, send the last completely processed SSE `id` value as the `Last-Event-ID` header. The response uses SSE application framing; HTTP/1.1 may carry it with chunked transfer encoding, but clients should parse SSE fields rather than relying on transport chunk boundaries.
 
 Set a block:
 
