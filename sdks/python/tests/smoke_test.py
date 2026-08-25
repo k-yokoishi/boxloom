@@ -1,3 +1,7 @@
+import json
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.metadata import version
 
 import boxloom
@@ -10,6 +14,40 @@ assert callable(say)
 assert callable(get_player_position)
 assert callable(get_players)
 assert callable(set_block)
+
+
+class _ApiHandler(BaseHTTPRequestHandler):
+    path = None
+    authorization = None
+
+    def do_GET(self):
+        self.__class__.path = self.path
+        self.__class__.authorization = self.headers.get("Authorization")
+        encoded = json.dumps({"players": []}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def log_message(self, format, *args):
+        return
+
+
+server = ThreadingHTTPServer(("127.0.0.1", 0), _ApiHandler)
+thread = threading.Thread(target=server.serve_forever, daemon=True)
+thread.start()
+try:
+    os.environ["BOXLOOM_BASE_URL"] = f"http://127.0.0.1:{server.server_port}"
+    os.environ.pop("BOXLOOM_AUTH_TOKEN", None)
+    assert get_players() == []
+    assert _ApiHandler.path == "/v1/players"
+    assert _ApiHandler.authorization is None
+finally:
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=2)
+
 player = Player(
     username="Player",
     uuid="00000000-0000-0000-0000-000000000000",

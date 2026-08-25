@@ -21,6 +21,8 @@ Position lookup and block placement are separate requests. The example uses the 
 
 Explicit `init()` is optional. Without it, the SDK reads `BOXLOOM_BASE_URL` (default: `http://127.0.0.1:28886`) and the optional `BOXLOOM_AUTH_TOKEN` environment variable. When no token is configured, the SDK omits the Authorization header for a loopback-only boxloom server. The default request timeout is 10 seconds and can be changed with `BOXLOOM_TIMEOUT_SECONDS` or `init(timeout=...)`.
 
+The Fabric mod requires a non-empty authentication token when it binds to a non-loopback address. Python SDK `0.1.0a2` fixes the initialization error in the published `0.1.0a1` package when `BOXLOOM_AUTH_TOKEN` was unset or empty.
+
 The SDK uses only the Python standard library at runtime and supports Python 3.9 or newer.
 
 The project uses uv for its Python interpreter, virtual environment, dependency lock, and package build. From the repository root, install the mise-managed tools and synchronize the SDK environment with:
