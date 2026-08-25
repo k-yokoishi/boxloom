@@ -1,6 +1,5 @@
 package dev.boxloom.server.core
 
-import kotlinx.coroutines.runBlocking
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -15,48 +14,42 @@ class BoxloomEventBrokerTest {
 
     @Test
     fun `returns events published after a cursor`() {
-        runBlocking {
-            BoxloomEventBroker(clock = clock).use { broker ->
-                val cursor = broker.openCursor(null)
+        BoxloomEventBroker(clock = clock).use { broker ->
+            val cursor = broker.openCursor(null)
 
-                val published = broker.publishChatMessage("hello", "Steve", TEST_UUID)
-                val events = broker.awaitAfter(cursor, Duration.ZERO)
+            val published = broker.publishChatMessage("hello", "Steve", TEST_UUID)
+            val events = broker.awaitAfter(cursor, Duration.ZERO)
 
-                assertEquals(listOf(published), events)
-                assertEquals("2026-08-14T00:00:00Z", published.timestamp.toString())
-                assertEquals("hello", published.message)
-            }
+            assertEquals(listOf(published), events)
+            assertEquals("2026-08-14T00:00:00Z", published.timestamp.toString())
+            assertEquals("hello", published.message)
         }
     }
 
     @Test
     fun `reopens a retained cursor without duplicating acknowledged events`() {
-        runBlocking {
-            BoxloomEventBroker(clock = clock).use { broker ->
-                broker.publishChatMessage("first", "Steve", TEST_UUID)
-                val acknowledged = broker.publishChatMessage("second", "Steve", TEST_UUID)
-                val expected = broker.publishChatMessage("third", "Alex", OTHER_UUID)
+        BoxloomEventBroker(clock = clock).use { broker ->
+            broker.publishChatMessage("first", "Steve", TEST_UUID)
+            val acknowledged = broker.publishChatMessage("second", "Steve", TEST_UUID)
+            val expected = broker.publishChatMessage("third", "Alex", OTHER_UUID)
 
-                val cursor = broker.openCursor(acknowledged.id)
-                val events = broker.awaitAfter(cursor, Duration.ZERO)
+            val cursor = broker.openCursor(acknowledged.id)
+            val events = broker.awaitAfter(cursor, Duration.ZERO)
 
-                assertEquals(listOf(expected), events)
-            }
+            assertEquals(listOf(expected), events)
         }
     }
 
     @Test
     fun `rejects a cursor after its history is evicted`() {
-        runBlocking {
-            BoxloomEventBroker(capacity = 2, clock = clock).use { broker ->
-                val expired = broker.openCursor(null)
-                broker.publishChatMessage("one", "Steve", TEST_UUID)
-                broker.publishChatMessage("two", "Steve", TEST_UUID)
-                broker.publishChatMessage("three", "Steve", TEST_UUID)
+        BoxloomEventBroker(capacity = 2, clock = clock).use { broker ->
+            val expired = broker.openCursor(null)
+            broker.publishChatMessage("one", "Steve", TEST_UUID)
+            broker.publishChatMessage("two", "Steve", TEST_UUID)
+            broker.publishChatMessage("three", "Steve", TEST_UUID)
 
-                assertFailsWith<EventCursorExpiredException> {
-                    broker.awaitAfter(expired, Duration.ZERO)
-                }
+            assertFailsWith<EventCursorExpiredException> {
+                broker.awaitAfter(expired, Duration.ZERO)
             }
         }
     }
