@@ -1,31 +1,35 @@
 package dev.boxloom.server.core
 
-import java.util.concurrent.CompletableFuture
+import kotlinx.serialization.Serializable
 
 interface MinecraftOperations {
-    fun say(request: SayRequest): CompletableFuture<SayResult>
+    suspend fun say(request: SayRequest): SayResult
 
-    fun players(): CompletableFuture<List<Player>>
+    suspend fun players(): List<Player>
 
-    fun playerPosition(username: String): CompletableFuture<PlayerPosition>
+    suspend fun playerPosition(username: String): PlayerPosition
 
-    fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult>
+    suspend fun setBlock(request: SetBlockRequest): SetBlockResult
 }
 
+@Serializable
 data class SayRequest(
     val message: String,
 )
 
+@Serializable
 data class SayResult(
     val message: String,
     val recipients: Int,
 )
 
+@Serializable
 data class Player(
     val username: String,
     val uuid: String,
 )
 
+@Serializable
 data class PlayerPosition(
     val username: String,
     val uuid: String,
@@ -37,6 +41,7 @@ data class PlayerPosition(
     val pitch: Float,
 )
 
+@Serializable
 data class SetBlockRequest(
     val dimension: String,
     val x: Int,
@@ -45,6 +50,7 @@ data class SetBlockRequest(
     val block: String,
 )
 
+@Serializable
 data class SetBlockResult(
     val changed: Boolean,
     val dimension: String,

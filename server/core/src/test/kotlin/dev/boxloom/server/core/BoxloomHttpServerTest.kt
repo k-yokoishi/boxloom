@@ -9,7 +9,6 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
-import java.util.concurrent.CompletableFuture
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -28,8 +27,66 @@ class BoxloomHttpServerTest {
     @Test
     fun `requires the configured bearer token`() {
         withServer(authToken = "test-secret") { server, _ ->
-            assertEquals(401, request(server).statusCode())
+            val missing = request(server)
+            assertEquals(401, missing.statusCode())
+            assertContains(missing.body(), "UNAUTHORIZED")
             assertEquals(200, request(server, "test-secret").statusCode())
+        }
+    }
+
+    @Test
+    fun `rejects an invalid bearer token as forbidden`() {
+        withServer(authToken = "test-secret") { server, _ ->
+            val response = request(server, "wrong-secret")
+
+            assertEquals(403, response.statusCode())
+            assertContains(response.body(), "FORBIDDEN")
+        }
+    }
+
+    @Test
+    fun `deserializes and serializes JSON through Ktor`() {
+        withServer(authToken = null, minecraft = SayMinecraftOperations) { server, _ ->
+            val request = HttpRequest.newBuilder()
+                .uri(URI("http://127.0.0.1:${server.boundPort}/v1/chat/messages"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"message\":\"hello\"}"))
+                .build()
+            val response = HttpClient.newHttpClient().send(
+                request,
+                HttpResponse.BodyHandlers.ofString(),
+            )
+
+            assertEquals(200, response.statusCode())
+            assertEquals("{\"message\":\"hello\",\"recipients\":2}", response.body())
+        }
+    }
+
+    @Test
+    fun `returns structured method and route errors`() {
+        withServer(authToken = null) { server, _ ->
+            val wrongMethod = HttpRequest.newBuilder()
+                .uri(URI("http://127.0.0.1:${server.boundPort}/v1/chat/messages"))
+                .GET()
+                .build()
+            val methodResponse = HttpClient.newHttpClient().send(
+                wrongMethod,
+                HttpResponse.BodyHandlers.ofString(),
+            )
+            val unknownRoute = HttpRequest.newBuilder()
+                .uri(URI("http://127.0.0.1:${server.boundPort}/v1/missing"))
+                .GET()
+                .build()
+            val routeResponse = HttpClient.newHttpClient().send(
+                unknownRoute,
+                HttpResponse.BodyHandlers.ofString(),
+            )
+
+            assertEquals(405, methodResponse.statusCode())
+            assertEquals("POST", methodResponse.headers().firstValue("Allow").orElseThrow())
+            assertContains(methodResponse.body(), "METHOD_NOT_ALLOWED")
+            assertEquals(404, routeResponse.statusCode())
+            assertContains(routeResponse.body(), "ROUTE_NOT_FOUND")
         }
     }
 
@@ -66,7 +123,7 @@ class BoxloomHttpServerTest {
 
             assertEquals(200, response.statusCode())
             assertEquals(
-                "text/event-stream; charset=utf-8",
+                "text/event-stream",
                 response.headers().firstValue("Content-Type").orElseThrow(),
             )
 
@@ -169,6 +226,7 @@ class BoxloomHttpServerTest {
     private fun withServer(
         authToken: String?,
         events: BoxloomEventBroker = BoxloomEventBroker(),
+        minecraft: MinecraftOperations = TestMinecraftOperations,
         block: (BoxloomHttpServer, BoxloomEventBroker) -> Unit,
     ) {
         val config = BoxloomConfig(
@@ -177,7 +235,7 @@ class BoxloomHttpServerTest {
             authToken,
             Duration.ofSeconds(1),
         )
-        val server = BoxloomHttpServer(config, TestMinecraftOperations, events)
+        val server = BoxloomHttpServer(config, minecraft, events)
 
         server.use {
             it.start()
@@ -228,17 +286,30 @@ class BoxloomHttpServerTest {
     }
 
     private object TestMinecraftOperations : MinecraftOperations {
-        override fun players(): CompletableFuture<List<Player>> =
-            CompletableFuture.completedFuture(emptyList())
+        override suspend fun players(): List<Player> = emptyList()
 
-        override fun say(request: SayRequest): CompletableFuture<SayResult> =
-            CompletableFuture.failedFuture(AssertionError("Unexpected say request"))
+        override suspend fun say(request: SayRequest): SayResult =
+            throw AssertionError("Unexpected say request")
 
-        override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
-            CompletableFuture.failedFuture(AssertionError("Unexpected position request"))
+        override suspend fun playerPosition(username: String): PlayerPosition =
+            throw AssertionError("Unexpected position request")
 
-        override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
-            CompletableFuture.failedFuture(AssertionError("Unexpected set-block request"))
+        override suspend fun setBlock(request: SetBlockRequest): SetBlockResult =
+            throw AssertionError("Unexpected set-block request")
+    }
+
+    private object SayMinecraftOperations : MinecraftOperations {
+        override suspend fun say(request: SayRequest): SayResult =
+            SayResult(request.message, 2)
+
+        override suspend fun players(): List<Player> =
+            throw AssertionError("Unexpected players request")
+
+        override suspend fun playerPosition(username: String): PlayerPosition =
+            throw AssertionError("Unexpected position request")
+
+        override suspend fun setBlock(request: SetBlockRequest): SetBlockResult =
+            throw AssertionError("Unexpected set-block request")
     }
 
     companion object {

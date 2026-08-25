@@ -23,6 +23,7 @@ Arbitrary command execution and entity operations are intentionally outside this
 | Fabric API | `0.156.0+26.2` |
 | Fabric Language Kotlin | `1.13.13+kotlin.2.4.10` |
 | Fabric Loom | `1.17.17` |
+| Ktor | `3.5.2` |
 | Gradle Wrapper | `9.5.1` |
 | Docker image | `itzg/minecraft-server:2026.5.4-java25` |
 
@@ -32,11 +33,11 @@ These versions were validated by the original Codorie Learn PoC and are kept fix
 
 The mod uses a common `main` entrypoint and does not reference `net.minecraft.client.*`. `ServerLifecycleEvents.SERVER_STARTED` and `SERVER_STOPPED` track the current server, allowing one JAR to work with dedicated and integrated servers.
 
-`server/core` owns HTTP, optional Bearer authentication, input validation, JSON, errors, and shared operation types. This adapter implements `MinecraftOperations`; all player and world access is handed to `MinecraftServer#execute`, and a `CompletableFuture` returns the result to the core HTTP worker. Operations time out after five seconds by default.
+`server/core` owns the Ktor/CIO HTTP server, optional Bearer authentication, input validation, JSON serialization, errors, and shared operation types. This adapter implements the suspending `MinecraftOperations` interface; all player and world access is handed to `MinecraftServer#execute`, and coroutine cancellation prevents work that has not reached the server thread from running after the request is gone. Operations time out after five seconds by default.
 
 Fabric's `ServerMessageEvents.CHAT_MESSAGE` callback publishes signed player chat content to an in-memory history containing the most recent 1,024 events. `GET /v1/events` holds an HTTP response open and emits SSE frames as messages arrive. Event IDs combine a per-server-session identity and a monotonic sequence. Clients reconnect with `Last-Event-ID`; retained messages after that cursor are replayed, while a cursor from another session or evicted history returns `410 EVENT_CURSOR_EXPIRED`. Cursors are provided by boxloom, not persisted by Fabric or Minecraft.
 
-The distributable Fabric JAR embeds the core JAR, so installation still requires only one file.
+The distributable Fabric JAR embeds the core JAR and every Ktor runtime JAR it needs under `META-INF/jars`, so installation still requires only one top-level file. Libraries already supplied by Fabric Language Kotlin or Minecraft, including the Kotlin standard library, coroutine core, kotlinx serialization core/JSON, kotlinx-io, and SLF4J API, are deliberately not embedded a second time.
 
 The HTTP API is described independently in [`../../protocol/openapi.yaml`](../../protocol/openapi.yaml).
 
@@ -74,6 +75,13 @@ cd server
 ```
 
 The mod JAR is written to `fabric/build/libs/boxloom-0.1.0-alpha.1.jar`.
+
+The build also verifies the remapped distribution artifact. Loom's `include` configuration is non-transitive, so this check compares the explicitly bundled JARs with the core runtime dependency graph, verifies `fabric.mod.json` against `META-INF/jars`, rejects duplicate classes and duplicate platform-provided libraries, and fails if a Ktor runtime dependency is missing:
+
+```bash
+cd server
+./gradlew :fabric:verifyDistributionJar
+```
 
 ## Docker PoC
 
