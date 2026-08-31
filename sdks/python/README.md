@@ -1,6 +1,6 @@
 # boxloom Python SDK
 
-The initial SDK provides `say`, `get_players`, `get_player_position`, `set_block` (`setblock` is also available as an alias), `summon`, and the `watch_chat` player-chat event stream for a running boxloom Fabric server.
+The initial SDK provides `say`, `get_players`, `get_player_position`, `Player.teleport`, `set_block` (`setblock` is also available as an alias), `summon`, and the `watch_chat` player-chat event stream for a running boxloom Fabric server.
 
 ```python
 from boxloom import get_player_position, get_players, init, say, set_block, summon
@@ -12,7 +12,8 @@ init(
 
 say("Hello from Python!")
 players = get_players()
-position = get_player_position(players[0].username)
+player = players[0]
+position = get_player_position(player.username)
 x, y, z = position.block_coordinates()
 set_block(x + 1, y - 1, z, "minecraft:diamond_block", dimension=position.dimension)
 summon(
@@ -23,9 +24,12 @@ summon(
     nbt={"Motion": [0.0, -1.5, 0.0], "Rotation": [0.0, 90.0]},
     dimension=position.dimension,
 )
+player.teleport(x + 3, y, z)
 ```
 
 Position lookup and block placement are separate requests. The example uses the sampled position even if the player moves before `set_block` reaches the server.
+
+`Player.teleport(x, y, z)` uses absolute coordinates and requires only the three destination coordinates. By default it keeps the player's current dimension, yaw, and pitch. Pass any of `dimension=`, `yaw=`, and `pitch=` to replace that value; omitted options are not sent and are resolved from the player on the Minecraft server. The method returns the player's resulting `PlayerPosition`. Players returned by `get_players()` and `watch_chat()` retain the client configuration that produced them. A directly constructed `Player` is an unbound value and cannot perform server operations.
 
 `summon` accepts an optional plain Python `dict` for NBT. Nested dictionaries, lists, strings, booleans, signed 64-bit integers, and finite floats are supported; `None` has no NBT representation and is rejected. Integers become `IntTag` or `LongTag`, floats become `DoubleTag`, and booleans become `ByteTag`. The entity ID and position arguments take precedence over `id` and `Pos` supplied in the dictionary, matching Minecraft's `summon` command behavior.
 

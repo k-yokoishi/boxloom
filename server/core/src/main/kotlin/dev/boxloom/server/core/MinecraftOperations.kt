@@ -9,6 +9,11 @@ interface MinecraftOperations {
 
     fun playerPosition(username: String): CompletableFuture<PlayerPosition>
 
+    fun teleportPlayer(
+        username: String,
+        request: TeleportPlayerRequest,
+    ): CompletableFuture<PlayerPosition>
+
     fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult>
 
     fun summon(request: SummonRequest): CompletableFuture<SummonResult>
@@ -37,6 +42,15 @@ data class PlayerPosition(
     val z: Double,
     val yaw: Float,
     val pitch: Float,
+)
+
+data class TeleportPlayerRequest(
+    val x: Double,
+    val y: Double,
+    val z: Double,
+    val dimension: String? = null,
+    val yaw: Double? = null,
+    val pitch: Double? = null,
 )
 
 data class SetBlockRequest(

@@ -1,7 +1,7 @@
 import socket
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Iterator, List, Literal, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Iterator, List, Literal, Mapping, Optional, Union
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -20,6 +20,9 @@ from ..errors import (
     ProtocolError,
 )
 from ..models import ChatEvent, Player
+
+if TYPE_CHECKING:
+    from .._client import BoxloomClient
 
 
 @dataclass(frozen=True)
@@ -87,6 +90,7 @@ class ChatEventStream(Iterator[ChatEvent]):
         timeout: float,
         last_event_id: Optional[str],
         reconnect: bool,
+        player_client: Optional["BoxloomClient"] = None,
     ) -> None:
         if last_event_id is not None and (
             not isinstance(last_event_id, str)
@@ -105,6 +109,7 @@ class ChatEventStream(Iterator[ChatEvent]):
         self._timeout = timeout
         self._last_event_id = last_event_id
         self._reconnect = reconnect
+        self._player_client = player_client
         self._retry_seconds = 1.0
         self._response: Any = None
         self._closed = threading.Event()
@@ -162,7 +167,7 @@ class ChatEventStream(Iterator[ChatEvent]):
             if frame.event_id is not None:
                 self._last_event_id = frame.event_id
             try:
-                event = _decode_boxloom_event(frame)
+                event = _decode_boxloom_event(frame, self._player_client)
                 if event is None or event.event_name == "stream.ready":
                     continue
                 if event.event_name == "chat.message":
@@ -259,7 +264,10 @@ class ChatEventStream(Iterator[ChatEvent]):
                 retry_milliseconds = int(value)
 
 
-def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
+def _decode_boxloom_event(
+    frame: _SseFrame,
+    player_client: Optional["BoxloomClient"],
+) -> Optional[_BoxloomEvent]:
     if frame.data is None:
         return None
     if frame.event_name not in {
@@ -282,7 +290,7 @@ def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
         return _StreamReadyEvent(cursor=cursor)
     if frame.event_name == "chat.message":
         return _ChatMessageEvent(
-            chat_event=_decode_chat_event(payload, frame.event_id),
+            chat_event=_decode_chat_event(payload, frame.event_id, player_client),
         )
 
     code = _require_string(payload, "code")
@@ -292,7 +300,11 @@ def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
     return _ErrorEvent(code=code, message=message)
 
 
-def _decode_chat_event(payload: Mapping[str, Any], event_id: Optional[str]) -> ChatEvent:
+def _decode_chat_event(
+    payload: Mapping[str, Any],
+    event_id: Optional[str],
+    player_client: Optional["BoxloomClient"],
+) -> ChatEvent:
     payload_id = _require_string(payload, "id")
     if event_id is None or event_id != payload_id:
         raise ProtocolError("chat event payload id must match the SSE event id")
@@ -307,5 +319,6 @@ def _decode_chat_event(payload: Mapping[str, Any], event_id: Optional[str]) -> C
         player=Player(
             username=_require_string(player_value, "username"),
             uuid=_require_string(player_value, "uuid"),
+            _client=player_client,
         ),
     )

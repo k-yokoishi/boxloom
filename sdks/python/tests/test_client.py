@@ -150,6 +150,88 @@ class ClientTest(unittest.TestCase):
         with self.assertRaises(boxloom.ProtocolError):
             boxloom.get_players()
 
+    def test_player_teleport_posts_required_coordinates(self):
+        _ApiHandler.response_body = {
+            "players": [
+                {
+                    "username": "Player_123",
+                    "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+                }
+            ]
+        }
+        player = boxloom.get_players()[0]
+        _ApiHandler.response_body = {
+            "username": "Player_123",
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+            "dimension": "minecraft:the_nether",
+            "x": 100,
+            "y": 64,
+            "z": -20,
+            "yaw": 45,
+            "pitch": 10,
+        }
+
+        result = player.teleport(100, 64, -20)
+
+        self.assertEqual("minecraft:the_nether", result.dimension)
+        path, headers, body = _ApiHandler.requests[1]
+        self.assertEqual("/v1/players/Player_123/teleport", path)
+        self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+        self.assertEqual({"x": 100, "y": 64, "z": -20}, body)
+
+    def test_teleport_player_posts_optional_destination_fields(self):
+        _ApiHandler.response_body = {
+            "username": "Player_123",
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+            "dimension": "minecraft:the_end",
+            "x": 1.5,
+            "y": 72,
+            "z": -2.25,
+            "yaw": 90,
+            "pitch": -12.5,
+        }
+        client = boxloom.BoxloomClient(
+            base_url=self.base_url,
+            auth_token="unit-test-secret",
+        )
+
+        result = client.teleport_player(
+            "Player_123",
+            1.5,
+            72,
+            -2.25,
+            dimension="minecraft:the_end",
+            yaw=90,
+            pitch=-12.5,
+        )
+
+        self.assertEqual((1, 72, -3), result.block_coordinates())
+        self.assertEqual(
+            {
+                "x": 1.5,
+                "y": 72,
+                "z": -2.25,
+                "dimension": "minecraft:the_end",
+                "yaw": 90,
+                "pitch": -12.5,
+            },
+            _ApiHandler.requests[0][2],
+        )
+
+    def test_teleport_rejects_invalid_coordinates_before_request(self):
+        player = boxloom.Player(
+            "Player_123",
+            "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+        )
+        with self.assertRaises(boxloom.ConfigurationError):
+            player.teleport(0, 64, 0)
+
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        with self.assertRaises(ValueError):
+            client.teleport_player("Player_123", float("inf"), 64, 0)
+
+        self.assertEqual([], _ApiHandler.requests)
+
     def test_watch_chat_streams_an_authenticated_player_message(self):
         event_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:1"
         _ApiHandler.stream_responses = [
@@ -185,6 +267,22 @@ class ClientTest(unittest.TestCase):
         self.assertEqual("text/event-stream", headers["Accept"])
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
         self.assertIsNone(body)
+
+        _ApiHandler.response_body = {
+            "username": "Player_123",
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+            "dimension": "minecraft:overworld",
+            "x": 0,
+            "y": 64,
+            "z": 0,
+            "yaw": 0,
+            "pitch": 0,
+        }
+        event.player.teleport(0, 64, 0)
+        self.assertEqual(
+            "/v1/players/Player_123/teleport",
+            _ApiHandler.requests[1][0],
+        )
 
     def test_watch_chat_skips_ready_and_unknown_events(self):
         ready_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:0"

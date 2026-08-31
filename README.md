@@ -34,12 +34,12 @@ flowchart LR
 
 The SDK and mod are expected to communicate within the same machine or a trusted private network. The mod's internal API is not intended to be exposed directly to the public internet.
 
-The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say`, `get_players`, `get_player_position`, `set_block`, `summon`, and the `watch_chat` player-chat event stream.
+The repository contains the initial Fabric mod PoC, its versioned HTTP contract, and the first Python SDK implementation for `say`, `get_players`, `get_player_position`, `Player.teleport`, `set_block`, `summon`, and the `watch_chat` player-chat event stream.
 
 ## Goals
 
 - Provide a focused, high-level Python API for Minecraft world operations
-- Prefer directly exported functions for common operations
+- Prefer a small set of directly exported functions and player methods for common operations
 - Hide Fabric and Minecraft implementation details from Python applications
 - Define a versioned contract between the Python SDK and the Fabric mod
 - Return structured results and errors instead of relying on console output parsing
@@ -52,7 +52,7 @@ The repository contains the initial Fabric mod PoC, its versioned HTTP contract,
 
 The Python package is responsible for:
 
-- Exporting common Minecraft operations as top-level Python functions
+- Exporting common Minecraft operations as top-level Python functions or methods on returned players
 - Providing `init()` for explicit connection configuration
 - Resolving connection configuration and credentials
 - Encoding requests and decoding responses
@@ -98,7 +98,8 @@ from boxloom import get_player_position, get_players, say, set_block, summon, wa
 
 say("Hello from boxloom!")
 players = get_players()
-position = get_player_position(players[0].username)
+player = players[0]
+position = get_player_position(player.username)
 x, y, z = position.block_coordinates()
 set_block(x + 1, y - 1, z, "minecraft:gold_block", dimension=position.dimension)
 summon(
@@ -109,11 +110,14 @@ summon(
     nbt={"Motion": [0.0, -1.5, 0.0], "Rotation": [0.0, 90.0]},
     dimension=position.dimension,
 )
+player.teleport(x + 3, y, z)
 
 with watch_chat() as events:
     for event in events:
         print(f"<{event.player.username}> {event.message}")
 ```
+
+`Player.teleport(x, y, z)` uses absolute coordinates. It keeps the player's current dimension and look direction unless `dimension`, `yaw`, or `pitch` is supplied, and returns the resulting `PlayerPosition`.
 
 `watch_chat()` keeps one HTTP response open using Server-Sent Events; it does not poll. If the connection drops, the SDK reconnects with the most recently received `Last-Event-ID` and the mod replays events still held in its bounded in-memory history. A server restart or an evicted cursor raises `EventCursorExpiredError`, allowing the application to decide whether to resume from the new live position.
 

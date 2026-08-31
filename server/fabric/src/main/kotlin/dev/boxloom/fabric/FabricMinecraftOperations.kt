@@ -11,6 +11,7 @@ import dev.boxloom.server.core.SetBlockRequest
 import dev.boxloom.server.core.SetBlockResult
 import dev.boxloom.server.core.SummonRequest
 import dev.boxloom.server.core.SummonResult
+import dev.boxloom.server.core.TeleportPlayerRequest
 import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.core.registries.Registries
@@ -26,11 +27,13 @@ import net.minecraft.network.chat.Component
 import net.minecraft.resources.Identifier
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
+import net.minecraft.util.Mth
 import net.minecraft.world.Difficulty
 import net.minecraft.world.entity.EntitySpawnReason
 import net.minecraft.world.entity.EntitySpawnRequest
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.Mob
+import net.minecraft.world.entity.Relative
 import net.minecraft.world.level.Level
 import java.util.Locale
 import java.util.concurrent.CompletableFuture
@@ -64,6 +67,76 @@ internal class FabricMinecraftOperations(
                     "PLAYER_NOT_CONNECTED",
                     "Player '$username' is not connected",
                 )
+
+            PlayerPosition(
+                player.name.string,
+                player.uuid.toString(),
+                player.level().dimension().identifier().toString(),
+                player.x,
+                player.y,
+                player.z,
+                player.yRot,
+                player.xRot,
+            )
+        }
+
+    override fun teleportPlayer(
+        username: String,
+        request: TeleportPlayerRequest,
+    ): CompletableFuture<PlayerPosition> =
+        onServerThread { server ->
+            val player = server.playerList.getPlayerByName(username)
+                ?: throw ApiException(
+                    404,
+                    "PLAYER_NOT_CONNECTED",
+                    "Player '$username' is not connected",
+                )
+            val targetLevel = request.dimension?.let { dimension ->
+                val dimensionId = parseIdentifier(dimension, "dimension")
+                val dimensionKey: ResourceKey<Level> =
+                    ResourceKey.create(Registries.DIMENSION, dimensionId)
+                server.getLevel(dimensionKey)
+                    ?: throw ApiException(
+                        404,
+                        "DIMENSION_NOT_FOUND",
+                        "Dimension '$dimension' is not loaded",
+                    )
+            } ?: player.level()
+
+            val position = BlockPos.containing(request.x, request.y, request.z)
+            if (!Level.isInSpawnableBounds(position)) {
+                throw ApiException(
+                    400,
+                    "INVALID_POSITION",
+                    "The requested position is outside Minecraft's spawnable bounds",
+                )
+            }
+
+            val yaw = request.yaw?.let { Mth.wrapDegrees(it).toFloat() } ?: player.yRot
+            val pitch = request.pitch?.let { Mth.wrapDegrees(it).toFloat() } ?: player.xRot
+            val teleported = player.teleportTo(
+                targetLevel,
+                request.x,
+                request.y,
+                request.z,
+                emptySet<Relative>(),
+                yaw,
+                pitch,
+                true,
+            )
+            if (!teleported) {
+                throw ApiException(
+                    409,
+                    "TELEPORT_FAILED",
+                    "Player '$username' could not be teleported",
+                )
+            }
+
+            if (!player.isFallFlying) {
+                val movement = player.deltaMovement
+                player.setDeltaMovement(movement.x, 0.0, movement.z)
+                player.setOnGround(true)
+            }
 
             PlayerPosition(
                 player.name.string,

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Stream player chat messages through a resumable Server-Sent Events API
+- Teleport connected players to absolute coordinates with optional dimension and rotation
 
 ## 0.1.0-alpha.1
 
