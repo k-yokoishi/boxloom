@@ -70,6 +70,7 @@ player = Player(
     uuid="00000000-0000-0000-0000-000000000000",
 )
 assert player.username == "Player"
+assert callable(player.teleport)
 position = PlayerPosition(
     username="Player",
     uuid="00000000-0000-0000-0000-000000000000",

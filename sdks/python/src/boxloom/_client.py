@@ -78,6 +78,59 @@ class BoxloomClient:
             pitch=_require_number(payload, "pitch"),
         )
 
+    def teleport_player(
+        self,
+        username: str,
+        x: float,
+        y: float,
+        z: float,
+        *,
+        dimension: Optional[str] = None,
+        yaw: Optional[float] = None,
+        pitch: Optional[float] = None,
+    ) -> PlayerPosition:
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+        for field_name, value in (("x", x), ("y", y), ("z", z)):
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise TypeError(f"{field_name} must be a number")
+            if not isfinite(value):
+                raise ValueError(f"{field_name} must be finite")
+        if dimension is not None and (
+            not isinstance(dimension, str) or not dimension.strip()
+        ):
+            raise ValueError("dimension must be a non-empty namespaced ID or None")
+        for field_name, value in (("yaw", yaw), ("pitch", pitch)):
+            if value is None:
+                continue
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise TypeError(f"{field_name} must be a number or None")
+            if not isfinite(value):
+                raise ValueError(f"{field_name} must be finite")
+
+        body: Dict[str, Any] = {"x": x, "y": y, "z": z}
+        if dimension is not None:
+            body["dimension"] = dimension
+        if yaw is not None:
+            body["yaw"] = yaw
+        if pitch is not None:
+            body["pitch"] = pitch
+
+        payload = self._post(
+            f"/v1/players/{quote(username, safe='')}/teleport",
+            body,
+        )
+        return PlayerPosition(
+            username=_require_string(payload, "username"),
+            uuid=_require_string(payload, "uuid"),
+            dimension=_require_string(payload, "dimension"),
+            x=_require_number(payload, "x"),
+            y=_require_number(payload, "y"),
+            z=_require_number(payload, "z"),
+            yaw=_require_number(payload, "yaw"),
+            pitch=_require_number(payload, "pitch"),
+        )
+
     def get_players(self) -> List[Player]:
         payload = self._get("/v1/players")
         players_value = payload.get("players")
@@ -92,6 +145,7 @@ class BoxloomClient:
                 Player(
                     username=_require_string(player_value, "username"),
                     uuid=_require_string(player_value, "uuid"),
+                    _client=self,
                 )
             )
         return players
@@ -110,6 +164,7 @@ class BoxloomClient:
             timeout=self._timeout,
             last_event_id=last_event_id,
             reconnect=reconnect,
+            player_client=self,
         )
 
     def set_block(

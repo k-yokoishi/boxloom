@@ -191,6 +191,68 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/players/{username}/teleport:
+    post:
+      operationId: teleportPlayer
+      summary: Teleport a connected player to absolute coordinates
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_]{3,16}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeleportPlayerRequest'
+      responses:
+        '200':
+          description: The player's position after teleporting
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerPosition'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The player is not connected, the dimension is not loaded, or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '409':
+          description: Minecraft could not teleport the player
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/world/blocks:
     post:
       operationId: setBlock
@@ -377,6 +439,34 @@ components:
           type: number
         pitch:
           type: number
+    TeleportPlayerRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - x
+        - y
+        - z
+      properties:
+        x:
+          type: number
+          description: Absolute destination X coordinate
+        y:
+          type: number
+          description: Absolute destination Y coordinate
+        z:
+          type: number
+          description: Absolute destination Z coordinate
+        dimension:
+          type: string
+          description: Loaded destination dimension; omitted to keep the current dimension
+          examples:
+            - minecraft:overworld
+        yaw:
+          type: number
+          description: Horizontal rotation in degrees; omitted to keep the current yaw
+        pitch:
+          type: number
+          description: Vertical rotation in degrees; omitted to keep the current pitch
     SetBlockRequest:
       type: object
       additionalProperties: false

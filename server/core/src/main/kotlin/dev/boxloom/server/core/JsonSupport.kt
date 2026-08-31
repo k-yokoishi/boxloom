@@ -63,6 +63,16 @@ internal object JsonSupport {
         return result
     }
 
+    fun optionalString(objectValue: JsonObject, name: String): String? {
+        if (name !in objectValue) return null
+        return requireString(objectValue, name)
+    }
+
+    fun optionalFiniteDouble(objectValue: JsonObject, name: String): Double? {
+        if (name !in objectValue) return null
+        return requireFiniteDouble(objectValue, name)
+    }
+
     fun optionalNbt(objectValue: JsonObject, name: String): NbtValue.Compound? {
         val value = objectValue[name] ?: return null
         val compound = value as? JsonObject
