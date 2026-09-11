@@ -2,6 +2,7 @@ min_version = "2026.5.6"
 
 [tools]
 java = "temurin-25"
+node = "24"
 uv = "latest"
 
 [settings]
@@ -42,3 +43,18 @@ uv publish --index testpypi dist/*
 description = "Build and verify the Fabric server mod"
 dir = "server"
 run = "./gradlew build"
+
+[tasks.docs-install]
+description = "Install documentation site dependencies"
+dir = "docs-site"
+run = "npm ci"
+
+[tasks.docs-dev]
+description = "Start the documentation development server"
+dir = "docs-site"
+run = "npm run dev"
+
+[tasks.docs-build]
+description = "Build the static documentation site"
+dir = "docs-site"
+run = "npm run build"

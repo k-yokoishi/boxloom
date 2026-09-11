@@ -14,6 +14,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  docs:
+    name: Documentation site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: docs-site
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static documentation
+        run: npm run build
+
   python:
     name: Python SDK
     runs-on: ubuntu-latest
