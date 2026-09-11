@@ -2,12 +2,13 @@
 
 This directory contains the initial Kotlin-based, server-side Fabric mod PoC. It connects Minecraft and Fabric to the platform-independent [`../core`](../core) module and is designed to work in both a Fabric Dedicated Server and an integrated server.
 
-The PoC implements six Minecraft operations and one event stream:
+The PoC implements seven Minecraft operations and one event stream:
 
 - Broadcast a system message to connected players
 - List connected players
 - Read a connected player's position and look direction
 - Teleport a connected player to absolute coordinates
+- Get one block from a loaded dimension
 - Set one block
 - Summon one entity with optional NBT
 - Stream player chat messages as resumable Server-Sent Events
@@ -164,6 +165,18 @@ curl --fail-with-body \
     "z": 0,
     "block": "minecraft:diamond_block"
   }' \
+  http://127.0.0.1:28886/v1/world/blocks
+```
+
+Get a block:
+
+```bash
+curl --get --fail-with-body \
+  -H 'Authorization: Bearer boxloom-local-poc-token' \
+  --data-urlencode 'dimension=minecraft:overworld' \
+  --data-urlencode 'x=0' \
+  --data-urlencode 'y=100' \
+  --data-urlencode 'z=0' \
   http://127.0.0.1:28886/v1/world/blocks
 ```
 

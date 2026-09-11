@@ -1,9 +1,9 @@
 # boxloom Python SDK
 
-The initial SDK provides `say`, `get_players`, `get_player_position`, `teleport_player`, `set_block` (`setblock` is also available as an alias), `summon`, and the `watch_chat` player-chat event stream for a running boxloom Fabric server.
+The initial SDK provides `say`, `get_players`, `get_player_position`, `teleport_player`, `get_block`, `set_block`, `summon`, and the `watch_chat` player-chat event stream for a running boxloom Fabric server.
 
 ```python
-from boxloom import get_player_position, get_players, init, say, set_block, summon, teleport_player
+from boxloom import get_block, get_player_position, get_players, init, say, set_block, summon, teleport_player
 
 init(
     base_url="http://127.0.0.1:28886",
@@ -16,6 +16,7 @@ player = players[0]
 position = get_player_position(player.username)
 x, y, z = position.block_coordinates()
 set_block(x + 1, y - 1, z, "minecraft:diamond_block", dimension=position.dimension)
+block = get_block(x + 1, y - 1, z, dimension=position.dimension)
 summon(
     "minecraft:arrow",
     x,
@@ -25,9 +26,12 @@ summon(
     dimension=position.dimension,
 )
 teleport_player(player.username, x + 3, y, z)
+print(block)  # minecraft:diamond_block
 ```
 
 Position lookup and block placement are separate requests. The example uses the sampled position even if the player moves before `set_block` reaches the server.
+
+`get_block(x, y, z)` returns the namespaced block ID at that position directly as a `str`. It reads `minecraft:overworld` by default; pass `dimension=` to select another loaded dimension.
 
 `teleport_player(username, x, y, z)` uses absolute coordinates and requires only the username and three destination coordinates. By default it keeps the player's current dimension, yaw, and pitch. Pass any of `dimension=`, `yaw=`, and `pitch=` to replace that value; omitted options are not sent and are resolved from the player on the Minecraft server. The function returns the player's resulting `PlayerPosition`.
 

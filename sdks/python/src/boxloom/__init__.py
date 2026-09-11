@@ -36,12 +36,12 @@ __all__ = [
     "SayResult",
     "SetBlockResult",
     "SummonResult",
+    "get_block",
     "get_player_position",
     "get_players",
     "init",
     "say",
     "set_block",
-    "setblock",
     "summon",
     "teleport_player",
     "watch_chat",
@@ -150,17 +150,16 @@ def set_block(
     return _default_client().set_block(x, y, z, block, dimension=dimension)
 
 
-def setblock(
+def get_block(
     x: int,
     y: int,
     z: int,
-    block: str,
     *,
     dimension: str = "minecraft:overworld",
-) -> SetBlockResult:
-    """Alias for :func:`set_block`."""
+) -> str:
+    """Return the block ID at a position in a loaded Minecraft dimension."""
 
-    return set_block(x, y, z, block, dimension=dimension)
+    return _default_client().get_block(x, y, z, dimension=dimension)
 
 
 def summon(

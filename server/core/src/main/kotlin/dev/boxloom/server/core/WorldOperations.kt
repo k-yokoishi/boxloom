@@ -3,10 +3,27 @@ package dev.boxloom.server.core
 import java.util.concurrent.CompletableFuture
 
 interface WorldOperations {
+    fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult>
+
     fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult>
 
     fun summon(request: SummonRequest): CompletableFuture<SummonResult>
 }
+
+data class GetBlockRequest(
+    val dimension: String,
+    val x: Int,
+    val y: Int,
+    val z: Int,
+)
+
+data class GetBlockResult(
+    val dimension: String,
+    val x: Int,
+    val y: Int,
+    val z: Int,
+    val block: String,
+)
 
 data class SetBlockRequest(
     val dimension: String,

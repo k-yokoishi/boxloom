@@ -1,4 +1,4 @@
-from boxloom import get_player_position, get_players, say, set_block
+from boxloom import get_block, get_player_position, get_players, say, set_block
 
 
 def main() -> None:
@@ -18,11 +18,13 @@ def main() -> None:
         "minecraft:diamond_block",
         dimension=position.dimension,
     )
+    block = get_block(x + 1, y - 1, z, dimension=position.dimension)
 
     print(f"player: {player.username} ({player.uuid})")
     print(f"position: {position}")
     print(f"say: {say_result}")
     print(f"set_block: {block_result}")
+    print(f"get_block: {block}")
 
 
 if __name__ == "__main__":

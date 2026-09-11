@@ -4,7 +4,7 @@ import socket
 from math import isfinite
 from typing import Any, Dict, List, Mapping, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 from .errors import (
@@ -207,18 +207,32 @@ class BoxloomClient:
             block=_require_string(payload, "block"),
         )
 
-    def setblock(
+    def get_block(
         self,
         x: int,
         y: int,
         z: int,
-        block: str,
         *,
         dimension: str = "minecraft:overworld",
-    ) -> SetBlockResult:
-        """Alias for :meth:`set_block`."""
+    ) -> str:
+        for field_name, value in (("x", x), ("y", y), ("z", z)):
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise TypeError(f"{field_name} must be an integer")
+            if not -(2**31) <= value < 2**31:
+                raise ValueError(f"{field_name} must fit in a signed 32-bit integer")
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise ValueError("dimension must be a non-empty namespaced ID")
 
-        return self.set_block(x, y, z, block, dimension=dimension)
+        query = urlencode(
+            {
+                "dimension": dimension,
+                "x": x,
+                "y": y,
+                "z": z,
+            }
+        )
+        payload = self._get(f"/v1/world/blocks?{query}")
+        return _require_string(payload, "block")
 
     def summon(
         self,
