@@ -1,11 +1,6 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from math import floor
-from typing import TYPE_CHECKING, Optional, Tuple
-
-from .errors import ConfigurationError
-
-if TYPE_CHECKING:
-    from ._client import BoxloomClient
+from typing import Tuple
 
 
 @dataclass(frozen=True)
@@ -22,37 +17,6 @@ class Player:
 
     username: str
     uuid: str
-    _client: Optional["BoxloomClient"] = field(
-        default=None,
-        repr=False,
-        compare=False,
-    )
-
-    def teleport(
-        self,
-        x: float,
-        y: float,
-        z: float,
-        *,
-        dimension: Optional[str] = None,
-        yaw: Optional[float] = None,
-        pitch: Optional[float] = None,
-    ) -> "PlayerPosition":
-        """Teleport this player to absolute coordinates."""
-
-        if self._client is None:
-            raise ConfigurationError(
-                "player is not attached to a BoxloomClient; obtain it with get_players()"
-            )
-        return self._client.teleport_player(
-            self.username,
-            x,
-            y,
-            z,
-            dimension=dimension,
-            yaw=yaw,
-            pitch=pitch,
-        )
 
 
 @dataclass(frozen=True)

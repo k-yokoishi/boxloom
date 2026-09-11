@@ -17,6 +17,7 @@ from boxloom import (
     say,
     set_block,
     summon,
+    teleport_player,
     watch_chat,
 )
 
@@ -28,6 +29,7 @@ assert callable(get_player_position)
 assert callable(get_players)
 assert callable(set_block)
 assert callable(summon)
+assert callable(teleport_player)
 assert callable(watch_chat)
 assert boxloom.ChatEventStream is ChatEventStream
 assert issubclass(EventCursorExpiredError, boxloom.ApiError)
@@ -70,7 +72,6 @@ player = Player(
     uuid="00000000-0000-0000-0000-000000000000",
 )
 assert player.username == "Player"
-assert callable(player.teleport)
 position = PlayerPosition(
     username="Player",
     uuid="00000000-0000-0000-0000-000000000000",

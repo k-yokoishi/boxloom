@@ -43,6 +43,7 @@ __all__ = [
     "set_block",
     "setblock",
     "summon",
+    "teleport_player",
     "watch_chat",
 ]
 
@@ -98,6 +99,29 @@ def get_players() -> List[Player]:
     """List players currently connected to the Minecraft server."""
 
     return _default_client().get_players()
+
+
+def teleport_player(
+    username: str,
+    x: float,
+    y: float,
+    z: float,
+    *,
+    dimension: Optional[str] = None,
+    yaw: Optional[float] = None,
+    pitch: Optional[float] = None,
+) -> PlayerPosition:
+    """Teleport a connected player to absolute coordinates."""
+
+    return _default_client().teleport_player(
+        username,
+        x,
+        y,
+        z,
+        dimension=dimension,
+        yaw=yaw,
+        pitch=pitch,
+    )
 
 
 def watch_chat(

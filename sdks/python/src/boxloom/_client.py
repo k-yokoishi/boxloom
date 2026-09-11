@@ -145,7 +145,6 @@ class BoxloomClient:
                 Player(
                     username=_require_string(player_value, "username"),
                     uuid=_require_string(player_value, "uuid"),
-                    _client=self,
                 )
             )
         return players
@@ -164,7 +163,6 @@ class BoxloomClient:
             timeout=self._timeout,
             last_event_id=last_event_id,
             reconnect=reconnect,
-            player_client=self,
         )
 
     def set_block(

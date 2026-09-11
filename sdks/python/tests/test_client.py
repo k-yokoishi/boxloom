@@ -150,16 +150,7 @@ class ClientTest(unittest.TestCase):
         with self.assertRaises(boxloom.ProtocolError):
             boxloom.get_players()
 
-    def test_player_teleport_posts_required_coordinates(self):
-        _ApiHandler.response_body = {
-            "players": [
-                {
-                    "username": "Player_123",
-                    "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
-                }
-            ]
-        }
-        player = boxloom.get_players()[0]
+    def test_teleport_player_posts_required_coordinates(self):
         _ApiHandler.response_body = {
             "username": "Player_123",
             "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
@@ -171,10 +162,10 @@ class ClientTest(unittest.TestCase):
             "pitch": 10,
         }
 
-        result = player.teleport(100, 64, -20)
+        result = boxloom.teleport_player("Player_123", 100, 64, -20)
 
         self.assertEqual("minecraft:the_nether", result.dimension)
-        path, headers, body = _ApiHandler.requests[1]
+        path, headers, body = _ApiHandler.requests[0]
         self.assertEqual("/v1/players/Player_123/teleport", path)
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
         self.assertEqual({"x": 100, "y": 64, "z": -20}, body)
@@ -219,13 +210,6 @@ class ClientTest(unittest.TestCase):
         )
 
     def test_teleport_rejects_invalid_coordinates_before_request(self):
-        player = boxloom.Player(
-            "Player_123",
-            "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
-        )
-        with self.assertRaises(boxloom.ConfigurationError):
-            player.teleport(0, 64, 0)
-
         client = boxloom.BoxloomClient(base_url=self.base_url)
         with self.assertRaises(ValueError):
             client.teleport_player("Player_123", float("inf"), 64, 0)
@@ -261,28 +245,18 @@ class ClientTest(unittest.TestCase):
 
         self.assertEqual(event_id, event.id)
         self.assertEqual("hello from Minecraft", event.message)
-        self.assertEqual("Player_123", event.player.username)
+        self.assertEqual(
+            boxloom.Player(
+                "Player_123",
+                "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+            ),
+            event.player,
+        )
         path, headers, body = _ApiHandler.requests[0]
         self.assertEqual("/v1/events", path)
         self.assertEqual("text/event-stream", headers["Accept"])
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
         self.assertIsNone(body)
-
-        _ApiHandler.response_body = {
-            "username": "Player_123",
-            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
-            "dimension": "minecraft:overworld",
-            "x": 0,
-            "y": 64,
-            "z": 0,
-            "yaw": 0,
-            "pitch": 0,
-        }
-        event.player.teleport(0, 64, 0)
-        self.assertEqual(
-            "/v1/players/Player_123/teleport",
-            _ApiHandler.requests[1][0],
-        )
 
     def test_watch_chat_skips_ready_and_unknown_events(self):
         ready_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:0"
