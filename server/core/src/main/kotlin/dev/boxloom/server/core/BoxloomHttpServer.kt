@@ -76,6 +76,7 @@ class BoxloomHttpServer(
     private fun route(exchange: HttpExchange) {
         val path = exchange.requestURI.rawPath
         val playerPosition = PLAYER_POSITION_PATH.matcher(path)
+        val playerTeleport = PLAYER_TELEPORT_PATH.matcher(path)
 
         when {
             path == SAY_PATH -> {
@@ -91,6 +92,11 @@ class BoxloomHttpServer(
             playerPosition.matches() -> {
                 requireMethod(exchange, "GET")
                 handlePlayerPosition(exchange, decodePathSegment(playerPosition.group(1)))
+            }
+
+            playerTeleport.matches() -> {
+                requireMethod(exchange, "POST")
+                handlePlayerTeleport(exchange, decodePathSegment(playerTeleport.group(1)))
             }
 
             path == SET_BLOCK_PATH -> {
@@ -154,11 +160,31 @@ class BoxloomHttpServer(
     }
 
     private fun handlePlayerPosition(exchange: HttpExchange, username: String) {
-        if (!USERNAME.matcher(username).matches()) {
-            throw JsonSupport.invalid("The username must contain 3-16 letters, numbers, or underscores")
-        }
+        requireUsername(username)
 
         val position = await(minecraft.playerPosition(username))
+        sendPlayerPosition(exchange, position)
+    }
+
+    private fun handlePlayerTeleport(exchange: HttpExchange, username: String) {
+        requireUsername(username)
+        requireJsonContentType(exchange)
+        val objectValue = JsonSupport.parseObject(readRequestBody(exchange))
+        JsonSupport.requireOnlyFields(objectValue, TELEPORT_PLAYER_FIELDS)
+
+        val request = TeleportPlayerRequest(
+            JsonSupport.requireFiniteDouble(objectValue, "x"),
+            JsonSupport.requireFiniteDouble(objectValue, "y"),
+            JsonSupport.requireFiniteDouble(objectValue, "z"),
+            JsonSupport.optionalString(objectValue, "dimension"),
+            JsonSupport.optionalFiniteDouble(objectValue, "yaw"),
+            JsonSupport.optionalFiniteDouble(objectValue, "pitch"),
+        )
+        val position = await(minecraft.teleportPlayer(username, request))
+        sendPlayerPosition(exchange, position)
+    }
+
+    private fun sendPlayerPosition(exchange: HttpExchange, position: PlayerPosition) {
         val response = buildJsonObject {
             put("username", position.username)
             put("uuid", position.uuid)
@@ -171,6 +197,14 @@ class BoxloomHttpServer(
         }.toString()
 
         sendJson(exchange, 200, response)
+    }
+
+    private fun requireUsername(username: String) {
+        if (!USERNAME.matcher(username).matches()) {
+            throw JsonSupport.invalid(
+                "The username must contain 3-16 letters, numbers, or underscores",
+            )
+        }
     }
 
     private fun handleSetBlock(exchange: HttpExchange) {
@@ -489,6 +523,7 @@ class BoxloomHttpServer(
     companion object {
         private val LOGGER = System.getLogger("boxloom-http")
         private val PLAYER_POSITION_PATH = Pattern.compile("^/v1/players/([^/]+)/position$")
+        private val PLAYER_TELEPORT_PATH = Pattern.compile("^/v1/players/([^/]+)/teleport$")
         private val USERNAME = Pattern.compile("^[A-Za-z0-9_]{3,16}$")
         private const val SAY_PATH = "/v1/chat/messages"
         private const val PLAYERS_PATH = "/v1/players"
@@ -500,6 +535,7 @@ class BoxloomHttpServer(
         private const val EVENT_RETRY_MS = 1_000
         private val EVENT_HEARTBEAT_INTERVAL = java.time.Duration.ofSeconds(5)
         private val SAY_FIELDS = setOf("message")
+        private val TELEPORT_PLAYER_FIELDS = setOf("x", "y", "z", "dimension", "yaw", "pitch")
         private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block")
         private val SUMMON_FIELDS = setOf("dimension", "entity", "x", "y", "z", "nbt")
     }

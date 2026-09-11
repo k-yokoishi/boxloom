@@ -99,6 +99,106 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `teleports a player with optional destination fields`() {
+        var capturedUsername: String? = null
+        var capturedRequest: TeleportPlayerRequest? = null
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun teleportPlayer(
+                username: String,
+                request: TeleportPlayerRequest,
+            ): CompletableFuture<PlayerPosition> {
+                capturedUsername = username
+                capturedRequest = request
+                return CompletableFuture.completedFuture(
+                    PlayerPosition(
+                        "Player_123",
+                        TEST_UUID,
+                        "minecraft:the_nether",
+                        1.5,
+                        72.0,
+                        -2.25,
+                        90.0f,
+                        -12.5f,
+                    ),
+                )
+            }
+        }
+
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val response = post(
+                server,
+                "/v1/players/Player_123/teleport",
+                """{
+                    "x":1.5,
+                    "y":72,
+                    "z":-2.25,
+                    "dimension":"minecraft:the_nether",
+                    "yaw":90
+                }""".trimIndent(),
+            )
+
+            assertEquals(200, response.statusCode())
+            assertEquals(
+                """{"username":"Player_123","uuid":"$TEST_UUID","dimension":"minecraft:the_nether","x":1.5,"y":72.0,"z":-2.25,"yaw":90.0,"pitch":-12.5}""",
+                response.body(),
+            )
+        }
+
+        assertEquals("Player_123", capturedUsername)
+        assertEquals(
+            TeleportPlayerRequest(
+                1.5,
+                72.0,
+                -2.25,
+                dimension = "minecraft:the_nether",
+                yaw = 90.0,
+                pitch = null,
+            ),
+            capturedRequest,
+        )
+    }
+
+    @Test
+    fun `teleport preserves optional fields when they are omitted`() {
+        var capturedRequest: TeleportPlayerRequest? = null
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun teleportPlayer(
+                username: String,
+                request: TeleportPlayerRequest,
+            ): CompletableFuture<PlayerPosition> {
+                capturedRequest = request
+                return CompletableFuture.completedFuture(
+                    PlayerPosition(
+                        username,
+                        TEST_UUID,
+                        "minecraft:overworld",
+                        request.x,
+                        request.y,
+                        request.z,
+                        0.0f,
+                        0.0f,
+                    ),
+                )
+            }
+        }
+
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val response = post(
+                server,
+                "/v1/players/Steve/teleport",
+                """{"x":100,"y":64,"z":-20}""",
+            )
+
+            assertEquals(200, response.statusCode())
+        }
+
+        assertEquals(
+            TeleportPlayerRequest(100.0, 64.0, -20.0),
+            capturedRequest,
+        )
+    }
+
+    @Test
     fun `accepts a summon request with nested nbt`() {
         var capturedRequest: SummonRequest? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
@@ -475,6 +575,12 @@ class BoxloomHttpServerTest {
         override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")
 
+        override fun teleportPlayer(
+            username: String,
+            request: TeleportPlayerRequest,
+        ): CompletableFuture<PlayerPosition> =
+            throw AssertionError("Unexpected teleport request")
+
         override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")
 
@@ -491,6 +597,12 @@ class BoxloomHttpServerTest {
 
         override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")
+
+        override fun teleportPlayer(
+            username: String,
+            request: TeleportPlayerRequest,
+        ): CompletableFuture<PlayerPosition> =
+            throw AssertionError("Unexpected teleport request")
 
         override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")

@@ -2,11 +2,12 @@
 
 This directory contains the initial Kotlin-based, server-side Fabric mod PoC. It connects Minecraft and Fabric to the platform-independent [`../core`](../core) module and is designed to work in both a Fabric Dedicated Server and an integrated server.
 
-The PoC implements five Minecraft operations and one event stream:
+The PoC implements six Minecraft operations and one event stream:
 
 - Broadcast a system message to connected players
 - List connected players
 - Read a connected player's position and look direction
+- Teleport a connected player to absolute coordinates
 - Set one block
 - Summon one entity with optional NBT
 - Stream player chat messages as resumable Server-Sent Events
@@ -124,6 +125,19 @@ curl --fail-with-body \
   -H 'Authorization: Bearer boxloom-local-poc-token' \
   http://127.0.0.1:28886/v1/players
 ```
+
+Teleport a connected player while preserving their current dimension and look direction:
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H 'Authorization: Bearer boxloom-local-poc-token' \
+  -H 'Content-Type: application/json' \
+  --data '{"x":100,"y":64,"z":-20}' \
+  http://127.0.0.1:28886/v1/players/example/teleport
+```
+
+The optional `dimension`, `yaw`, and `pitch` fields replace the corresponding current player values. Coordinates are always absolute.
 
 Stream new player chat messages without polling:
 

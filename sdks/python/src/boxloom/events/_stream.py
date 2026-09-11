@@ -292,7 +292,10 @@ def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
     return _ErrorEvent(code=code, message=message)
 
 
-def _decode_chat_event(payload: Mapping[str, Any], event_id: Optional[str]) -> ChatEvent:
+def _decode_chat_event(
+    payload: Mapping[str, Any],
+    event_id: Optional[str],
+) -> ChatEvent:
     payload_id = _require_string(payload, "id")
     if event_id is None or event_id != payload_id:
         raise ProtocolError("chat event payload id must match the SSE event id")
