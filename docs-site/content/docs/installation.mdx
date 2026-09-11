@@ -1,0 +1,76 @@
+---
+title: Installation
+description: Set up the Fabric mod and connect the boxloom Python SDK.
+---
+
+boxloom has two parts: a server-side Fabric mod that runs with Minecraft and a Python SDK used by your programs.
+
+> boxloom is currently alpha software. Minecraft, Fabric, Java, and package versions are pinned while compatibility is being tested.
+
+## Try it locally
+
+The repository includes a complete Docker Compose environment. You need Docker and Minecraft Java Edition 26.2.
+
+```bash
+git clone https://github.com/k-yokoishi/boxloom.git
+cd boxloom
+docker compose up --build
+```
+
+Wait until the Minecraft log reports `Done`, then:
+
+1. Connect Minecraft Java Edition to `localhost:25566`.
+2. Open `http://localhost:8080`.
+3. Run `python sample.py` in the browser-based editor terminal.
+
+The editor already has the local Python SDK and connection settings configured. Stop the environment without deleting its Minecraft world with:
+
+```bash
+docker compose down
+```
+
+## Install the Fabric mod
+
+The current source build requires Java 25, Minecraft Java Edition 26.2, Fabric Loader 0.19.3, Fabric API 0.156.0+26.2, and Fabric Language Kotlin 1.13.13+kotlin.2.4.10.
+
+Build the mod from the repository root:
+
+```bash
+mise install
+mise run fabric-build
+```
+
+Copy the JAR from `server/fabric/build/libs/` into the Fabric instance's `mods` directory together with Fabric API and Fabric Language Kotlin. The first launch creates `config/boxloom.json`.
+
+The default configuration listens only on `127.0.0.1:28886` and does not require a token. Set a non-empty token before binding the API to a non-loopback address.
+
+## Install the Python SDK
+
+Python 3.9 or newer is required. The current alpha is published on TestPyPI:
+
+```bash
+python -m pip install \
+  --index-url https://test.pypi.org/simple/ \
+  boxloom==0.1.0a2
+```
+
+## Configure the connection
+
+Set the server URL and, when configured by the Fabric server, its authentication token:
+
+```bash
+export BOXLOOM_BASE_URL=http://127.0.0.1:28886
+export BOXLOOM_AUTH_TOKEN=replace-me
+```
+
+For a loopback server without authentication, omit `BOXLOOM_AUTH_TOKEN`.
+
+You can now call boxloom from Python:
+
+```python
+from boxloom import set_block
+
+set_block(0, 100, 0, "minecraft:diamond_block")
+```
+
+Continue to the [API reference](./apis) for the available operations.

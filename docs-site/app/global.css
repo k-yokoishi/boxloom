@@ -1,0 +1,417 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/shadcn.css';
+@import 'fumadocs-ui/css/preset.css';
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --radius: 0.55rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.955 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --syntax-keyword: oklch(0.49 0.19 293);
+  --syntax-module: oklch(0.47 0.15 255);
+  --syntax-function: oklch(0.43 0.16 167);
+  --syntax-number: oklch(0.53 0.17 54);
+  --syntax-string: oklch(0.43 0.13 144);
+  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --sidebar: oklch(0.178 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+  --syntax-keyword: oklch(0.76 0.14 293);
+  --syntax-module: oklch(0.76 0.12 255);
+  --syntax-function: oklch(0.76 0.13 167);
+  --syntax-number: oklch(0.78 0.13 65);
+  --syntax-string: oklch(0.75 0.12 144);
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0 !important;
+  --removed-body-scroll-bar-size: 0 !important;
+}
+
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+}
+
+.brand-logo {
+  display: block;
+  width: 7.5rem;
+  height: auto;
+}
+
+.dark .brand-logo {
+  filter: invert(1);
+}
+
+.home-shell {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  overflow: hidden;
+  padding: 5rem max(1.5rem, calc((100vw - 72rem) / 2));
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--border) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--border) 55%, transparent) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: center;
+}
+
+.home-shell::before {
+  position: absolute;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  background: radial-gradient(circle at center, color-mix(in oklab, var(--background) 30%, transparent), var(--background) 74%);
+}
+
+.home-hero {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 100%;
+  align-items: center;
+  gap: 4rem;
+  grid-template-columns: minmax(0, 1fr) minmax(26rem, 0.88fr);
+}
+
+.home-copy h1 {
+  max-width: 42rem;
+  margin-top: 1.5rem;
+  font-size: clamp(3.15rem, 7vw, 5.8rem);
+  font-weight: 620;
+  line-height: 1.04;
+  letter-spacing: -0.042em;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--background) 90%, transparent);
+  padding: 0.35rem 0.65rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.status-pill span {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--foreground);
+}
+
+.home-lede {
+  max-width: 36rem;
+  margin-top: 1.65rem;
+  color: var(--muted-foreground);
+  font-size: 1.12rem;
+  line-height: 1.75;
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.home-button {
+  display: inline-flex;
+  min-height: 2.6rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 570;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.home-button-primary {
+  border-color: var(--foreground);
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.home-button-primary:hover {
+  opacity: 0.88;
+}
+
+.home-button-secondary {
+  background: color-mix(in oklab, var(--background) 88%, transparent);
+}
+
+.home-button-secondary:hover {
+  background: var(--accent);
+}
+
+.home-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.connection-line {
+  display: flex;
+  max-width: 34rem;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 3.25rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+
+.connection-line span {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.connection-line i {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+}
+
+.code-window {
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--foreground) 14%, var(--border));
+  border-radius: 0.8rem;
+  background: color-mix(in oklab, var(--background) 96%, transparent);
+  box-shadow: 0 24px 70px oklch(0 0 0 / 10%);
+  backdrop-filter: blur(16px);
+}
+
+.code-window-bar,
+.code-window-foot {
+  display: flex;
+  align-items: center;
+  border-color: var(--border);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.code-window-bar {
+  gap: 0.9rem;
+  border-bottom-width: 1px;
+  padding: 0.8rem 1rem;
+}
+
+.window-dots {
+  display: flex;
+  gap: 0.32rem;
+}
+
+.window-dots span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.code-window pre {
+  overflow-x: auto;
+  padding: 2.25rem 2rem;
+  color: var(--foreground);
+  font-size: 0.9rem;
+  line-height: 1.9;
+}
+
+.code-keyword {
+  color: var(--syntax-keyword);
+}
+
+.code-module {
+  color: var(--syntax-module);
+}
+
+.code-function {
+  color: var(--syntax-function);
+}
+
+.code-number {
+  color: var(--syntax-number);
+}
+
+.code-string {
+  color: var(--syntax-string);
+}
+
+.code-window-foot {
+  justify-content: space-between;
+  border-top-width: 1px;
+  padding: 0.72rem 1rem;
+}
+
+.api-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--muted);
+  padding: 0.45rem 0.7rem 0.45rem 0.45rem;
+  color: var(--muted-foreground);
+}
+
+.api-endpoint span {
+  border-radius: 0.32rem;
+  background: var(--foreground);
+  padding: 0.22rem 0.42rem;
+  color: var(--background);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.api-endpoint code {
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prose h2 {
+  margin-top: 3.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.docs-layout-edge-to-edge {
+  --fd-layout-width: 100%;
+}
+
+@media (max-width: 900px) {
+  .home-shell {
+    align-items: flex-start;
+    padding-top: 4rem;
+  }
+
+  .home-hero {
+    gap: 3rem;
+    grid-template-columns: 1fr;
+  }
+
+  .home-copy h1 {
+    max-width: 38rem;
+    font-size: clamp(3rem, 12vw, 5rem);
+  }
+
+  .code-window {
+    max-width: 40rem;
+  }
+}
+
+@media (max-width: 540px) {
+  .home-shell {
+    padding: 3rem 1.1rem;
+    background-size: 32px 32px;
+  }
+
+  .home-copy h1 {
+    font-size: 3.15rem;
+  }
+
+  .home-lede {
+    font-size: 1rem;
+  }
+
+  .connection-line {
+    gap: 0.45rem;
+  }
+
+  .connection-line i {
+    min-width: 0.75rem;
+  }
+
+  .code-window pre {
+    padding: 1.6rem 1.25rem;
+    font-size: 0.78rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-button {
+    transition: none;
+  }
+}

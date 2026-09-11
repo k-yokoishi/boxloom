@@ -1,79 +1,56 @@
 # boxloom Python SDK
 
-The initial SDK provides `say`, `get_players`, `get_player_position`, `teleport_player`, `get_block`, `set_block`, `summon`, and the `watch_chat` player-chat event stream for a running boxloom Fabric server.
+The boxloom Python SDK connects Python programs to a Minecraft server running the boxloom Fabric mod.
 
-```python
-from boxloom import get_block, get_player_position, get_players, init, say, set_block, summon, teleport_player
+> [!IMPORTANT]
+> boxloom is an early-stage project. Its API and supported versions may change.
 
-init(
-    base_url="http://127.0.0.1:28886",
-    auth_token="replace-me",
-)
+## Installation
 
-say("Hello from Python!")
-players = get_players()
-player = players[0]
-position = get_player_position(player.username)
-x, y, z = position.block_coordinates()
-set_block(x + 1, y - 1, z, "minecraft:diamond_block", dimension=position.dimension)
-block = get_block(x + 1, y - 1, z, dimension=position.dimension)
-summon(
-    "minecraft:arrow",
-    x,
-    y + 10,
-    z,
-    nbt={"Motion": [0.0, -1.5, 0.0], "Rotation": [0.0, 90.0]},
-    dimension=position.dimension,
-)
-teleport_player(player.username, x + 3, y, z)
-print(block)  # minecraft:diamond_block
+The current alpha is published on TestPyPI:
+
+```bash
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a2
 ```
 
-Position lookup and block placement are separate requests. The example uses the sampled position even if the player moves before `set_block` reaches the server.
+Configure the connection to the Fabric server with environment variables:
 
-`get_block(x, y, z)` returns the namespaced block ID at that position directly as a `str`. It reads `minecraft:overworld` by default; pass `dimension=` to select another loaded dimension.
-
-`teleport_player(username, x, y, z)` uses absolute coordinates and requires only the username and three destination coordinates. By default it keeps the player's current dimension, yaw, and pitch. Pass any of `dimension=`, `yaw=`, and `pitch=` to replace that value; omitted options are not sent and are resolved from the player on the Minecraft server. The function returns the player's resulting `PlayerPosition`.
-
-`summon` accepts an optional plain Python `dict` for NBT. Nested dictionaries, lists, strings, booleans, signed 64-bit integers, and finite floats are supported; `None` has no NBT representation and is rejected. Integers become `IntTag` or `LongTag`, floats become `DoubleTag`, and booleans become `ByteTag`. The entity ID and position arguments take precedence over `id` and `Pos` supplied in the dictionary, matching Minecraft's `summon` command behavior.
-
-Player chat can be consumed as a context-managed iterator:
-
-```python
-from boxloom import EventCursorExpiredError, watch_chat
-
-try:
-    with watch_chat() as events:
-        for event in events:
-            print(f"<{event.player.username}> {event.message}")
-except EventCursorExpiredError:
-    # The server restarted or the bounded replay history no longer has this cursor.
-    # Calling watch_chat() again without a cursor starts at the new live position.
-    pass
+```bash
+export BOXLOOM_BASE_URL=http://127.0.0.1:28886
+export BOXLOOM_AUTH_TOKEN=replace-me
 ```
 
-`watch_chat()` opens `GET /v1/events` as a Server-Sent Events response and does not poll. It reconnects after transport interruptions by sending the most recently received ID in `Last-Event-ID`; the server then replays retained events after that cursor without duplicating the already received event. Use `watch_chat(last_event_id=...)` to resume from a cursor saved by the application, `stream.last_event_id` to read the latest cursor, or `watch_chat(reconnect=False)` to surface a disconnect immediately.
+## Samples
 
-Event cursors are opaque, are stored only in the mod's bounded in-memory history, and do not survive a Minecraft server session. An unavailable cursor produces `EventCursorExpiredError` instead of silently skipping messages.
+Place a block:
 
-Explicit `init()` is optional. Without it, the SDK reads `BOXLOOM_BASE_URL` (default: `http://127.0.0.1:28886`) and the optional `BOXLOOM_AUTH_TOKEN` environment variable. When no token is configured, the SDK omits the Authorization header for a loopback-only boxloom server. The default request timeout is 10 seconds and can be changed with `BOXLOOM_TIMEOUT_SECONDS` or `init(timeout=...)`.
+```python
+from boxloom import set_block
 
-The Fabric mod requires a non-empty authentication token when it binds to a non-loopback address. Python SDK `0.1.0a2` fixes the initialization error in the published `0.1.0a1` package when `BOXLOOM_AUTH_TOKEN` was unset or empty.
+set_block(0, 100, 0, "minecraft:diamond_block")
+```
 
-The SDK uses only the Python standard library at runtime and supports Python 3.9 or newer.
+Listen for player chat messages:
 
-The project uses uv for its Python interpreter, virtual environment, dependency lock, and package build. From the repository root, install the mise-managed tools and synchronize the SDK environment with:
+```python
+from boxloom import watch_chat
+
+with watch_chat() as events:
+    for event in events:
+        print(f"<{event.player.username}> {event.message}")
+```
+
+More runnable examples are available in [`../../examples/python`](../../examples/python).
+
+## Development
+
+From the repository root:
 
 ```bash
 mise install
 mise run python-sync
-```
-
-Run the tests or build the package with:
-
-```bash
 mise run python-test
 mise run python-build
 ```
 
-TestPyPI releases are performed manually through GitHub Actions after configuring the `TEST_PYPI_API_TOKEN` repository secret. See the [TestPyPI release guide](../../docs/python-testpypi-release.md) for the one-time setup and release procedure.
+Detailed API documentation will be maintained separately from this README.

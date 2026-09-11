@@ -1,0 +1,271 @@
+---
+title: APIs
+description: Minecraft operations available through the Python SDK and REST API.
+---
+
+Each operation is shown for both interfaces. Switching a tab changes the preferred interface for every operation on this page.
+
+Python examples use the connection configured during [Installation](./installation). REST examples use `BOXLOOM_BASE_URL` and, when authentication is enabled, `BOXLOOM_AUTH_TOKEN`.
+
+## `say`
+
+Broadcast a system message to every connected player. Returns the message and recipient count.
+
+<ApiEndpoint method="POST" path="/v1/chat/messages" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import say
+
+result = say("Hello from boxloom!")
+print(result.recipients)
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"message":"Hello from boxloom!"}' \
+  "$BOXLOOM_BASE_URL/v1/chat/messages"
+```
+
+</Tab>
+</Tabs>
+
+## `get_players`
+
+List the players currently connected to the Minecraft server.
+
+<ApiEndpoint method="GET" path="/v1/players" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import get_players
+
+for player in get_players():
+    print(player.username, player.uuid)
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  "$BOXLOOM_BASE_URL/v1/players"
+```
+
+</Tab>
+</Tabs>
+
+## `get_player_position`
+
+Read a connected player's position, dimension, yaw, and pitch.
+
+<ApiEndpoint method="GET" path="/v1/players/{username}/position" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import get_player_position
+
+position = get_player_position("Steve")
+print(position.x, position.y, position.z)
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  "$BOXLOOM_BASE_URL/v1/players/Steve/position"
+```
+
+</Tab>
+</Tabs>
+
+## `teleport_player`
+
+Teleport a connected player to absolute coordinates. Omitted dimension and look direction values are preserved.
+
+<ApiEndpoint method="POST" path="/v1/players/{username}/teleport" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import teleport_player
+
+position = teleport_player("Steve", 100, 64, -20)
+print(position)
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"x":100,"y":64,"z":-20}' \
+  "$BOXLOOM_BASE_URL/v1/players/Steve/teleport"
+```
+
+</Tab>
+</Tabs>
+
+## `get_block`
+
+Read the namespaced block ID at one position in a loaded dimension. Python uses the overworld by default and returns the block ID directly as a `str`. The REST response also includes the requested dimension and coordinates.
+
+<ApiEndpoint method="GET" path="/v1/world/blocks" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import get_block
+
+block = get_block(0, 100, 0)
+print(block)  # minecraft:diamond_block
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --get --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  --data-urlencode "dimension=minecraft:overworld" \
+  --data-urlencode "x=0" \
+  --data-urlencode "y=100" \
+  --data-urlencode "z=0" \
+  "$BOXLOOM_BASE_URL/v1/world/blocks"
+```
+
+</Tab>
+</Tabs>
+
+## `set_block`
+
+Place one block in a loaded Minecraft dimension. The overworld is used by default in Python.
+
+<ApiEndpoint method="POST" path="/v1/world/blocks" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import set_block
+
+result = set_block(0, 100, 0, "minecraft:diamond_block")
+print(result.changed)
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "dimension":"minecraft:overworld",
+    "x":0,
+    "y":100,
+    "z":0,
+    "block":"minecraft:diamond_block"
+  }' \
+  "$BOXLOOM_BASE_URL/v1/world/blocks"
+```
+
+</Tab>
+</Tabs>
+
+## `summon`
+
+Summon one entity in a loaded dimension, with an optional NBT-compatible dictionary.
+
+<ApiEndpoint method="POST" path="/v1/world/entities" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import summon
+
+entity = summon(
+    "minecraft:arrow",
+    0,
+    100,
+    0,
+    nbt={"Motion": [0.0, -1.5, 0.0]},
+)
+print(entity.uuid)
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "dimension":"minecraft:overworld",
+    "entity":"minecraft:arrow",
+    "x":0,
+    "y":100,
+    "z":0,
+    "nbt":{"Motion":[0.0,-1.5,0.0]}
+  }' \
+  "$BOXLOOM_BASE_URL/v1/world/entities"
+```
+
+</Tab>
+</Tabs>
+
+## `watch_chat`
+
+Listen for new player chat messages as a continuous event stream.
+
+<ApiEndpoint method="GET" path="/v1/events" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import watch_chat
+
+with watch_chat() as events:
+    for event in events:
+        print(f"<{event.player.username}> {event.message}")
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --no-buffer --fail-with-body \
+  -H "Accept: text/event-stream" \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  "$BOXLOOM_BASE_URL/v1/events"
+```
+
+</Tab>
+</Tabs>
+
+REST clients can pass the last processed event ID in the `Last-Event-ID` header when reconnecting.
