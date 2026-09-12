@@ -443,6 +443,89 @@ class ClientTest(unittest.TestCase):
 
         self.assertEqual([], _ApiHandler.requests)
 
+    def test_fill_posts_an_inclusive_block_region(self):
+        _ApiHandler.response_body = {
+            "changedBlocks": 8,
+            "dimension": "minecraft:the_nether",
+            "x1": 2,
+            "y1": 65,
+            "z1": -1,
+            "x2": 1,
+            "y2": 64,
+            "z2": -2,
+            "block": "minecraft:stone",
+        }
+
+        result = boxloom.fill(
+            2,
+            65,
+            -1,
+            1,
+            64,
+            -2,
+            "minecraft:stone",
+            dimension="minecraft:the_nether",
+        )
+
+        self.assertEqual(
+            boxloom.FillResult(
+                8,
+                "minecraft:the_nether",
+                2,
+                65,
+                -1,
+                1,
+                64,
+                -2,
+                "minecraft:stone",
+            ),
+            result,
+        )
+        self.assertEqual("/v1/world/blocks/fill", _ApiHandler.requests[0][0])
+        self.assertEqual(
+            {
+                "dimension": "minecraft:the_nether",
+                "x1": 2,
+                "y1": 65,
+                "z1": -1,
+                "x2": 1,
+                "y2": 64,
+                "z2": -2,
+                "block": "minecraft:stone",
+            },
+            _ApiHandler.requests[0][2],
+        )
+
+    def test_fill_uses_overworld_by_default(self):
+        _ApiHandler.response_body = {
+            "changedBlocks": 1,
+            "dimension": "minecraft:overworld",
+            "x1": 0,
+            "y1": 64,
+            "z1": 0,
+            "x2": 0,
+            "y2": 64,
+            "z2": 0,
+            "block": "minecraft:gold_block",
+        }
+
+        boxloom.BoxloomClient(base_url=self.base_url).fill(
+            0, 64, 0, 0, 64, 0, "minecraft:gold_block"
+        )
+
+        self.assertEqual(
+            "minecraft:overworld",
+            _ApiHandler.requests[0][2]["dimension"],
+        )
+
+    def test_fill_rejects_invalid_or_oversized_regions_before_request(self):
+        with self.assertRaises(TypeError):
+            boxloom.fill(0, 0, 0, 1.5, 1, 1, "minecraft:stone")
+        with self.assertRaises(ValueError):
+            boxloom.fill(0, 0, 0, 32, 32, 30, "minecraft:stone")
+
+        self.assertEqual([], _ApiHandler.requests)
+
     def test_summon_posts_nested_nbt(self):
         _ApiHandler.response_body = {
             "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",

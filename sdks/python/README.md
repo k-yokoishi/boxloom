@@ -30,6 +30,15 @@ from boxloom import set_block
 set_block(0, 100, 0, "minecraft:diamond_block")
 ```
 
+Fill an inclusive block region (up to 32,768 blocks per call):
+
+```python
+from boxloom import fill
+
+result = fill(0, 100, 0, 4, 100, 4, "minecraft:gold_block")
+print(result.changed_blocks)
+```
+
 Listen for player chat messages:
 
 ```python

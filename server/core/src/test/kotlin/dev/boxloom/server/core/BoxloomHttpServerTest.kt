@@ -261,6 +261,89 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `fills a block region`() {
+        var capturedRequest: FillRequest? = null
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun fill(request: FillRequest): CompletableFuture<FillResult> {
+                capturedRequest = request
+                return CompletableFuture.completedFuture(
+                    FillResult(
+                        8,
+                        request.dimension,
+                        request.x1,
+                        request.y1,
+                        request.z1,
+                        request.x2,
+                        request.y2,
+                        request.z2,
+                        request.block,
+                    ),
+                )
+            }
+        }
+
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val response = post(
+                server,
+                "/v1/world/blocks/fill",
+                """{
+                    "dimension":"minecraft:overworld",
+                    "x1":1,
+                    "y1":64,
+                    "z1":-2,
+                    "x2":2,
+                    "y2":65,
+                    "z2":-1,
+                    "block":"minecraft:stone"
+                }""".trimIndent(),
+            )
+
+            assertEquals(200, response.statusCode())
+            assertEquals(
+                """{"changedBlocks":8,"dimension":"minecraft:overworld","x1":1,"y1":64,"z1":-2,"x2":2,"y2":65,"z2":-1,"block":"minecraft:stone"}""",
+                response.body(),
+            )
+        }
+
+        assertEquals(
+            FillRequest(
+                "minecraft:overworld",
+                1,
+                64,
+                -2,
+                2,
+                65,
+                -1,
+                "minecraft:stone",
+            ),
+            capturedRequest,
+        )
+    }
+
+    @Test
+    fun `rejects a fill region larger than the operation limit`() {
+        withServer(authToken = null) { server, _ ->
+            val response = post(
+                server,
+                "/v1/world/blocks/fill",
+                """{
+                    "dimension":"minecraft:overworld",
+                    "x1":0,
+                    "y1":0,
+                    "z1":0,
+                    "x2":32,
+                    "y2":32,
+                    "z2":30,
+                    "block":"minecraft:stone"
+                }""".trimIndent(),
+            )
+
+            assertEquals(400, response.statusCode())
+            assertContains(response.body(), "Fill region must contain at most 32768 blocks")
+        }
+    }
+
+    @Test
     fun `accepts a summon request with nested nbt`() {
         var capturedRequest: SummonRequest? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
@@ -664,6 +747,9 @@ class BoxloomHttpServerTest {
         override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")
 
+        override fun fill(request: FillRequest): CompletableFuture<FillResult> =
+            throw AssertionError("Unexpected fill request")
+
         override fun summon(request: SummonRequest): CompletableFuture<SummonResult> =
             throw AssertionError("Unexpected summon request")
     }
@@ -689,6 +775,9 @@ class BoxloomHttpServerTest {
 
         override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")
+
+        override fun fill(request: FillRequest): CompletableFuture<FillResult> =
+            throw AssertionError("Unexpected fill request")
 
         override fun summon(request: SummonRequest): CompletableFuture<SummonResult> =
             throw AssertionError("Unexpected summon request")

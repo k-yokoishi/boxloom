@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fill an inclusive region containing up to 32,768 blocks
 - Read the block ID at one position in a loaded dimension
 - Stream player chat messages through a resumable Server-Sent Events API
 - Teleport connected players to absolute coordinates with optional dimension and rotation

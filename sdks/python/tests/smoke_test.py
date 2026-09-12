@@ -9,8 +9,10 @@ from boxloom.events import ChatEventStream
 from boxloom import (
     ChatEvent,
     EventCursorExpiredError,
+    FillResult,
     Player,
     PlayerPosition,
+    fill,
     get_block,
     get_player_position,
     get_players,
@@ -26,6 +28,7 @@ from boxloom import (
 assert version("boxloom") == boxloom.__version__
 assert callable(init)
 assert callable(say)
+assert callable(fill)
 assert callable(get_block)
 assert callable(get_player_position)
 assert callable(get_players)
@@ -34,6 +37,7 @@ assert not hasattr(boxloom, "setblock")
 assert callable(summon)
 assert callable(teleport_player)
 assert callable(watch_chat)
+assert FillResult.__name__ == "FillResult"
 assert boxloom.ChatEventStream is ChatEventStream
 assert issubclass(EventCursorExpiredError, boxloom.ApiError)
 

@@ -18,7 +18,14 @@ from .events import (
     EventCursorExpiredError,
     EventStreamError,
 )
-from .models import Player, PlayerPosition, SayResult, SetBlockResult, SummonResult
+from .models import (
+    FillResult,
+    Player,
+    PlayerPosition,
+    SayResult,
+    SetBlockResult,
+    SummonResult,
+)
 
 __all__ = [
     "ApiError",
@@ -30,12 +37,14 @@ __all__ = [
     "ConnectionError",
     "EventCursorExpiredError",
     "EventStreamError",
+    "FillResult",
     "Player",
     "PlayerPosition",
     "ProtocolError",
     "SayResult",
     "SetBlockResult",
     "SummonResult",
+    "fill",
     "get_block",
     "get_player_position",
     "get_players",
@@ -160,6 +169,31 @@ def get_block(
     """Return the block ID at a position in a loaded Minecraft dimension."""
 
     return _default_client().get_block(x, y, z, dimension=dimension)
+
+
+def fill(
+    x1: int,
+    y1: int,
+    z1: int,
+    x2: int,
+    y2: int,
+    z2: int,
+    block: str,
+    *,
+    dimension: str = "minecraft:overworld",
+) -> FillResult:
+    """Fill an inclusive block region in a loaded Minecraft dimension."""
+
+    return _default_client().fill(
+        x1,
+        y1,
+        z1,
+        x2,
+        y2,
+        z2,
+        block,
+        dimension=dimension,
+    )
 
 
 def summon(

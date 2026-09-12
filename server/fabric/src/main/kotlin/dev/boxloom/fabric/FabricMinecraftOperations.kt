@@ -1,6 +1,8 @@
 package dev.boxloom.fabric
 
 import dev.boxloom.server.core.ApiException
+import dev.boxloom.server.core.FillRequest
+import dev.boxloom.server.core.FillResult
 import dev.boxloom.server.core.GetBlockRequest
 import dev.boxloom.server.core.GetBlockResult
 import dev.boxloom.server.core.MinecraftOperations
@@ -14,6 +16,7 @@ import dev.boxloom.server.core.SetBlockResult
 import dev.boxloom.server.core.SummonRequest
 import dev.boxloom.server.core.SummonResult
 import dev.boxloom.server.core.TeleportPlayerRequest
+import net.minecraft.commands.arguments.blocks.BlockInput
 import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.core.registries.Registries
@@ -37,6 +40,8 @@ import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.Mob
 import net.minecraft.world.entity.Relative
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.state.BlockState
 import java.util.Locale
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicReference
@@ -203,6 +208,72 @@ internal class FabricMinecraftOperations(
                 request.x,
                 request.y,
                 request.z,
+                blockId.toString(),
+            )
+        }
+
+    override fun fill(request: FillRequest): CompletableFuture<FillResult> =
+        onServerThread { server ->
+            val dimensionId = parseIdentifier(request.dimension, "dimension")
+            val blockId = parseIdentifier(request.block, "block")
+            val dimensionKey: ResourceKey<Level> =
+                ResourceKey.create(Registries.DIMENSION, dimensionId)
+            val level = server.getLevel(dimensionKey)
+                ?: throw ApiException(
+                    404,
+                    "DIMENSION_NOT_FOUND",
+                    "Dimension '${request.dimension}' is not loaded",
+                )
+            val block = BuiltInRegistries.BLOCK.getOptional(blockId).orElseThrow {
+                ApiException(
+                    400,
+                    "INVALID_BLOCK",
+                    "Block '${request.block}' does not exist",
+                )
+            }
+
+            val first = BlockPos(request.x1, request.y1, request.z1)
+            val second = BlockPos(request.x2, request.y2, request.z2)
+            if (
+                !Level.isInSpawnableBounds(first) ||
+                !Level.isInSpawnableBounds(second) ||
+                level.isOutsideBuildHeight(first) ||
+                level.isOutsideBuildHeight(second)
+            ) {
+                throw ApiException(
+                    400,
+                    "INVALID_POSITION",
+                    "The fill region is outside Minecraft's buildable bounds",
+                )
+            }
+
+            val blockInput = BlockInput(block.defaultBlockState(), emptySet(), null)
+            val changedPositions = mutableListOf<Pair<BlockPos, BlockState>>()
+            for (position in BlockPos.betweenClosed(first, second)) {
+                val oldState = level.getBlockState(position)
+                if (
+                    blockInput.place(
+                        level,
+                        position,
+                        Block.UPDATE_CLIENTS or Block.UPDATE_SKIP_BLOCK_ENTITY_SIDEEFFECTS,
+                    )
+                ) {
+                    changedPositions.add(position.immutable() to oldState)
+                }
+            }
+            for ((position, oldState) in changedPositions) {
+                level.updateNeighboursOnBlockSet(position, oldState)
+            }
+
+            FillResult(
+                changedPositions.size,
+                dimensionKey.identifier().toString(),
+                request.x1,
+                request.y1,
+                request.z1,
+                request.x2,
+                request.y2,
+                request.z2,
                 blockId.toString(),
             )
         }

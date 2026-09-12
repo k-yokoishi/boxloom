@@ -61,6 +61,21 @@ class SetBlockResult:
 
 
 @dataclass(frozen=True)
+class FillResult:
+    """Result returned after filling a block region in a loaded dimension."""
+
+    changed_blocks: int
+    dimension: str
+    x1: int
+    y1: int
+    z1: int
+    x2: int
+    y2: int
+    z2: int
+    block: str
+
+
+@dataclass(frozen=True)
 class SummonResult:
     """Result returned after summoning an entity."""
 
