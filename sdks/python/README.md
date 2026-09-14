@@ -10,7 +10,7 @@ The boxloom Python SDK connects Python programs to a Minecraft server running th
 The current alpha is published on TestPyPI:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a2
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a3
 ```
 
 Configure the connection to the Fabric server with environment variables:

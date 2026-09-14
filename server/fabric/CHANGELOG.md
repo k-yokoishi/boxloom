@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.2
 
 - Fill an inclusive region containing up to 32,768 blocks
 - Read the block ID at one position in a loaded dimension
