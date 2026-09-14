@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Provider } from '@/components/provider';
-import { apiLanguageBootstrap, defaultApiLanguage } from '@/lib/api-language';
 import './global.css';
 
 export const metadata: Metadata = {
@@ -13,10 +12,7 @@ export const metadata: Metadata = {
 
 export default function Layout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" data-api-language={defaultApiLanguage} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: apiLanguageBootstrap }} />
-      </head>
+    <html lang="en" suppressHydrationWarning>
       <body className="flex min-h-screen flex-col">
         <Provider>{children}</Provider>
       </body>

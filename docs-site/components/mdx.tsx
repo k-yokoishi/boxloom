@@ -1,15 +1,15 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { MDXComponents } from 'mdx/types';
 import { ApiEndpoint } from './api-endpoint';
-import { ApiLanguageBar } from './api-language-bar';
-import { ApiVariant } from './api-variant';
+import { CommonErrors } from './common-errors';
+import { Operation } from './operation';
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
     ApiEndpoint,
-    ApiLanguageBar,
-    ApiVariant,
+    CommonErrors,
+    Operation,
     ...components,
   } satisfies MDXComponents;
 }

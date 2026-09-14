@@ -351,74 +351,6 @@ html > body[data-scroll-locked] {
   white-space: nowrap;
 }
 
-/* The interface switch drives every ApiVariant on the page through this
-   attribute, so changing it repaints instead of re-rendering the document. */
-[data-api-variant] {
-  display: none;
-}
-
-html[data-api-language='python'] [data-api-variant='python'],
-html[data-api-language='rest'] [data-api-variant='rest'] {
-  display: block;
-}
-
-.api-language-bar {
-  position: sticky;
-  top: var(--fd-docs-row-3, 0px);
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 2.5rem;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in oklab, var(--background) 90%, transparent);
-  padding: 0.7rem 0;
-  backdrop-filter: blur(8px);
-}
-
-.api-language-bar-label {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.api-language-switch {
-  display: inline-flex;
-  gap: 0.2rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--muted);
-  padding: 0.2rem;
-}
-
-.api-language-switch button {
-  border-radius: 999px;
-  padding: 0.3rem 0.9rem;
-  color: var(--muted-foreground);
-  font-size: 0.82rem;
-  font-weight: 560;
-  transition: background-color 150ms ease, color 150ms ease;
-}
-
-.api-language-switch button:hover {
-  color: var(--foreground);
-}
-
-html[data-api-language='python'] .api-language-switch [data-api-language-option='python'],
-html[data-api-language='rest'] .api-language-switch [data-api-language-option='rest'] {
-  background: var(--background);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px oklch(0 0 0 / 8%);
-}
-
-.api-language-switch button:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
 .prose h2 {
   margin-top: 3.5rem;
   padding-top: 1.25rem;
@@ -479,8 +411,7 @@ html[data-api-language='rest'] .api-language-switch [data-api-language-option='r
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-button,
-  .api-language-switch button {
+  .home-button {
     transition: none;
   }
 }

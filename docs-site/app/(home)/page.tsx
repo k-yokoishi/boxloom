@@ -21,7 +21,7 @@ export default function HomePage() {
               Install boxloom
               <ArrowRight aria-hidden="true" size={16} strokeWidth={1.8} />
             </Link>
-            <Link className="home-button home-button-secondary" href="/docs/apis">
+            <Link className="home-button home-button-secondary" href="/docs/apis/python">
               Browse APIs
             </Link>
           </div>
