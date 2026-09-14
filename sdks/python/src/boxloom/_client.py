@@ -22,6 +22,7 @@ from ._transport import (
 from .events import ChatEventStream
 from .models import (
     FillResult,
+    GetBlockResult,
     Player,
     PlayerPosition,
     SayResult,
@@ -222,7 +223,7 @@ class BoxloomClient:
         z: int,
         *,
         dimension: str = "minecraft:overworld",
-    ) -> str:
+    ) -> GetBlockResult:
         for field_name, value in (("x", x), ("y", y), ("z", z)):
             if not isinstance(value, int) or isinstance(value, bool):
                 raise TypeError(f"{field_name} must be an integer")
@@ -240,7 +241,13 @@ class BoxloomClient:
             }
         )
         payload = self._get(f"/v1/world/blocks?{query}")
-        return _require_string(payload, "block")
+        return GetBlockResult(
+            dimension=_require_string(payload, "dimension"),
+            x=_require_integer(payload, "x"),
+            y=_require_integer(payload, "y"),
+            z=_require_integer(payload, "z"),
+            block=_require_string(payload, "block"),
+        )
 
     def fill(
         self,

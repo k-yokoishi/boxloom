@@ -49,6 +49,17 @@ class PlayerPosition:
 
 
 @dataclass(frozen=True)
+class GetBlockResult:
+    """Result returned after reading a block in a loaded dimension."""
+
+    dimension: str
+    x: int
+    y: int
+    z: int
+    block: str
+
+
+@dataclass(frozen=True)
 class SetBlockResult:
     """Result returned after setting a block in a loaded dimension."""
 

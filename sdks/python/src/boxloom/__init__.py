@@ -20,6 +20,7 @@ from .events import (
 )
 from .models import (
     FillResult,
+    GetBlockResult,
     Player,
     PlayerPosition,
     SayResult,
@@ -38,6 +39,7 @@ __all__ = [
     "EventCursorExpiredError",
     "EventStreamError",
     "FillResult",
+    "GetBlockResult",
     "Player",
     "PlayerPosition",
     "ProtocolError",
@@ -165,8 +167,8 @@ def get_block(
     z: int,
     *,
     dimension: str = "minecraft:overworld",
-) -> str:
-    """Return the block ID at a position in a loaded Minecraft dimension."""
+) -> GetBlockResult:
+    """Return information about a block in a loaded Minecraft dimension."""
 
     return _default_client().get_block(x, y, z, dimension=dimension)
 

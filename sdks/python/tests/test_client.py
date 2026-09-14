@@ -396,7 +396,7 @@ class ClientTest(unittest.TestCase):
             _ApiHandler.requests[0][2],
         )
 
-    def test_get_block_returns_block_id(self):
+    def test_get_block_returns_block_result(self):
         _ApiHandler.response_body = {
             "dimension": "minecraft:the_nether",
             "x": 1,
@@ -409,7 +409,16 @@ class ClientTest(unittest.TestCase):
             1, 64, -2, dimension="minecraft:the_nether"
         )
 
-        self.assertEqual("minecraft:stone", result)
+        self.assertEqual(
+            boxloom.GetBlockResult(
+                "minecraft:the_nether",
+                1,
+                64,
+                -2,
+                "minecraft:stone",
+            ),
+            result,
+        )
         path, headers, body = _ApiHandler.requests[0]
         self.assertEqual(
             "/v1/world/blocks?dimension=minecraft%3Athe_nether&x=1&y=64&z=-2",
@@ -429,7 +438,9 @@ class ClientTest(unittest.TestCase):
 
         result = boxloom.BoxloomClient(base_url=self.base_url).get_block(0, 64, 0)
 
-        self.assertEqual("minecraft:air", result)
+        self.assertEqual("minecraft:air", result.block)
+        self.assertEqual("minecraft:overworld", result.dimension)
+        self.assertEqual((0, 64, 0), (result.x, result.y, result.z))
         self.assertEqual(
             "/v1/world/blocks?dimension=minecraft%3Aoverworld&x=0&y=64&z=0",
             _ApiHandler.requests[0][0],

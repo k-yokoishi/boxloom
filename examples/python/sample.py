@@ -25,7 +25,7 @@ def main() -> None:
         "minecraft:diamond_block",
         dimension=position.dimension,
     )
-    block = get_block(x + 1, y - 1, z, dimension=position.dimension)
+    get_block_result = get_block(x + 1, y - 1, z, dimension=position.dimension)
     fill_result = fill(
         x + 2,
         y - 1,
@@ -41,7 +41,7 @@ def main() -> None:
     print(f"position: {position}")
     print(f"say: {say_result}")
     print(f"set_block: {block_result}")
-    print(f"get_block: {block}")
+    print(f"get_block: {get_block_result}")
     print(f"fill: {fill_result}")
 
 
