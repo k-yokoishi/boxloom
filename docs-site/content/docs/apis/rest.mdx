@@ -1,0 +1,450 @@
+---
+title: REST API
+description: Minecraft operations available through the boxloom REST API.
+---
+
+Every operation below is available through the boxloom REST API. The same operations are documented for the [Python SDK](./python).
+
+These examples use `BOXLOOM_BASE_URL` and, when authentication is enabled, `BOXLOOM_AUTH_TOKEN`. See [Installation](../installation) for how those are configured.
+
+## Conventions
+
+The default listener is `http://127.0.0.1:28886`. Send `Authorization: Bearer <token>` whenever the Fabric server is configured with a token; a non-loopback listener always requires one.
+
+Dimensions, blocks, and entities are named with namespaced IDs such as `minecraft:overworld`, `minecraft:stone`, and `minecraft:arrow`. A dimension must be loaded by the running server; a block or entity ID must exist in the server's registries. Unlike the Python SDK, `dimension` is never optional: every world operation requires it explicitly.
+
+Block coordinates are 32-bit integers. Player and entity coordinates are finite numbers.
+
+Request bodies must be `application/json` and at most 16 KiB. Unknown body fields and unknown query parameters are rejected rather than ignored. Responses are `application/json`, except the event stream, which is `text/event-stream`.
+
+Every operation runs on the Minecraft server thread, so a stalled server surfaces as a timeout rather than a hang.
+
+## Errors
+
+Every failure returns a JSON body with a stable machine-readable `code` and a human-readable `message`.
+
+```json
+{
+  "error": {
+    "code": "INVALID_BLOCK",
+    "message": "Block 'minecraft:not_a_block' does not exist"
+  }
+}
+```
+
+These can be returned by any operation; codes specific to one operation are listed with that operation.
+
+<CommonErrors />
+
+## `say`
+
+<Operation id="say">
+
+<ApiEndpoint method="POST" path="/v1/chat/messages" />
+
+**Request body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `message` | string | yes | The text to broadcast. Non-blank, at most 256 characters. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `message` | string | The message as broadcast. |
+| `recipients` | integer | Number of players that received it. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"message":"Hello from boxloom!"}' \
+  "$BOXLOOM_BASE_URL/v1/chat/messages"
+```
+
+```json
+{ "message": "Hello from boxloom!", "recipients": 2 }
+```
+
+</Operation>
+
+## `get_players`
+
+<Operation id="get_players">
+
+<ApiEndpoint method="GET" path="/v1/players" />
+
+**Request** — no parameters.
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `players` | array | The connected players, in server list order. |
+| `players[].username` | string | The player's name. |
+| `players[].uuid` | string (uuid) | The player's UUID. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  "$BOXLOOM_BASE_URL/v1/players"
+```
+
+```json
+{
+  "players": [
+    { "username": "Steve", "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af" }
+  ]
+}
+```
+
+</Operation>
+
+## `get_player_position`
+
+<Operation id="get_player_position">
+
+<ApiEndpoint method="GET" path="/v1/players/{username}/position" />
+
+**Path parameters**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `username` | string | 3–16 characters from `A-Z`, `a-z`, `0-9`, and `_`. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `username` | string | The player's name. |
+| `uuid` | string (uuid) | The player's UUID. |
+| `dimension` | string | Namespaced ID of the dimension the player is in. |
+| `x`, `y`, `z` | number | Exact position. `y` is the player's feet. |
+| `yaw` | number | Horizontal rotation in degrees. |
+| `pitch` | number | Vertical rotation in degrees. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  "$BOXLOOM_BASE_URL/v1/players/Steve/position"
+```
+
+```json
+{
+  "username": "Steve",
+  "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+  "dimension": "minecraft:overworld",
+  "x": 12.5,
+  "y": 64.0,
+  "z": -8.5,
+  "yaw": 90.0,
+  "pitch": 0.0
+}
+```
+
+</Operation>
+
+## `teleport_player`
+
+<Operation id="teleport_player">
+
+<ApiEndpoint method="POST" path="/v1/players/{username}/teleport" />
+
+**Path parameters**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `username` | string | 3–16 characters from `A-Z`, `a-z`, `0-9`, and `_`. |
+
+**Request body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `x`, `y`, `z` | number | yes | Absolute destination. Finite, and inside Minecraft's spawnable bounds. |
+| `dimension` | string | no | Destination dimension. Omit to keep the player's current dimension. |
+| `yaw` | number | no | Horizontal rotation in degrees, wrapped into `[-180, 180)`. Omit to keep the current yaw. |
+| `pitch` | number | no | Vertical rotation in degrees, wrapped into `[-180, 180)`. Omit to keep the current pitch. |
+
+**Response** — `200 application/json`, the player's position after the teleport, with the same fields as [`get_player_position`](#get_player_position).
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"x":100,"y":64,"z":-20}' \
+  "$BOXLOOM_BASE_URL/v1/players/Steve/teleport"
+```
+
+</Operation>
+
+## `get_block`
+
+<Operation id="get_block">
+
+<ApiEndpoint method="GET" path="/v1/world/blocks" />
+
+**Query parameters** — all required; any other parameter is rejected.
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `dimension` | string | Namespaced ID of a loaded dimension. |
+| `x`, `y`, `z` | integer | Block coordinates, within the 32-bit integer range. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `dimension` | string | Resolved namespaced dimension ID. |
+| `x`, `y`, `z` | integer | The requested block coordinates. |
+| `block` | string | Namespaced ID of the block at that position. Empty space reads as `minecraft:air`. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  --get \
+  --data-urlencode "dimension=minecraft:overworld" \
+  --data-urlencode "x=0" \
+  --data-urlencode "y=100" \
+  --data-urlencode "z=0" \
+  "$BOXLOOM_BASE_URL/v1/world/blocks"
+```
+
+```json
+{
+  "dimension": "minecraft:overworld",
+  "x": 0,
+  "y": 100,
+  "z": 0,
+  "block": "minecraft:air"
+}
+```
+
+</Operation>
+
+## `set_block`
+
+<Operation id="set_block">
+
+<ApiEndpoint method="POST" path="/v1/world/blocks" />
+
+**Request body** — all fields required.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `dimension` | string | Namespaced ID of a loaded dimension. |
+| `x`, `y`, `z` | integer | Block coordinates, within the 32-bit integer range. |
+| `block` | string | Namespaced ID of a registered block. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `changed` | boolean | Whether the world changed. `false` for a position outside the build height, or one that already held the block. |
+| `dimension` | string | Resolved namespaced dimension ID. |
+| `x`, `y`, `z` | integer | The requested block coordinates. |
+| `block` | string | Resolved namespaced block ID. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "dimension":"minecraft:overworld",
+    "x":0,
+    "y":100,
+    "z":0,
+    "block":"minecraft:diamond_block"
+  }' \
+  "$BOXLOOM_BASE_URL/v1/world/blocks"
+```
+
+```json
+{
+  "changed": true,
+  "dimension": "minecraft:overworld",
+  "x": 0,
+  "y": 100,
+  "z": 0,
+  "block": "minecraft:diamond_block"
+}
+```
+
+</Operation>
+
+## `fill`
+
+<Operation id="fill">
+
+<ApiEndpoint method="POST" path="/v1/world/blocks/fill" />
+
+**Request body** — all fields required.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `dimension` | string | Namespaced ID of a loaded dimension. |
+| `x1`, `y1`, `z1` | integer | First corner, inclusive. |
+| `x2`, `y2`, `z2` | integer | Second corner, inclusive. |
+| `block` | string | Namespaced ID of a registered block. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `changedBlocks` | integer | How many blocks changed, from 0 to 32,768. |
+| `dimension` | string | Resolved namespaced dimension ID. |
+| `x1`, `y1`, `z1`, `x2`, `y2`, `z2` | integer | The requested corners. |
+| `block` | string | Resolved namespaced block ID. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "dimension":"minecraft:overworld",
+    "x1":0,
+    "y1":100,
+    "z1":0,
+    "x2":4,
+    "y2":100,
+    "z2":4,
+    "block":"minecraft:gold_block"
+  }' \
+  "$BOXLOOM_BASE_URL/v1/world/blocks/fill"
+```
+
+```json
+{
+  "changedBlocks": 25,
+  "dimension": "minecraft:overworld",
+  "x1": 0,
+  "y1": 100,
+  "z1": 0,
+  "x2": 4,
+  "y2": 100,
+  "z2": 4,
+  "block": "minecraft:gold_block"
+}
+```
+
+</Operation>
+
+## `summon`
+
+<Operation id="summon">
+
+<ApiEndpoint method="POST" path="/v1/world/entities" />
+
+**Request body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dimension` | string | yes | Namespaced ID of a loaded dimension. |
+| `entity` | string | yes | Namespaced ID of a registered, summonable entity type. |
+| `x`, `y`, `z` | number | yes | Spawn position. Finite, and inside Minecraft's spawnable bounds. |
+| `nbt` | object | no | Entity NBT, nested at most 128 levels deep. The `id` key is always overwritten with `entity`. |
+
+`nbt` values convert as follows: a JSON integer becomes an int tag, or a long tag when outside the 32-bit range; a floating-point value becomes a double tag; a boolean becomes a byte tag; a string becomes a string tag; objects and arrays nest. `null` is rejected.
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `uuid` | string (uuid) | UUID of the summoned entity. |
+| `entity` | string | Resolved namespaced entity type ID. |
+| `dimension` | string | Resolved namespaced dimension ID. |
+| `x`, `y`, `z` | number | Position of the entity after spawning. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "dimension":"minecraft:overworld",
+    "entity":"minecraft:arrow",
+    "x":0,
+    "y":100,
+    "z":0,
+    "nbt":{"Motion":[0.0,-1.5,0.0]}
+  }' \
+  "$BOXLOOM_BASE_URL/v1/world/entities"
+```
+
+```json
+{
+  "uuid": "0a4b4a2e-6c1f-4f1e-9a5d-3b2c1d0e9f8a",
+  "entity": "minecraft:arrow",
+  "dimension": "minecraft:overworld",
+  "x": 0.0,
+  "y": 100.0,
+  "z": 0.0
+}
+```
+
+</Operation>
+
+## `watch_chat`
+
+<Operation id="watch_chat">
+
+<ApiEndpoint method="GET" path="/v1/events" />
+
+**Request headers**
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `Accept` | yes | Must allow `text/event-stream`. |
+| `Last-Event-ID` | no | Resume strictly after this event ID. Omit to start at the live position. |
+
+**Response** — `200 text/event-stream`
+
+The stream opens with `retry: 1000`, sends comment heartbeats while idle, and emits these named events.
+
+| Event | `data` fields | Meaning |
+| --- | --- | --- |
+| `stream.ready` | `type`, `cursor` | The stream is open at the given cursor. |
+| `chat.message` | `type`, `id`, `timestamp`, `message`, `player.username`, `player.uuid` | A player chat message. Its `id` equals the SSE `id`. |
+| `stream.reset` | `type`, `code`, `message` | The cursor became unusable; the response ends after this event. |
+| `error` | `type`, `code`, `message` | An unrecoverable stream failure; the response ends. |
+
+Event IDs are opaque and must not be parsed. Use them for deduplication when your processing and cursor persistence are not atomic.
+
+**Example**
+
+```bash
+curl --no-buffer --fail-with-body \
+  -H "Accept: text/event-stream" \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  "$BOXLOOM_BASE_URL/v1/events"
+```
+
+```text
+retry: 1000
+
+event: chat.message
+id: 2f5e31b8-1a7b-40ec-a17e-3daf8e2938a0:42
+data: {"type":"chat.message","id":"2f5e31b8-1a7b-40ec-a17e-3daf8e2938a0:42","timestamp":"2026-08-14T00:00:00Z","message":"hello","player":{"username":"Steve","uuid":"58f6e634-15d9-4d4c-8ca0-8a4b23fe38af"}}
+```
+
+</Operation>

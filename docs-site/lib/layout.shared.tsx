@@ -25,7 +25,7 @@ export function baseOptions({ showSectionLinks = true } = {}): BaseLayoutProps {
           },
           {
             text: 'APIs',
-            url: '/docs/apis',
+            url: '/docs/apis/python',
             active: 'nested-url',
           },
         ]

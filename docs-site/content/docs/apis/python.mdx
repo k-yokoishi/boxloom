@@ -1,0 +1,414 @@
+---
+title: Python SDK
+description: Minecraft operations available through the boxloom Python SDK.
+---
+
+Every operation below is available through the boxloom Python SDK. The same operations are documented for the [REST API](./rest).
+
+These examples use the connection configured during [Installation](../installation).
+
+## Conventions
+
+Top-level functions share one process-wide client. Call `boxloom.init()` to configure it explicitly, or let the first call configure it from `BOXLOOM_BASE_URL`, `BOXLOOM_AUTH_TOKEN`, and `BOXLOOM_TIMEOUT_SECONDS`.
+
+Dimensions, blocks, and entities are named with namespaced IDs such as `minecraft:overworld`, `minecraft:stone`, and `minecraft:arrow`. A dimension must be loaded by the running server; a block or entity ID must exist in the server's registries. Operations that act on the world take `dimension` as a keyword argument defaulting to `minecraft:overworld`.
+
+Block coordinates are `int` and must fit in 32 bits. Player and entity coordinates are `float` and must be finite. Every result is a frozen dataclass, so its attributes are read-only.
+
+Every operation runs on the Minecraft server thread, so a stalled server surfaces as a timeout rather than a hang.
+
+## Errors
+
+Every failure raises a subclass of `boxloom.BoxloomError`.
+
+| Exception | Raised when |
+| --- | --- |
+| `ApiError` | The server returned an error response. Carries `status`, `code`, and `message`. |
+| `ConnectionError` | The boxloom server could not be reached. |
+| `ProtocolError` | The response did not match the API contract. |
+| `ConfigurationError` | The connection configuration is missing or invalid. |
+| `EventCursorExpiredError` | An event stream cursor can no longer be resumed. Subclass of `ApiError`. |
+| `EventStreamError` | The server reported a failure after the event stream was open. |
+
+```python
+from boxloom import ApiError, set_block
+
+try:
+    set_block(0, 100, 0, "minecraft:not_a_block")
+except ApiError as error:
+    print(error.status, error.code, error.message)
+```
+
+`ApiError.status` and `ApiError.code` carry the HTTP status and machine-readable code from the server. These can come from any operation; codes specific to one operation are listed with that operation.
+
+<CommonErrors />
+
+## `say`
+
+<Operation id="say">
+
+```python
+say(message: str) -> SayResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `message` | `str` | required | The text to broadcast. Non-blank, at most 256 characters. |
+
+**Returns** — `SayResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `message` | `str` | The message as broadcast. |
+| `recipients` | `int` | Number of players that received it. |
+
+**Example**
+
+```python
+from boxloom import say
+
+result = say("Hello from boxloom!")
+print(result.recipients)
+```
+
+</Operation>
+
+## `get_players`
+
+<Operation id="get_players">
+
+```python
+get_players() -> List[Player]
+```
+
+**Parameters** — none.
+
+**Returns** — `List[Player]`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `username` | `str` | The player's name. |
+| `uuid` | `str` | The player's UUID. |
+
+**Example**
+
+```python
+from boxloom import get_players
+
+for player in get_players():
+    print(player.username, player.uuid)
+```
+
+</Operation>
+
+## `get_player_position`
+
+<Operation id="get_player_position">
+
+```python
+get_player_position(username: str) -> PlayerPosition
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `username` | `str` | required | 3–16 characters from `A-Z`, `a-z`, `0-9`, and `_`. |
+
+**Returns** — `PlayerPosition`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `username` | `str` | The player's name. |
+| `uuid` | `str` | The player's UUID. |
+| `dimension` | `str` | Namespaced ID of the dimension the player is in. |
+| `x`, `y`, `z` | `float` | Exact position. `y` is the player's feet. |
+| `yaw` | `float` | Horizontal rotation in degrees. |
+| `pitch` | `float` | Vertical rotation in degrees. |
+
+`PlayerPosition.block_coordinates()` returns the `(x, y, z)` integer block containing the player's feet.
+
+**Example**
+
+```python
+from boxloom import get_player_position
+
+position = get_player_position("Steve")
+print(position.x, position.y, position.z)
+print(position.block_coordinates())
+```
+
+</Operation>
+
+## `teleport_player`
+
+<Operation id="teleport_player">
+
+```python
+teleport_player(
+    username: str,
+    x: float,
+    y: float,
+    z: float,
+    *,
+    dimension: Optional[str] = None,
+    yaw: Optional[float] = None,
+    pitch: Optional[float] = None,
+) -> PlayerPosition
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `username` | `str` | required | 3–16 characters from `A-Z`, `a-z`, `0-9`, and `_`. |
+| `x`, `y`, `z` | `float` | required | Absolute destination. Finite, and inside Minecraft's spawnable bounds. |
+| `dimension` | `Optional[str]` | `None` | Destination dimension. `None` keeps the player's current dimension. |
+| `yaw` | `Optional[float]` | `None` | Horizontal rotation in degrees, wrapped into `[-180, 180)`. `None` keeps the current yaw. |
+| `pitch` | `Optional[float]` | `None` | Vertical rotation in degrees, wrapped into `[-180, 180)`. `None` keeps the current pitch. |
+
+**Returns** — `PlayerPosition` describing the player after the teleport, with the same attributes as [`get_player_position`](#get_player_position).
+
+**Example**
+
+```python
+from boxloom import teleport_player
+
+position = teleport_player("Steve", 100, 64, -20)
+print(position)
+```
+
+</Operation>
+
+## `get_block`
+
+<Operation id="get_block">
+
+```python
+get_block(
+    x: int,
+    y: int,
+    z: int,
+    *,
+    dimension: str = "minecraft:overworld",
+) -> GetBlockResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `x`, `y`, `z` | `int` | required | Block coordinates, within the 32-bit integer range. |
+| `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
+
+**Returns** — `GetBlockResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `dimension` | `str` | Resolved namespaced dimension ID. |
+| `x`, `y`, `z` | `int` | The requested block coordinates. |
+| `block` | `str` | Namespaced ID of the block at that position. Empty space reads as `minecraft:air`. |
+
+**Example**
+
+```python
+from boxloom import get_block
+
+result = get_block(0, 100, 0)
+print(result.block)
+```
+
+</Operation>
+
+## `set_block`
+
+<Operation id="set_block">
+
+```python
+set_block(
+    x: int,
+    y: int,
+    z: int,
+    block: str,
+    *,
+    dimension: str = "minecraft:overworld",
+) -> SetBlockResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `x`, `y`, `z` | `int` | required | Block coordinates, within the 32-bit integer range. |
+| `block` | `str` | required | Namespaced ID of a registered block. |
+| `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
+
+**Returns** — `SetBlockResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `changed` | `bool` | Whether the world changed. `False` for a position outside the build height, or one that already held the block. |
+| `dimension` | `str` | Resolved namespaced dimension ID. |
+| `x`, `y`, `z` | `int` | The requested block coordinates. |
+| `block` | `str` | Resolved namespaced block ID. |
+
+**Example**
+
+```python
+from boxloom import set_block
+
+result = set_block(0, 100, 0, "minecraft:diamond_block")
+print(result.changed)
+```
+
+</Operation>
+
+## `fill`
+
+<Operation id="fill">
+
+```python
+fill(
+    x1: int,
+    y1: int,
+    z1: int,
+    x2: int,
+    y2: int,
+    z2: int,
+    block: str,
+    *,
+    dimension: str = "minecraft:overworld",
+) -> FillResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `x1`, `y1`, `z1` | `int` | required | First corner, inclusive. |
+| `x2`, `y2`, `z2` | `int` | required | Second corner, inclusive. |
+| `block` | `str` | required | Namespaced ID of a registered block. |
+| `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
+
+**Returns** — `FillResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `changed_blocks` | `int` | How many blocks changed, from 0 to 32,768. |
+| `dimension` | `str` | Resolved namespaced dimension ID. |
+| `x1`, `y1`, `z1`, `x2`, `y2`, `z2` | `int` | The requested corners. |
+| `block` | `str` | Resolved namespaced block ID. |
+
+**Example**
+
+```python
+from boxloom import fill
+
+result = fill(0, 100, 0, 4, 100, 4, "minecraft:gold_block")
+print(result.changed_blocks)
+```
+
+</Operation>
+
+## `summon`
+
+<Operation id="summon">
+
+```python
+summon(
+    entity: str,
+    x: float,
+    y: float,
+    z: float,
+    *,
+    nbt: Optional[Dict[str, Any]] = None,
+    dimension: str = "minecraft:overworld",
+) -> SummonResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `entity` | `str` | required | Namespaced ID of a registered, summonable entity type. |
+| `x`, `y`, `z` | `float` | required | Spawn position. Finite, and inside Minecraft's spawnable bounds. |
+| `nbt` | `Optional[Dict[str, Any]]` | `None` | Entity NBT, nested at most 128 levels deep. The `id` key is always overwritten with `entity`. |
+| `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
+
+`nbt` values convert as follows: `int` becomes an int tag, or a long tag when outside the 32-bit range; `float` becomes a double tag; `bool` becomes a byte tag; `str` becomes a string tag; `dict` and `list` nest. `None` is rejected.
+
+**Returns** — `SummonResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `uuid` | `str` | UUID of the summoned entity. |
+| `entity` | `str` | Resolved namespaced entity type ID. |
+| `dimension` | `str` | Resolved namespaced dimension ID. |
+| `x`, `y`, `z` | `float` | Position of the entity after spawning. |
+
+**Example**
+
+```python
+from boxloom import summon
+
+entity = summon(
+    "minecraft:arrow",
+    0,
+    100,
+    0,
+    nbt={"Motion": [0.0, -1.5, 0.0]},
+)
+print(entity.uuid)
+```
+
+</Operation>
+
+## `watch_chat`
+
+<Operation id="watch_chat">
+
+```python
+watch_chat(
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> ChatEventStream
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `last_event_id` | `Optional[str]` | `None` | Resume strictly after this event ID. `None` starts at the live position. |
+| `reconnect` | `bool` | `True` | Whether to reconnect automatically from the last received event when the connection drops. |
+
+**Returns** — `ChatEventStream`, an iterator of `ChatEvent` that is also a context manager.
+
+| Member | Type | Description |
+| --- | --- | --- |
+| `__iter__` / `__next__` | `ChatEvent` | Blocks until the next chat message arrives. |
+| `last_event_id` | `Optional[str]` | ID of the most recent event received, for resuming later. |
+| `close()` | `None` | Closes the underlying connection. |
+
+Each `ChatEvent` carries:
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `id` | `str` | Opaque event ID. Use it as the next `last_event_id`. |
+| `timestamp` | `str` | UTC ISO-8601 instant. |
+| `message` | `str` | The chat message. |
+| `player` | `Player` | The sender, with `username` and `uuid`. |
+
+**Example**
+
+```python
+from boxloom import watch_chat
+
+with watch_chat() as events:
+    for event in events:
+        print(f"<{event.player.username}> {event.message}")
+```
+
+</Operation>
