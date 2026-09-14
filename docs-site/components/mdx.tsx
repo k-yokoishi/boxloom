@@ -1,14 +1,15 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 import type { MDXComponents } from 'mdx/types';
 import { ApiEndpoint } from './api-endpoint';
+import { ApiLanguageBar } from './api-language-bar';
+import { ApiVariant } from './api-variant';
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
     ApiEndpoint,
-    Tab,
-    Tabs,
+    ApiLanguageBar,
+    ApiVariant,
     ...components,
   } satisfies MDXComponents;
 }
