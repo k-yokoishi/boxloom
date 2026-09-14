@@ -199,6 +199,68 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `gets a block from query parameters`() {
+        var capturedRequest: GetBlockRequest? = null
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult> {
+                capturedRequest = request
+                return CompletableFuture.completedFuture(
+                    GetBlockResult(
+                        request.dimension,
+                        request.x,
+                        request.y,
+                        request.z,
+                        "minecraft:stone",
+                    ),
+                )
+            }
+        }
+
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val response = get(
+                server,
+                "/v1/world/blocks?dimension=minecraft%3Athe_nether&x=1&y=64&z=-2",
+            )
+
+            assertEquals(200, response.statusCode())
+            assertEquals(
+                """{"dimension":"minecraft:the_nether","x":1,"y":64,"z":-2,"block":"minecraft:stone"}""",
+                response.body(),
+            )
+        }
+
+        assertEquals(
+            GetBlockRequest("minecraft:the_nether", 1, 64, -2),
+            capturedRequest,
+        )
+    }
+
+    @Test
+    fun `rejects invalid get block query parameters`() {
+        withServer(authToken = null) { server, _ ->
+            val missing = get(
+                server,
+                "/v1/world/blocks?dimension=minecraft%3Aoverworld&x=1&y=64",
+            )
+            val repeated = get(
+                server,
+                "/v1/world/blocks?dimension=minecraft%3Aoverworld&x=1&x=2&y=64&z=0",
+            )
+            val unknown = get(
+                server,
+                "/v1/world/blocks?dimension=minecraft%3Aoverworld&x=1&y=64&z=0&state=true",
+            )
+
+            assertEquals(400, missing.statusCode())
+            assertContains(missing.body(), "Query parameter 'z' must be an integer")
+            assertEquals(400, repeated.statusCode())
+            assertContains(repeated.body(), "Query parameter 'x' must not be repeated")
+            assertEquals(400, unknown.statusCode())
+            assertContains(unknown.body(), "Unknown query parameter 'state'")
+        }
+    }
+
+    @Test
     fun `accepts a summon request with nested nbt`() {
         var capturedRequest: SummonRequest? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
@@ -565,6 +627,21 @@ class BoxloomHttpServerTest {
         )
     }
 
+    private fun get(
+        server: BoxloomHttpServer,
+        path: String,
+    ): HttpResponse<String> {
+        val request = HttpRequest.newBuilder()
+            .uri(URI("http://127.0.0.1:${server.boundPort}$path"))
+            .GET()
+            .build()
+
+        return HttpClient.newHttpClient().send(
+            request,
+            HttpResponse.BodyHandlers.ofString(),
+        )
+    }
+
     private object TestMinecraftOperations : MinecraftOperations {
         override fun players(): CompletableFuture<List<Player>> =
             CompletableFuture.completedFuture(emptyList())
@@ -580,6 +657,9 @@ class BoxloomHttpServerTest {
             request: TeleportPlayerRequest,
         ): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected teleport request")
+
+        override fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult> =
+            throw AssertionError("Unexpected get-block request")
 
         override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")
@@ -603,6 +683,9 @@ class BoxloomHttpServerTest {
             request: TeleportPlayerRequest,
         ): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected teleport request")
+
+        override fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult> =
+            throw AssertionError("Unexpected get-block request")
 
         override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")

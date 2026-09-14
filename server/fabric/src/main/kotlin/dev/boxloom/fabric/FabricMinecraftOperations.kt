@@ -1,6 +1,8 @@
 package dev.boxloom.fabric
 
 import dev.boxloom.server.core.ApiException
+import dev.boxloom.server.core.GetBlockRequest
+import dev.boxloom.server.core.GetBlockResult
 import dev.boxloom.server.core.MinecraftOperations
 import dev.boxloom.server.core.NbtValue
 import dev.boxloom.server.core.Player
@@ -174,6 +176,29 @@ internal class FabricMinecraftOperations(
 
             SetBlockResult(
                 changed,
+                dimensionKey.identifier().toString(),
+                request.x,
+                request.y,
+                request.z,
+                blockId.toString(),
+            )
+        }
+
+    override fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult> =
+        onServerThread { server ->
+            val dimensionId = parseIdentifier(request.dimension, "dimension")
+            val dimensionKey: ResourceKey<Level> =
+                ResourceKey.create(Registries.DIMENSION, dimensionId)
+            val level = server.getLevel(dimensionKey)
+                ?: throw ApiException(
+                    404,
+                    "DIMENSION_NOT_FOUND",
+                    "Dimension '${request.dimension}' is not loaded",
+                )
+            val position = BlockPos(request.x, request.y, request.z)
+            val blockId = BuiltInRegistries.BLOCK.getKey(level.getBlockState(position).block)
+
+            GetBlockResult(
                 dimensionKey.identifier().toString(),
                 request.x,
                 request.y,

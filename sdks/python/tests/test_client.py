@@ -396,22 +396,52 @@ class ClientTest(unittest.TestCase):
             _ApiHandler.requests[0][2],
         )
 
-    def test_setblock_alias_calls_same_api(self):
+    def test_get_block_returns_block_id(self):
         _ApiHandler.response_body = {
-            "changed": False,
             "dimension": "minecraft:the_nether",
-            "x": 0,
+            "x": 1,
             "y": 64,
-            "z": 0,
+            "z": -2,
             "block": "minecraft:stone",
         }
 
-        result = boxloom.setblock(
-            0, 64, 0, "minecraft:stone", dimension="minecraft:the_nether"
+        result = boxloom.get_block(
+            1, 64, -2, dimension="minecraft:the_nether"
         )
 
-        self.assertFalse(result.changed)
-        self.assertEqual("minecraft:the_nether", result.dimension)
+        self.assertEqual("minecraft:stone", result)
+        path, headers, body = _ApiHandler.requests[0]
+        self.assertEqual(
+            "/v1/world/blocks?dimension=minecraft%3Athe_nether&x=1&y=64&z=-2",
+            path,
+        )
+        self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+        self.assertIsNone(body)
+
+    def test_get_block_uses_overworld_by_default(self):
+        _ApiHandler.response_body = {
+            "dimension": "minecraft:overworld",
+            "x": 0,
+            "y": 64,
+            "z": 0,
+            "block": "minecraft:air",
+        }
+
+        result = boxloom.BoxloomClient(base_url=self.base_url).get_block(0, 64, 0)
+
+        self.assertEqual("minecraft:air", result)
+        self.assertEqual(
+            "/v1/world/blocks?dimension=minecraft%3Aoverworld&x=0&y=64&z=0",
+            _ApiHandler.requests[0][0],
+        )
+
+    def test_get_block_rejects_invalid_coordinates_before_request(self):
+        with self.assertRaises(TypeError):
+            boxloom.get_block(1.5, 64, 0)
+        with self.assertRaises(ValueError):
+            boxloom.get_block(2**31, 64, 0)
+
+        self.assertEqual([], _ApiHandler.requests)
 
     def test_summon_posts_nested_nbt(self):
         _ApiHandler.response_body = {

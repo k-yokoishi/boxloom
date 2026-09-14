@@ -125,6 +125,38 @@ curl --fail-with-body \
 </Tab>
 </Tabs>
 
+## `get_block`
+
+Read the namespaced block ID at one position in a loaded dimension. Python uses the overworld by default and returns the block ID directly as a `str`. The REST response also includes the requested dimension and coordinates.
+
+<ApiEndpoint method="GET" path="/v1/world/blocks" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import get_block
+
+block = get_block(0, 100, 0)
+print(block)  # minecraft:diamond_block
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --get --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  --data-urlencode "dimension=minecraft:overworld" \
+  --data-urlencode "x=0" \
+  --data-urlencode "y=100" \
+  --data-urlencode "z=0" \
+  "$BOXLOOM_BASE_URL/v1/world/blocks"
+```
+
+</Tab>
+</Tabs>
+
 ## `set_block`
 
 Place one block in a loaded Minecraft dimension. The overworld is used by default in Python.

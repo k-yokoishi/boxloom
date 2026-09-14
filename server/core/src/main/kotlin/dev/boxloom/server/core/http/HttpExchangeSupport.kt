@@ -9,6 +9,53 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
 internal object HttpExchangeSupport {
+    fun queryParameters(exchange: HttpExchange): Map<String, String> {
+        val query = exchange.requestURI.rawQuery
+        if (query.isNullOrEmpty()) return emptyMap()
+
+        val parameters = linkedMapOf<String, String>()
+        query.split('&').forEach { field ->
+            val separator = field.indexOf('=')
+            val rawName = if (separator == -1) field else field.substring(0, separator)
+            val rawValue = if (separator == -1) "" else field.substring(separator + 1)
+            val name = decodeQueryComponent(rawName)
+            val value = decodeQueryComponent(rawValue)
+
+            if (name.isEmpty()) {
+                throw JsonSupport.invalid("Query parameter names must not be empty")
+            }
+            if (parameters.put(name, value) != null) {
+                throw JsonSupport.invalid("Query parameter '$name' must not be repeated")
+            }
+        }
+        return parameters
+    }
+
+    fun requireOnlyQueryParameters(parameters: Map<String, String>, allowed: Set<String>) {
+        parameters.keys.firstOrNull { it !in allowed }?.let { name ->
+            throw JsonSupport.invalid("Unknown query parameter '$name'")
+        }
+    }
+
+    fun requireQueryString(parameters: Map<String, String>, name: String): String {
+        val value = parameters[name]
+        if (value.isNullOrBlank()) {
+            throw JsonSupport.invalid("Query parameter '$name' must be a non-empty string")
+        }
+        return value
+    }
+
+    fun requireQueryInteger(parameters: Map<String, String>, name: String): Int {
+        val value = parameters[name]
+        if (value == null || !INTEGER_TOKEN.matches(value)) {
+            throw JsonSupport.invalid("Query parameter '$name' must be an integer")
+        }
+        return value.toIntOrNull()
+            ?: throw JsonSupport.invalid(
+                "Query parameter '$name' is outside the 32-bit integer range",
+            )
+    }
+
     fun requireJsonContentType(exchange: HttpExchange) {
         val contentType = exchange.requestHeaders.getFirst("Content-Type")
         val mediaType = contentType?.substringBefore(';')?.trim()
@@ -59,6 +106,12 @@ internal object HttpExchangeSupport {
         throw JsonSupport.invalid("The $name path segment is not valid URL encoding")
     }
 
+    private fun decodeQueryComponent(value: String): String = try {
+        URLDecoder.decode(value, StandardCharsets.UTF_8)
+    } catch (exception: IllegalArgumentException) {
+        throw JsonSupport.invalid("The query string is not valid URL encoding")
+    }
+
     fun sendError(exchange: HttpExchange, status: Int, code: String, message: String) {
         sendJson(exchange, status, JsonSupport.error(code, message))
     }
@@ -80,5 +133,6 @@ internal object HttpExchangeSupport {
     }
 
     private const val MAX_REQUEST_BODY_BYTES = 16 * 1_024
+    private val INTEGER_TOKEN = Regex("-?(0|[1-9][0-9]*)")
     private val LOGGER = System.getLogger("boxloom-http")
 }

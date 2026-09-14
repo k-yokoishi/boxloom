@@ -1,6 +1,7 @@
 package dev.boxloom.server.core.api.world
 
 import com.sun.net.httpserver.HttpExchange
+import dev.boxloom.server.core.GetBlockRequest
 import dev.boxloom.server.core.JsonSupport
 import dev.boxloom.server.core.SetBlockRequest
 import dev.boxloom.server.core.SummonRequest
@@ -16,8 +17,31 @@ internal class WorldRoutes(
     private val operations: MinecraftOperationRunner,
 ) {
     fun register(router: Router) {
+        router.get("/world/blocks") { exchange, _ -> getBlock(exchange) }
         router.post("/world/blocks") { exchange, _ -> setBlock(exchange) }
         router.post("/world/entities") { exchange, _ -> summon(exchange) }
+    }
+
+    private fun getBlock(exchange: HttpExchange) {
+        val parameters = HttpExchangeSupport.queryParameters(exchange)
+        HttpExchangeSupport.requireOnlyQueryParameters(parameters, GET_BLOCK_FIELDS)
+
+        val request = GetBlockRequest(
+            HttpExchangeSupport.requireQueryString(parameters, "dimension"),
+            HttpExchangeSupport.requireQueryInteger(parameters, "x"),
+            HttpExchangeSupport.requireQueryInteger(parameters, "y"),
+            HttpExchangeSupport.requireQueryInteger(parameters, "z"),
+        )
+        val result = operations.await(minecraft.getBlock(request))
+        val response = buildJsonObject {
+            put("dimension", result.dimension)
+            put("x", result.x)
+            put("y", result.y)
+            put("z", result.z)
+            put("block", result.block)
+        }.toString()
+
+        HttpExchangeSupport.sendJson(exchange, 200, response)
     }
 
     private fun setBlock(exchange: HttpExchange) {
@@ -72,6 +96,7 @@ internal class WorldRoutes(
     }
 
     companion object {
+        private val GET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z")
         private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block")
         private val SUMMON_FIELDS = setOf("dimension", "entity", "x", "y", "z", "nbt")
     }

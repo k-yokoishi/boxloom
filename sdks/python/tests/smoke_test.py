@@ -11,6 +11,7 @@ from boxloom import (
     EventCursorExpiredError,
     Player,
     PlayerPosition,
+    get_block,
     get_player_position,
     get_players,
     init,
@@ -25,9 +26,11 @@ from boxloom import (
 assert version("boxloom") == boxloom.__version__
 assert callable(init)
 assert callable(say)
+assert callable(get_block)
 assert callable(get_player_position)
 assert callable(get_players)
 assert callable(set_block)
+assert not hasattr(boxloom, "setblock")
 assert callable(summon)
 assert callable(teleport_player)
 assert callable(watch_chat)

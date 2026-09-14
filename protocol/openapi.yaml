@@ -254,6 +254,61 @@ paths:
         '504':
           $ref: '#/components/responses/Timeout'
   /v1/world/blocks:
+    get:
+      operationId: getBlock
+      summary: Get one block from a loaded dimension
+      parameters:
+        - name: dimension
+          in: query
+          required: true
+          schema:
+            type: string
+          example: minecraft:overworld
+        - name: x
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: y
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: z
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: The block at the requested position
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetBlockResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The requested dimension is not loaded, or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
     post:
       operationId: setBlock
       summary: Set one block in a loaded dimension
@@ -494,6 +549,29 @@ components:
           type: string
           examples:
             - minecraft:diamond_block
+    GetBlockResult:
+      type: object
+      additionalProperties: false
+      required:
+        - dimension
+        - x
+        - y
+        - z
+        - block
+      properties:
+        dimension:
+          type: string
+        x:
+          type: integer
+          format: int32
+        y:
+          type: integer
+          format: int32
+        z:
+          type: integer
+          format: int32
+        block:
+          type: string
     SetBlockResult:
       type: object
       additionalProperties: false
