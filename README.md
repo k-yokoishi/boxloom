@@ -38,7 +38,7 @@ Ports, memory, and the local API token can be changed by copying [`.env.example`
 The current alpha is published on TestPyPI:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a2
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a3
 ```
 
 Point the SDK at a running boxloom Fabric server:
