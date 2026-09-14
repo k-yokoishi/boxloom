@@ -7,6 +7,8 @@ interface WorldOperations {
 
     fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult>
 
+    fun fill(request: FillRequest): CompletableFuture<FillResult>
+
     fun summon(request: SummonRequest): CompletableFuture<SummonResult>
 }
 
@@ -39,6 +41,29 @@ data class SetBlockResult(
     val x: Int,
     val y: Int,
     val z: Int,
+    val block: String,
+)
+
+data class FillRequest(
+    val dimension: String,
+    val x1: Int,
+    val y1: Int,
+    val z1: Int,
+    val x2: Int,
+    val y2: Int,
+    val z2: Int,
+    val block: String,
+)
+
+data class FillResult(
+    val changedBlocks: Int,
+    val dimension: String,
+    val x1: Int,
+    val y1: Int,
+    val z1: Int,
+    val x2: Int,
+    val y2: Int,
+    val z2: Int,
     val block: String,
 )
 

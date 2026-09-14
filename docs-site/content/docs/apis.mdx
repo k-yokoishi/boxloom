@@ -127,7 +127,7 @@ curl --fail-with-body \
 
 ## `get_block`
 
-Read the namespaced block ID at one position in a loaded dimension. Python uses the overworld by default and returns the block ID directly as a `str`. The REST response also includes the requested dimension and coordinates.
+Read one block in a loaded dimension. Python uses the overworld by default and returns a `GetBlockResult` containing the dimension, coordinates, and namespaced block ID.
 
 <ApiEndpoint method="GET" path="/v1/world/blocks" />
 
@@ -137,8 +137,8 @@ Read the namespaced block ID at one position in a loaded dimension. Python uses 
 ```python
 from boxloom import get_block
 
-block = get_block(0, 100, 0)
-print(block)  # minecraft:diamond_block
+result = get_block(0, 100, 0)
+print(result.block)  # minecraft:diamond_block
 ```
 
 </Tab>
@@ -189,6 +189,46 @@ curl --fail-with-body \
     "block":"minecraft:diamond_block"
   }' \
   "$BOXLOOM_BASE_URL/v1/world/blocks"
+```
+
+</Tab>
+</Tabs>
+
+## `fill`
+
+Fill the inclusive cuboid between two block positions. Either corner order is accepted, the overworld is used by default in Python, and one call may contain at most 32,768 blocks. The result reports how many blocks actually changed.
+
+<ApiEndpoint method="POST" path="/v1/world/blocks/fill" />
+
+<Tabs groupId="api-interface" items={['Python', 'REST']} persist>
+<Tab value="Python">
+
+```python
+from boxloom import fill
+
+result = fill(0, 100, 0, 4, 100, 4, "minecraft:gold_block")
+print(result.changed_blocks)
+```
+
+</Tab>
+<Tab value="REST">
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "dimension":"minecraft:overworld",
+    "x1":0,
+    "y1":100,
+    "z1":0,
+    "x2":4,
+    "y2":100,
+    "z2":4,
+    "block":"minecraft:gold_block"
+  }' \
+  "$BOXLOOM_BASE_URL/v1/world/blocks/fill"
 ```
 
 </Tab>

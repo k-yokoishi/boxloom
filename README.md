@@ -60,6 +60,14 @@ from boxloom import set_block
 set_block(0, 100, 0, "minecraft:diamond_block")
 ```
 
+Fill an inclusive block region:
+
+```python
+from boxloom import fill
+
+fill(0, 100, 0, 4, 100, 4, "minecraft:gold_block")
+```
+
 Listen for player chat messages:
 
 ```python

@@ -49,6 +49,17 @@ class PlayerPosition:
 
 
 @dataclass(frozen=True)
+class GetBlockResult:
+    """Result returned after reading a block in a loaded dimension."""
+
+    dimension: str
+    x: int
+    y: int
+    z: int
+    block: str
+
+
+@dataclass(frozen=True)
 class SetBlockResult:
     """Result returned after setting a block in a loaded dimension."""
 
@@ -57,6 +68,21 @@ class SetBlockResult:
     x: int
     y: int
     z: int
+    block: str
+
+
+@dataclass(frozen=True)
+class FillResult:
+    """Result returned after filling a block region in a loaded dimension."""
+
+    changed_blocks: int
+    dimension: str
+    x1: int
+    y1: int
+    z1: int
+    x2: int
+    y2: int
+    z2: int
     block: str
 
 

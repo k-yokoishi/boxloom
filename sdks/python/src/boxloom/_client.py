@@ -20,10 +20,19 @@ from ._transport import (
     _require_string,
 )
 from .events import ChatEventStream
-from .models import Player, PlayerPosition, SayResult, SetBlockResult, SummonResult
+from .models import (
+    FillResult,
+    GetBlockResult,
+    Player,
+    PlayerPosition,
+    SayResult,
+    SetBlockResult,
+    SummonResult,
+)
 
 
 _USERNAME = re.compile(r"^[A-Za-z0-9_]{3,16}$")
+_MAX_FILL_BLOCKS = 32_768
 
 
 class BoxloomClient:
@@ -214,7 +223,7 @@ class BoxloomClient:
         z: int,
         *,
         dimension: str = "minecraft:overworld",
-    ) -> str:
+    ) -> GetBlockResult:
         for field_name, value in (("x", x), ("y", y), ("z", z)):
             if not isinstance(value, int) or isinstance(value, bool):
                 raise TypeError(f"{field_name} must be an integer")
@@ -232,7 +241,86 @@ class BoxloomClient:
             }
         )
         payload = self._get(f"/v1/world/blocks?{query}")
-        return _require_string(payload, "block")
+        return GetBlockResult(
+            dimension=_require_string(payload, "dimension"),
+            x=_require_integer(payload, "x"),
+            y=_require_integer(payload, "y"),
+            z=_require_integer(payload, "z"),
+            block=_require_string(payload, "block"),
+        )
+
+    def fill(
+        self,
+        x1: int,
+        y1: int,
+        z1: int,
+        x2: int,
+        y2: int,
+        z2: int,
+        block: str,
+        *,
+        dimension: str = "minecraft:overworld",
+    ) -> FillResult:
+        coordinates = (
+            ("x1", x1),
+            ("y1", y1),
+            ("z1", z1),
+            ("x2", x2),
+            ("y2", y2),
+            ("z2", z2),
+        )
+        for field_name, value in coordinates:
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise TypeError(f"{field_name} must be an integer")
+            if not -(2**31) <= value < 2**31:
+                raise ValueError(
+                    f"{field_name} must fit in a signed 32-bit integer"
+                )
+        if not isinstance(block, str) or not block.strip():
+            raise ValueError("block must be a non-empty namespaced ID")
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise ValueError("dimension must be a non-empty namespaced ID")
+
+        volume = (
+            (abs(x2 - x1) + 1)
+            * (abs(y2 - y1) + 1)
+            * (abs(z2 - z1) + 1)
+        )
+        if volume > _MAX_FILL_BLOCKS:
+            raise ValueError(
+                f"fill region must contain at most {_MAX_FILL_BLOCKS} blocks"
+            )
+
+        payload = self._post(
+            "/v1/world/blocks/fill",
+            {
+                "dimension": dimension,
+                "x1": x1,
+                "y1": y1,
+                "z1": z1,
+                "x2": x2,
+                "y2": y2,
+                "z2": z2,
+                "block": block,
+            },
+        )
+        changed_blocks = _require_integer(payload, "changedBlocks")
+        if not 0 <= changed_blocks <= volume:
+            raise ProtocolError(
+                "response field 'changedBlocks' must be between zero and the fill volume"
+            )
+
+        return FillResult(
+            changed_blocks=changed_blocks,
+            dimension=_require_string(payload, "dimension"),
+            x1=_require_integer(payload, "x1"),
+            y1=_require_integer(payload, "y1"),
+            z1=_require_integer(payload, "z1"),
+            x2=_require_integer(payload, "x2"),
+            y2=_require_integer(payload, "y2"),
+            z2=_require_integer(payload, "z2"),
+            block=_require_string(payload, "block"),
+        )
 
     def summon(
         self,

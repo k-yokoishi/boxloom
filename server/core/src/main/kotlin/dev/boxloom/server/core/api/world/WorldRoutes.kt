@@ -1,6 +1,7 @@
 package dev.boxloom.server.core.api.world
 
 import com.sun.net.httpserver.HttpExchange
+import dev.boxloom.server.core.FillRequest
 import dev.boxloom.server.core.GetBlockRequest
 import dev.boxloom.server.core.JsonSupport
 import dev.boxloom.server.core.SetBlockRequest
@@ -19,6 +20,7 @@ internal class WorldRoutes(
     fun register(router: Router) {
         router.get("/world/blocks") { exchange, _ -> getBlock(exchange) }
         router.post("/world/blocks") { exchange, _ -> setBlock(exchange) }
+        router.post("/world/blocks/fill") { exchange, _ -> fill(exchange) }
         router.post("/world/entities") { exchange, _ -> summon(exchange) }
     }
 
@@ -69,6 +71,39 @@ internal class WorldRoutes(
         HttpExchangeSupport.sendJson(exchange, 200, response)
     }
 
+    private fun fill(exchange: HttpExchange) {
+        HttpExchangeSupport.requireJsonContentType(exchange)
+        val objectValue = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
+        JsonSupport.requireOnlyFields(objectValue, FILL_FIELDS)
+
+        val request = FillRequest(
+            JsonSupport.requireString(objectValue, "dimension"),
+            JsonSupport.requireInteger(objectValue, "x1"),
+            JsonSupport.requireInteger(objectValue, "y1"),
+            JsonSupport.requireInteger(objectValue, "z1"),
+            JsonSupport.requireInteger(objectValue, "x2"),
+            JsonSupport.requireInteger(objectValue, "y2"),
+            JsonSupport.requireInteger(objectValue, "z2"),
+            JsonSupport.requireString(objectValue, "block"),
+        )
+        requireFillWithinLimit(request)
+
+        val result = operations.await(minecraft.fill(request))
+        val response = buildJsonObject {
+            put("changedBlocks", result.changedBlocks)
+            put("dimension", result.dimension)
+            put("x1", result.x1)
+            put("y1", result.y1)
+            put("z1", result.z1)
+            put("x2", result.x2)
+            put("y2", result.y2)
+            put("z2", result.z2)
+            put("block", result.block)
+        }.toString()
+
+        HttpExchangeSupport.sendJson(exchange, 200, response)
+    }
+
     private fun summon(exchange: HttpExchange) {
         HttpExchangeSupport.requireJsonContentType(exchange)
         val objectValue = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
@@ -98,6 +133,35 @@ internal class WorldRoutes(
     companion object {
         private val GET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z")
         private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block")
+        private val FILL_FIELDS = setOf(
+            "dimension",
+            "x1",
+            "y1",
+            "z1",
+            "x2",
+            "y2",
+            "z2",
+            "block",
+        )
         private val SUMMON_FIELDS = setOf("dimension", "entity", "x", "y", "z", "nbt")
+        private const val MAX_FILL_BLOCKS = 32_768
+
+        private fun requireFillWithinLimit(request: FillRequest) {
+            var volume = 1L
+            val spans = listOf(
+                kotlin.math.abs(request.x2.toLong() - request.x1.toLong()) + 1L,
+                kotlin.math.abs(request.y2.toLong() - request.y1.toLong()) + 1L,
+                kotlin.math.abs(request.z2.toLong() - request.z1.toLong()) + 1L,
+            )
+
+            for (span in spans) {
+                if (span > MAX_FILL_BLOCKS / volume) {
+                    throw JsonSupport.invalid(
+                        "Fill region must contain at most $MAX_FILL_BLOCKS blocks",
+                    )
+                }
+                volume *= span
+            }
+        }
     }
 }

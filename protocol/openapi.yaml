@@ -357,6 +357,55 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/world/blocks/fill:
+    post:
+      operationId: fill
+      summary: Fill an inclusive block region in a loaded dimension
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FillRequest'
+      responses:
+        '200':
+          description: The result of filling the region
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FillResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The requested dimension is not loaded, or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/world/entities:
     post:
       operationId: summon
@@ -594,6 +643,89 @@ components:
           type: integer
           format: int32
         z:
+          type: integer
+          format: int32
+        block:
+          type: string
+    FillRequest:
+      type: object
+      description: >-
+        The two corners are inclusive and may be supplied in either order. The
+        resulting cuboid must contain at most 32,768 blocks.
+      additionalProperties: false
+      required:
+        - dimension
+        - x1
+        - y1
+        - z1
+        - x2
+        - y2
+        - z2
+        - block
+      properties:
+        dimension:
+          type: string
+          examples:
+            - minecraft:overworld
+        x1:
+          type: integer
+          format: int32
+        y1:
+          type: integer
+          format: int32
+        z1:
+          type: integer
+          format: int32
+        x2:
+          type: integer
+          format: int32
+        y2:
+          type: integer
+          format: int32
+        z2:
+          type: integer
+          format: int32
+        block:
+          type: string
+          examples:
+            - minecraft:stone
+    FillResult:
+      type: object
+      additionalProperties: false
+      required:
+        - changedBlocks
+        - dimension
+        - x1
+        - y1
+        - z1
+        - x2
+        - y2
+        - z2
+        - block
+      properties:
+        changedBlocks:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 32768
+        dimension:
+          type: string
+        x1:
+          type: integer
+          format: int32
+        y1:
+          type: integer
+          format: int32
+        z1:
+          type: integer
+          format: int32
+        x2:
+          type: integer
+          format: int32
+        y2:
+          type: integer
+          format: int32
+        z2:
           type: integer
           format: int32
         block:
