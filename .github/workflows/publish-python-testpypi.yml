@@ -80,6 +80,10 @@ jobs:
           name: python-distributions
           path: sdks/python/dist
 
+      # This job holds the publishing token, so it deliberately does not check
+      # out the repository. That means the `testpypi` index defined in
+      # sdks/python/pyproject.toml is not available here and the upload URL has
+      # to be passed explicitly.
       - name: Publish distributions to TestPyPI
         working-directory: sdks/python
         env:
@@ -90,4 +94,4 @@ jobs:
             exit 1
           fi
 
-          uv publish --index testpypi dist/*
+          uv publish --publish-url https://test.pypi.org/legacy/ dist/*
