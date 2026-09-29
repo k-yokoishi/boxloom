@@ -20,12 +20,12 @@ Arbitrary command execution is intentionally outside this PoC.
 
 | Component | Version |
 | --- | --- |
-| Minecraft Java Edition | `26.2` |
+| Minecraft Java Edition | `26.3` |
 | Java | `25` |
-| Kotlin | `2.4.10` |
-| Fabric Loader | `0.19.3` |
-| Fabric API | `0.156.0+26.2` |
-| Fabric Language Kotlin | `1.13.13+kotlin.2.4.10` |
+| Kotlin | `2.4.20` |
+| Fabric Loader | `0.19.5` |
+| Fabric API | `0.161.0+26.3` |
+| Fabric Language Kotlin | `1.14.1+kotlin.2.4.20` |
 | Fabric Loom | `1.17.17` |
 | Gradle Wrapper | `9.5.1` |
 | Docker image | `itzg/minecraft-server:2026.5.4-java25` |
@@ -77,7 +77,7 @@ cd server
 ./gradlew :fabric:clean :fabric:build
 ```
 
-The mod JAR is written to `fabric/build/libs/boxloom-0.1.0-alpha.2.jar`.
+The mod JAR is written to `fabric/build/libs/boxloom-0.1.0-alpha.3.jar`.
 
 ## Docker PoC
 
@@ -112,7 +112,7 @@ curl --fail-with-body \
   http://127.0.0.1:28886/v1/chat/messages
 ```
 
-After joining the server with Minecraft Java Edition 26.2, get a player position:
+After joining the server with Minecraft Java Edition 26.3, get a player position:
 
 ```bash
 curl --fail-with-body \
