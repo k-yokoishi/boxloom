@@ -1,6 +1,6 @@
 # Publishing the boxloom Fabric mod
 
-This checklist covers publishing the `0.1.0-alpha.2` release to GitHub Releases and Modrinth.
+This checklist covers publishing the `0.1.0-alpha.3` release to GitHub Releases and Modrinth.
 
 ## Build and verify
 
@@ -11,7 +11,7 @@ mise run fabric-build
 mise run python-test
 ```
 
-Upload `server/fabric/build/libs/boxloom-0.1.0-alpha.2.jar` as the primary mod file. The `-sources.jar` file is optional supplementary source code, not the installable mod.
+Upload `server/fabric/build/libs/boxloom-0.1.0-alpha.3.jar` as the primary mod file. The `-sources.jar` file is optional supplementary source code, not the installable mod.
 
 Before publishing, repeat the clean-profile smoke test with the new JAR and no `BOXLOOM_AUTH_TOKEN`. Confirm that Minecraft starts, `config/boxloom.json` is created, the unauthenticated warning appears, and the HTTP server listens on `127.0.0.1:28886`.
 
@@ -52,11 +52,11 @@ It works with both Fabric dedicated servers and integrated singleplayer servers.
 
 ## Requirements
 
-- Minecraft Java Edition 26.2
+- Minecraft Java Edition 26.3
 - Java 25 or newer
-- Fabric Loader 0.19.3 or newer
-- Fabric API 0.156.0+26.2 or newer
-- Fabric Language Kotlin 1.13.13+kotlin.2.4.10 or newer
+- Fabric Loader 0.19.5 or newer
+- Fabric API 0.161.0+26.3 or newer
+- Fabric Language Kotlin 1.14.1+kotlin.2.4.20 or newer
 
 ## Status
 
@@ -69,16 +69,16 @@ Upload the primary JAR and set:
 
 | Field | Value |
 | --- | --- |
-| Version number | `0.1.0-alpha.2` |
+| Version number | `0.1.0-alpha.3` |
 | Version type | Alpha |
 | Loader | Fabric |
-| Game version | 26.2 |
+| Game version | 26.3 |
 | Client environment | Optional |
 | Server environment | Required |
 | Required dependency | Fabric API |
 | Required dependency | Fabric Language Kotlin |
 
-Paste the matching section from `server/fabric/CHANGELOG.md` into the version changelog. Add `boxloom-0.1.0-alpha.2-sources.jar` only as a supplementary Sources JAR if desired.
+Paste the matching section from `server/fabric/CHANGELOG.md` into the version changelog. Add `boxloom-0.1.0-alpha.3-sources.jar` only as a supplementary Sources JAR if desired.
 
 ## GitHub Release
 
@@ -89,8 +89,8 @@ matching heading in `server/fabric/CHANGELOG.md` use the same version.
 Create and push an annotated tag from the release commit:
 
 ```bash
-git tag -a fabric-v0.1.0-alpha.2 -m "boxloom Fabric Mod 0.1.0-alpha.2"
-git push origin fabric-v0.1.0-alpha.2
+git tag -a fabric-v0.1.0-alpha.3 -m "boxloom Fabric Mod 0.1.0-alpha.3"
+git push origin fabric-v0.1.0-alpha.3
 ```
 
 The `.github/workflows/fabric-release.yml` workflow then:
@@ -98,7 +98,7 @@ The `.github/workflows/fabric-release.yml` workflow then:
 - checks that the tag and configured version match
 - builds and tests the Fabric server modules with Java 25
 - copies the matching section from `server/fabric/CHANGELOG.md`
-- publishes a GitHub prerelease with `boxloom-0.1.0-alpha.2.jar` attached
+- publishes a GitHub prerelease with `boxloom-0.1.0-alpha.3.jar` attached
 
 No additional GitHub secret is required; the workflow uses the repository's
 short-lived `GITHUB_TOKEN`. After it succeeds, add the release link to the

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.0-alpha.3
+
+- Support Minecraft Java Edition 26.3 with updated Fabric dependencies
+
 ## 0.1.0-alpha.2
 
 - Fill an inclusive region containing up to 32,768 blocks

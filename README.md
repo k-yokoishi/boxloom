@@ -13,7 +13,7 @@ boxloom connects Python programs to Minecraft Java Edition through a server-side
 
 The quickest way to try boxloom is the included Docker Compose environment. It starts a Minecraft server with the boxloom mod and a browser-based editor with the local Python SDK already configured.
 
-You need Docker and Minecraft Java Edition 26.2.
+You need Docker and Minecraft Java Edition 26.3.
 
 ```bash
 docker compose up --build
