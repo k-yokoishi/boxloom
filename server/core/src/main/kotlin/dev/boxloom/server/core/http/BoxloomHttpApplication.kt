@@ -8,6 +8,7 @@ import dev.boxloom.server.core.MinecraftOperations
 import dev.boxloom.server.core.api.chat.ChatRoutes
 import dev.boxloom.server.core.api.events.EventRoutes
 import dev.boxloom.server.core.api.players.PlayerRoutes
+import dev.boxloom.server.core.api.time.TimeRoutes
 import dev.boxloom.server.core.api.world.WorldRoutes
 
 internal class BoxloomHttpApplication(
@@ -21,6 +22,7 @@ internal class BoxloomHttpApplication(
         ChatRoutes(minecraft, operations).register(this)
         PlayerRoutes(minecraft, operations).register(this)
         WorldRoutes(minecraft, operations).register(this)
+        TimeRoutes(minecraft, operations).register(this)
         EventRoutes(events).register(this)
     }
 

@@ -68,6 +68,20 @@ from boxloom import fill
 fill(0, 100, 0, 4, 100, 4, "minecraft:gold_block")
 ```
 
+Set the time to day:
+
+```python
+from boxloom import add_time, get_time, set_time
+
+set_time("day")
+set_time(6000)  # Set the clock to 6,000 total ticks.
+add_time(1000)
+print(get_time().ticks)
+```
+
+`set_time("day")` advances to the next day marker, matching Minecraft 26.3.
+The other built-in Overworld markers are `"noon"`, `"night"`, and `"midnight"`.
+
 Listen for player chat messages:
 
 ```python

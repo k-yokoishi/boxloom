@@ -4,6 +4,14 @@ from typing import Tuple
 
 
 @dataclass(frozen=True)
+class TimeResult:
+    """A world clock's total elapsed ticks, read on the server thread."""
+
+    clock: str
+    ticks: int
+
+
+@dataclass(frozen=True)
 class SayResult:
     """Result returned after broadcasting a message."""
 

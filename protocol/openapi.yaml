@@ -461,12 +461,195 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/world/time:
+    get:
+      operationId: getTime
+      summary: Read a world clock's total elapsed ticks
+      parameters:
+        - name: clock
+          in: query
+          schema:
+            $ref: '#/components/schemas/WorldClockId'
+      responses:
+        '200':
+          $ref: '#/components/responses/TimeResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TimeNotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
+    post:
+      operationId: setTime
+      summary: Set total ticks or advance a world clock to a time marker
+      description: >-
+        An integer sets the clock's total elapsed ticks. A time marker such as
+        day, noon, night, or midnight advances to its next occurrence, as in
+        Minecraft 26.3's /time set command. Custom time marker IDs are supported.
+        Clock time is shared across dimensions using that clock. Game time and
+        the clock's paused state and rate are unaffected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTimeRequest'
+            example:
+              time: day
+      responses:
+        '200':
+          $ref: '#/components/responses/TimeResult'
+        '409':
+          description: TIME_ALREADY_AT_MARKER if the clock is already at the requested marker
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TimeNotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
+  /v1/world/time/add:
+    post:
+      operationId: addTime
+      summary: Add signed ticks to a world clock
+      description: >-
+        Adds a signed 32-bit tick count, matching Minecraft 26.3's /time add
+        command. Negative values rewind the clock; the result is clamped at zero.
+        Game time and the clock's paused state and rate are unaffected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddTimeRequest'
+            example:
+              ticks: 6000
+      responses:
+        '200':
+          $ref: '#/components/responses/TimeResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TimeNotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
   schemas:
+    WorldClockId:
+      type: string
+      minLength: 1
+      default: minecraft:overworld
+      description: World clock ID; an omitted namespace resolves to minecraft.
+      example: minecraft:overworld
+    SetTimeRequest:
+      type: object
+      required: [time]
+      additionalProperties: false
+      properties:
+        clock:
+          $ref: '#/components/schemas/WorldClockId'
+        time:
+          oneOf:
+            - type: integer
+              format: int32
+              minimum: 0
+              maximum: 2147483647
+              description: Absolute total elapsed ticks.
+            - type: string
+              minLength: 1
+              description: >-
+                A time marker ID. Vanilla Overworld markers are day, noon, night,
+                and midnight. An omitted namespace resolves to minecraft.
+              example: day
+    AddTimeRequest:
+      type: object
+      required: [ticks]
+      additionalProperties: false
+      properties:
+        clock:
+          $ref: '#/components/schemas/WorldClockId'
+        ticks:
+          type: integer
+          format: int32
+          minimum: -2147483648
+          maximum: 2147483647
+    TimeResult:
+      type: object
+      required: [clock, ticks]
+      additionalProperties: false
+      properties:
+        clock:
+          type: string
+          description: Resolved namespaced world clock ID.
+          example: minecraft:overworld
+        ticks:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9223372036854775807
+          description: Total elapsed ticks, read immediately after the operation.
+          example: 25000
     SayRequest:
       type: object
       additionalProperties: false
@@ -818,6 +1001,20 @@ components:
             message:
               type: string
   responses:
+    TimeResult:
+      description: The world clock's current total elapsed ticks
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TimeResult'
+    TimeNotFound:
+      description: >-
+        CLOCK_NOT_FOUND if the clock does not exist, TIME_MARKER_NOT_FOUND if a
+        set request names a marker absent from that clock, or ROUTE_NOT_FOUND.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     InvalidRequest:
       description: The request is invalid
       content:

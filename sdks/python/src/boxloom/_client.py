@@ -2,7 +2,7 @@ import json
 import re
 import socket
 from math import isfinite
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Union
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -28,6 +28,7 @@ from .models import (
     SayResult,
     SetBlockResult,
     SummonResult,
+    TimeResult,
 )
 
 
@@ -172,6 +173,39 @@ class BoxloomClient:
             timeout=self._timeout,
             last_event_id=last_event_id,
             reconnect=reconnect,
+        )
+
+    def get_time(self, *, clock: str = "minecraft:overworld") -> TimeResult:
+        """Read a world clock's total elapsed ticks."""
+
+        _validate_clock(clock)
+        return _time_result(self._get("/v1/world/time?" + urlencode({"clock": clock})))
+
+    def set_time(
+        self,
+        time: Union[int, str],
+        *,
+        clock: str = "minecraft:overworld",
+    ) -> TimeResult:
+        """Set total ticks, or advance to a time marker such as 'day'."""
+
+        _validate_clock(clock)
+        if isinstance(time, str):
+            if not time.strip():
+                raise ValueError("time must be a non-empty time marker ID")
+        else:
+            _validate_time_ticks(time, "time")
+            if time < 0:
+                raise ValueError("time must not be negative")
+        return _time_result(self._post("/v1/world/time", {"clock": clock, "time": time}))
+
+    def add_time(self, ticks: int, *, clock: str = "minecraft:overworld") -> TimeResult:
+        """Add signed ticks to a world clock; Minecraft clamps the result at zero."""
+
+        _validate_clock(clock)
+        _validate_time_ticks(ticks, "ticks")
+        return _time_result(
+            self._post("/v1/world/time/add", {"clock": clock, "ticks": ticks})
         )
 
     def set_block(
@@ -403,6 +437,25 @@ class BoxloomClient:
             raise _api_error(error) from None
         except (URLError, socket.timeout, TimeoutError, OSError) as error:
             raise _connection_error(error) from None
+
+
+def _validate_clock(clock: str) -> None:
+    if not isinstance(clock, str) or not clock.strip():
+        raise ValueError("clock must be a non-empty world clock ID")
+
+
+def _validate_time_ticks(ticks: int, field: str) -> None:
+    if not isinstance(ticks, int) or isinstance(ticks, bool):
+        raise TypeError(f"{field} must be an integer number of ticks")
+    if not -(2**31) <= ticks < 2**31:
+        raise ValueError(f"{field} must fit in a signed 32-bit integer")
+
+
+def _time_result(payload: Mapping[str, Any]) -> TimeResult:
+    ticks = _require_integer(payload, "ticks")
+    if not 0 <= ticks < 2**63:
+        raise ProtocolError("response field 'ticks' must be a non-negative 64-bit integer")
+    return TimeResult(clock=_require_string(payload, "clock"), ticks=ticks)
 
 
 def _validate_base_url(base_url: str) -> str:

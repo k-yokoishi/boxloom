@@ -404,6 +404,116 @@ curl --fail-with-body \
 
 </Operation>
 
+## `get_time`
+
+<Operation id="get_time">
+
+<ApiEndpoint method="GET" path="/v1/world/time" />
+
+**Query parameters** — other parameters and repeated parameters are rejected.
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `clock` | string | no | Registered world clock ID; defaults to `minecraft:overworld`. An omitted namespace resolves to `minecraft`. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `clock` | string | Resolved namespaced world clock ID. |
+| `ticks` | integer | Total elapsed ticks, a non-negative 64-bit integer. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  "$BOXLOOM_BASE_URL/v1/world/time"
+```
+
+```json
+{"clock": "minecraft:overworld", "ticks": 25000}
+```
+
+</Operation>
+
+## `set_time`
+
+<Operation id="set_time">
+
+<ApiEndpoint method="POST" path="/v1/world/time" />
+
+**Request body** — `application/json`. Unknown fields are rejected.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `time` | integer or string | yes | Absolute total ticks from `0` to `2147483647`, or a time marker ID such as `"day"`. An omitted namespace resolves to `minecraft`. |
+| `clock` | string | no | Registered world clock ID; defaults to `minecraft:overworld`. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `clock` | string | Resolved namespaced world clock ID. |
+| `ticks` | integer | Total elapsed ticks immediately after setting the clock. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"time":"day"}' \
+  "$BOXLOOM_BASE_URL/v1/world/time"
+```
+
+```json
+{"clock": "minecraft:overworld", "ticks": 25000}
+```
+
+This example assumes the clock was at `14000` before the request. The next `day`
+marker is at `25000`. Sending `{"time":1000}` instead resets total ticks to `1000`.
+The vanilla Overworld markers occur at `1000` (`day`), `6000` (`noon`), `13000`
+(`night`), and `18000` (`midnight`) within each 24,000-tick day.
+
+</Operation>
+
+## `add_time`
+
+<Operation id="add_time">
+
+<ApiEndpoint method="POST" path="/v1/world/time/add" />
+
+**Request body** — `application/json`. Unknown fields are rejected.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ticks` | integer | yes | Signed tick count from `-2147483648` to `2147483647`. |
+| `clock` | string | no | Registered world clock ID; defaults to `minecraft:overworld`. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `clock` | string | Resolved namespaced world clock ID. |
+| `ticks` | integer | Total elapsed ticks immediately after adding the ticks. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"ticks":6000}' \
+  "$BOXLOOM_BASE_URL/v1/world/time/add"
+```
+
+```json
+{"clock": "minecraft:overworld", "ticks": 31000}
+```
+
+</Operation>
+
 ## `watch_chat`
 
 <Operation id="watch_chat">

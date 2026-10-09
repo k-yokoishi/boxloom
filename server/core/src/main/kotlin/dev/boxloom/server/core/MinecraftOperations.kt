@@ -1,3 +1,3 @@
 package dev.boxloom.server.core
 
-interface MinecraftOperations : ChatOperations, PlayerOperations, WorldOperations
+interface MinecraftOperations : ChatOperations, PlayerOperations, WorldOperations, TimeOperations

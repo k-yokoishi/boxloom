@@ -51,6 +51,23 @@ with watch_chat() as events:
 
 More runnable examples are available in [`../../examples/python`](../../examples/python).
 
+Control the world clock:
+
+```python
+from boxloom import add_time, get_time, set_time
+
+set_time("day")
+set_time("night")
+set_time(6000)
+add_time(1000)
+print(get_time().ticks)
+```
+
+These functions also exist on `BoxloomClient`. They default to the
+`minecraft:overworld` clock; pass `clock="minecraft:the_end"` or a custom clock ID
+to select another clock. A marker advances to its next occurrence, while an integer
+sets total elapsed ticks. `add_time` accepts signed ticks and clamps at zero.
+
 ## Development
 
 From the repository root:

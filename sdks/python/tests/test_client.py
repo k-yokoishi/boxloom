@@ -371,6 +371,105 @@ class ClientTest(unittest.TestCase):
 
         self.assertEqual([], _ApiHandler.requests)
 
+    def test_get_time_reads_default_or_explicit_clock_and_64_bit_ticks(self):
+        for clock in ("minecraft:overworld", "minecraft:the_end"):
+            with self.subTest(clock=clock):
+                _ApiHandler.response_body = {"clock": clock, "ticks": 3_000_000_000}
+                if clock == "minecraft:overworld":
+                    result = boxloom.get_time()
+                else:
+                    result = boxloom.BoxloomClient(base_url=self.base_url).get_time(clock=clock)
+                self.assertEqual(boxloom.TimeResult(clock, 3_000_000_000), result)
+                path, headers, body = _ApiHandler.requests[-1]
+                self.assertEqual("/v1/world/time?clock=" + clock.replace(":", "%3A"), path)
+                self.assertIsNone(body)
+                if clock == "minecraft:overworld":
+                    self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+
+    def test_set_time_posts_markers_and_absolute_ticks(self):
+        _ApiHandler.response_body = {"clock": "minecraft:overworld", "ticks": 25_000}
+        for time in ("day", "noon", "night", "midnight", "example:dawn", 0, 2**31 - 1):
+            with self.subTest(time=time):
+                result = boxloom.set_time(time)
+                self.assertEqual(boxloom.TimeResult("minecraft:overworld", 25_000), result)
+                path, headers, body = _ApiHandler.requests[-1]
+                self.assertEqual("/v1/world/time", path)
+                self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+                self.assertEqual({"clock": "minecraft:overworld", "time": time}, body)
+
+    def test_set_time_client_posts_an_explicit_clock(self):
+        _ApiHandler.response_body = {"clock": "example:clock", "ticks": 6000}
+        result = boxloom.BoxloomClient(base_url=self.base_url).set_time(
+            6000, clock="example:clock"
+        )
+        self.assertEqual(boxloom.TimeResult("example:clock", 6000), result)
+        self.assertEqual({"clock": "example:clock", "time": 6000}, _ApiHandler.requests[0][2])
+
+    def test_add_time_posts_signed_ticks(self):
+        _ApiHandler.response_body = {"clock": "minecraft:overworld", "ticks": 0}
+        for ticks in (-(2**31), -20, 0, 6000, 2**31 - 1):
+            with self.subTest(ticks=ticks):
+                result = boxloom.add_time(ticks)
+                self.assertEqual(boxloom.TimeResult("minecraft:overworld", 0), result)
+                path, headers, body = _ApiHandler.requests[-1]
+                self.assertEqual("/v1/world/time/add", path)
+                self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+                self.assertEqual({"clock": "minecraft:overworld", "ticks": ticks}, body)
+        _ApiHandler.response_body = {"clock": "minecraft:the_end", "ticks": 20}
+        result = boxloom.BoxloomClient(base_url=self.base_url).add_time(
+            20, clock="minecraft:the_end"
+        )
+        self.assertEqual(boxloom.TimeResult("minecraft:the_end", 20), result)
+        self.assertEqual({"clock": "minecraft:the_end", "ticks": 20}, _ApiHandler.requests[-1][2])
+
+    def test_time_rejects_invalid_inputs_before_request(self):
+        for time in (True, False, 1.5, None, {}, [], -1, 2**31, "", " "):
+            with self.subTest(time=time):
+                with self.assertRaises((TypeError, ValueError)):
+                    boxloom.set_time(time)
+        for ticks in (True, 1.5, None, "20", -(2**31) - 1, 2**31):
+            with self.subTest(ticks=ticks):
+                with self.assertRaises((TypeError, ValueError)):
+                    boxloom.add_time(ticks)
+        for clock in (None, True, 1, "", " "):
+            with self.subTest(clock=clock):
+                for operation in (
+                    lambda: boxloom.get_time(clock=clock),
+                    lambda: boxloom.set_time("day", clock=clock),
+                    lambda: boxloom.add_time(20, clock=clock),
+                ):
+                    with self.assertRaises(ValueError):
+                        operation()
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_time_rejects_malformed_responses(self):
+        invalid_payloads = (
+            {}, {"clock": None, "ticks": 20}, {"clock": "minecraft:overworld"},
+            *({"clock": "minecraft:overworld", "ticks": ticks}
+              for ticks in (True, "20", 1.5, -1, 2**63)),
+        )
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                _ApiHandler.response_body = payload
+                for operation in (boxloom.get_time, lambda: boxloom.set_time("day"),
+                                  lambda: boxloom.add_time(20)):
+                    with self.assertRaises(boxloom.ProtocolError):
+                        operation()
+
+    def test_time_preserves_clock_and_marker_errors(self):
+        for status, code in (
+            (404, "CLOCK_NOT_FOUND"),
+            (404, "TIME_MARKER_NOT_FOUND"),
+            (409, "TIME_ALREADY_AT_MARKER"),
+        ):
+            with self.subTest(code=code):
+                _ApiHandler.response_status = status
+                _ApiHandler.response_body = {"error": {"code": code, "message": "Missing"}}
+                with self.assertRaises(boxloom.ApiError) as raised:
+                    boxloom.set_time("day")
+                self.assertEqual(code, raised.exception.code)
+                self.assertEqual(status, raised.exception.status)
+
     def test_set_block_uses_overworld_by_default(self):
         _ApiHandler.response_body = {
             "changed": True,

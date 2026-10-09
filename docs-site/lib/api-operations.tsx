@@ -89,6 +89,18 @@ const playerNotConnected: ApiErrorRow = {
   meaning: 'No connected player has that username.',
 };
 
+const invalidClock: ApiErrorRow = {
+  status: 400,
+  code: 'INVALID_CLOCK',
+  meaning: 'The clock is not a valid world clock ID.',
+};
+
+const clockNotFound: ApiErrorRow = {
+  status: 404,
+  code: 'CLOCK_NOT_FOUND',
+  meaning: 'The requested world clock does not exist.',
+};
+
 /**
  * What every interface page says the same way: the prose describing an
  * operation and the errors it can return. Each page contributes only its own
@@ -233,6 +245,65 @@ export const apiOperations = {
         meaning: 'An entity with the UUID supplied in the NBT already exists.',
       },
     ],
+  },
+  get_time: {
+    description: (
+      <p>
+        Read a world clock&apos;s total elapsed ticks. Clocks are shared across
+        dimensions that use them. The result is a snapshot; a running clock
+        continues advancing after the response.
+      </p>
+    ),
+    errors: [invalidClock, clockNotFound],
+  },
+  set_time: {
+    description: (
+      <>
+        <p>
+          Set a world clock&apos;s total elapsed ticks, or advance to the next
+          occurrence of a time marker. The built-in Overworld markers are{' '}
+          <code>day</code>, <code>noon</code>, <code>night</code>, and{' '}
+          <code>midnight</code>; custom marker IDs are also supported.
+        </p>
+        <p>
+          This follows Minecraft 26.3&apos;s <code>/time set</code> behavior: a
+          marker advances the clock, while an integer replaces its total ticks.
+          The result reports total ticks immediately after the change. Game time,
+          the clock&apos;s paused state, and its rate are preserved.
+        </p>
+      </>
+    ),
+    errors: [
+      invalidClock,
+      {
+        status: 400,
+        code: 'INVALID_TIME_MARKER',
+        meaning: 'The time marker is not a valid ID.',
+      },
+      clockNotFound,
+      {
+        status: 404,
+        code: 'TIME_MARKER_NOT_FOUND',
+        meaning: 'The requested time marker does not exist for this clock.',
+      },
+      {
+        status: 409,
+        code: 'TIME_ALREADY_AT_MARKER',
+        meaning: 'The clock is already at the requested time marker.',
+      },
+    ],
+  },
+  add_time: {
+    description: (
+      <p>
+        Add signed ticks to a world clock, matching Minecraft 26.3&apos;s{' '}
+        <code>/time add</code>. Negative values rewind the clock; Minecraft clamps
+        the result at zero. The result reports total ticks immediately after the
+        change. Game time, the clock&apos;s paused state, and its rate are
+        preserved.
+      </p>
+    ),
+    errors: [invalidClock, clockNotFound],
   },
   watch_chat: {
     description: (

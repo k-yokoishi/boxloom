@@ -2,7 +2,7 @@
 
 This directory contains the initial Kotlin-based, server-side Fabric mod PoC. It connects Minecraft and Fabric to the platform-independent [`../core`](../core) module and is designed to work in both a Fabric Dedicated Server and an integrated server.
 
-The PoC implements eight Minecraft operations and one event stream:
+The PoC implements eleven Minecraft operations and one event stream:
 
 - Broadcast a system message to connected players
 - List connected players
@@ -12,6 +12,7 @@ The PoC implements eight Minecraft operations and one event stream:
 - Set one block
 - Fill an inclusive block region
 - Summon one entity with optional NBT
+- Read, set, and add ticks to a world clock, including `/time set day` markers
 - Stream player chat messages as resumable Server-Sent Events
 
 Arbitrary command execution is intentionally outside this PoC.
