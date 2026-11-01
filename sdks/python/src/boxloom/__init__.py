@@ -21,6 +21,7 @@ from .events import (
 from .models import (
     FillResult,
     GetBlockResult,
+    KillResult,
     Player,
     PlayerPosition,
     SayResult,
@@ -41,6 +42,7 @@ __all__ = [
     "EventStreamError",
     "FillResult",
     "GetBlockResult",
+    "KillResult",
     "Player",
     "PlayerPosition",
     "ProtocolError",
@@ -55,6 +57,8 @@ __all__ = [
     "get_players",
     "get_time",
     "init",
+    "kill_entities",
+    "kill_entity",
     "say",
     "set_block",
     "set_time",
@@ -243,6 +247,35 @@ def summon(
         z,
         nbt=nbt,
         dimension=dimension,
+    )
+
+
+def kill_entity(
+    uuid: str,
+    *,
+    dimension: str = "minecraft:overworld",
+) -> KillResult:
+    """Kill one loaded entity by UUID; absent or dead entities report zero."""
+
+    return _default_client().kill_entity(uuid, dimension=dimension)
+
+
+def kill_entities(
+    entity: str,
+    *,
+    x: Optional[float] = None,
+    y: Optional[float] = None,
+    z: Optional[float] = None,
+    radius: Optional[float] = None,
+    dimension: str = "minecraft:overworld",
+) -> KillResult:
+    """Kill loaded entities of a type, optionally within an inclusive sphere.
+
+    Supply x, y, z, and radius together, or omit all four for the whole dimension.
+    """
+
+    return _default_client().kill_entities(
+        entity, x=x, y=y, z=z, radius=radius, dimension=dimension,
     )
 
 

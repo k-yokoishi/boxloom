@@ -1,5 +1,6 @@
 package dev.boxloom.server.core
 
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
 interface WorldOperations {
@@ -10,6 +11,10 @@ interface WorldOperations {
     fun fill(request: FillRequest): CompletableFuture<FillResult>
 
     fun summon(request: SummonRequest): CompletableFuture<SummonResult>
+
+    fun killEntity(request: KillEntityRequest): CompletableFuture<KillResult>
+
+    fun killEntities(request: KillEntitiesRequest): CompletableFuture<KillResult>
 }
 
 data class GetBlockRequest(
@@ -83,6 +88,29 @@ data class SummonResult(
     val x: Double,
     val y: Double,
     val z: Double,
+)
+
+data class KillEntityRequest(
+    val dimension: String,
+    val uuid: UUID,
+)
+
+data class KillEntitiesRequest(
+    val dimension: String,
+    val entity: String,
+    val range: EntityKillRange? = null,
+)
+
+data class EntityKillRange(
+    val x: Double,
+    val y: Double,
+    val z: Double,
+    val radius: Double,
+)
+
+data class KillResult(
+    val dimension: String,
+    val killedEntities: Int,
 )
 
 sealed interface NbtValue {

@@ -11,6 +11,7 @@ from boxloom import (
     EventCursorExpiredError,
     FillResult,
     GetBlockResult,
+    KillResult,
     Player,
     PlayerPosition,
     fill,
@@ -18,6 +19,8 @@ from boxloom import (
     get_player_position,
     get_players,
     init,
+    kill_entities,
+    kill_entity,
     say,
     set_block,
     summon,
@@ -36,6 +39,9 @@ assert callable(get_players)
 assert callable(set_block)
 assert not hasattr(boxloom, "setblock")
 assert callable(summon)
+assert callable(kill_entity)
+assert callable(kill_entities)
+assert KillResult.__name__ == "KillResult"
 assert callable(teleport_player)
 assert callable(watch_chat)
 assert FillResult.__name__ == "FillResult"

@@ -23,6 +23,7 @@ from .events import ChatEventStream
 from .models import (
     FillResult,
     GetBlockResult,
+    KillResult,
     Player,
     PlayerPosition,
     SayResult,
@@ -33,6 +34,7 @@ from .models import (
 
 
 _USERNAME = re.compile(r"^[A-Za-z0-9_]{3,16}$")
+_UUID = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 _MAX_FILL_BLOCKS = 32_768
 
 
@@ -400,6 +402,64 @@ class BoxloomClient:
             z=_require_number(payload, "z"),
         )
 
+    def kill_entity(
+        self,
+        uuid: str,
+        *,
+        dimension: str = "minecraft:overworld",
+    ) -> KillResult:
+        """Kill one loaded entity by UUID; absent or dead entities report zero."""
+
+        if not isinstance(uuid, str) or not _UUID.fullmatch(uuid):
+            raise ValueError("uuid must be a UUID in hyphenated form")
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise ValueError("dimension must be a non-empty namespaced ID")
+        return _kill_result(
+            self._post(
+                f"/v1/world/entities/{quote(uuid, safe='')}/kill",
+                {"dimension": dimension},
+            )
+        )
+
+    def kill_entities(
+        self,
+        entity: str,
+        *,
+        x: Optional[float] = None,
+        y: Optional[float] = None,
+        z: Optional[float] = None,
+        radius: Optional[float] = None,
+        dimension: str = "minecraft:overworld",
+    ) -> KillResult:
+        """Kill loaded entities of a type, optionally within an inclusive sphere.
+
+        Supply x, y, z, and a non-negative radius together, or omit all four to
+        select every loaded entity of the given type in the dimension.
+        """
+
+        if not isinstance(entity, str) or not entity.strip():
+            raise ValueError("entity must be a non-empty namespaced ID")
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise ValueError("dimension must be a non-empty namespaced ID")
+        body: Dict[str, Any] = {"dimension": dimension, "entity": entity}
+        region = {"x": x, "y": y, "z": z, "radius": radius}
+        if any(value is not None for value in region.values()):
+            if any(value is None for value in region.values()):
+                raise ValueError("x, y, z, and radius must be supplied together")
+            for field_name, value in region.items():
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    raise TypeError(f"{field_name} must be a number")
+                try:
+                    finite = isfinite(value)
+                except OverflowError:
+                    finite = False
+                if not finite:
+                    raise ValueError(f"{field_name} must be finite")
+            if radius < 0:
+                raise ValueError("radius must not be negative")
+            body.update(region)
+        return _kill_result(self._post("/v1/world/entities/kill", body))
+
     def _get(self, path: str) -> Dict[str, Any]:
         return self._request("GET", path)
 
@@ -437,6 +497,16 @@ class BoxloomClient:
             raise _api_error(error) from None
         except (URLError, socket.timeout, TimeoutError, OSError) as error:
             raise _connection_error(error) from None
+
+
+def _kill_result(payload: Mapping[str, Any]) -> KillResult:
+    killed_entities = _require_integer(payload, "killedEntities")
+    if killed_entities < 0:
+        raise ProtocolError("response field 'killedEntities' must not be negative")
+    return KillResult(
+        dimension=_require_string(payload, "dimension"),
+        killed_entities=killed_entities,
+    )
 
 
 def _validate_clock(clock: str) -> None:

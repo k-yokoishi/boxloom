@@ -68,6 +68,25 @@ These functions also exist on `BoxloomClient`. They default to the
 to select another clock. A marker advances to its next occurrence, while an integer
 sets total elapsed ticks. `add_time` accepts signed ticks and clamps at zero.
 
+Kill entities by UUID or by type and optional range:
+
+```python
+from boxloom import kill_entities, kill_entity, summon
+
+zombie = summon("minecraft:zombie", 0, 64, 0)
+print(kill_entity(zombie.uuid).killed_entities)
+
+result = kill_entities("minecraft:zombie", x=0, y=64, z=0, radius=20)
+print(result.killed_entities)
+```
+
+Both functions also exist on `BoxloomClient` and default to
+`dimension="minecraft:overworld"`. A missing or already dead entity reports zero.
+`kill_entities` matches an exact registered type ID. Supply `x`, `y`, `z`, and a
+finite non-negative `radius` together for an inclusive sphere; omit all four to
+select every loaded entity of that type in the dimension. No chunks are loaded.
+Summoning zombies requires a non-peaceful difficulty.
+
 ## Development
 
 From the repository root:

@@ -7,6 +7,9 @@ import dev.boxloom.server.core.FillResult
 import dev.boxloom.server.core.GetBlockRequest
 import dev.boxloom.server.core.GetBlockResult
 import dev.boxloom.server.core.GetTimeRequest
+import dev.boxloom.server.core.KillEntitiesRequest
+import dev.boxloom.server.core.KillEntityRequest
+import dev.boxloom.server.core.KillResult
 import dev.boxloom.server.core.MinecraftOperations
 import dev.boxloom.server.core.NbtValue
 import dev.boxloom.server.core.Player
@@ -38,12 +41,14 @@ import net.minecraft.network.chat.Component
 import net.minecraft.resources.Identifier
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
+import net.minecraft.server.level.ServerLevel
 import net.minecraft.util.Mth
 import net.minecraft.world.Difficulty
 import net.minecraft.world.clock.ClockTimeMarkers
 import net.minecraft.world.clock.ServerClockManager
 import net.minecraft.world.clock.WorldClock
 import net.minecraft.world.entity.EntitySpawnReason
+import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EntitySpawnRequest
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.Mob
@@ -54,6 +59,7 @@ import net.minecraft.world.level.block.state.BlockState
 import java.util.Locale
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.hypot
 
 internal class FabricMinecraftOperations(
     private val currentServer: AtomicReference<MinecraftServer?>,
@@ -379,6 +385,50 @@ internal class FabricMinecraftOperations(
                 entity.z,
             )
         }
+
+    override fun killEntity(request: KillEntityRequest): CompletableFuture<KillResult> =
+        onServerThread { server ->
+            val level = resolveLevel(server, request.dimension)
+            KillResult(
+                level.dimension().identifier().toString(),
+                killIfAlive(level, level.getEntity(request.uuid)),
+            )
+        }
+
+    override fun killEntities(request: KillEntitiesRequest): CompletableFuture<KillResult> =
+        onServerThread { server ->
+            val level = resolveLevel(server, request.dimension)
+            val entityId = parseIdentifier(request.entity, "entity")
+            val entityType = BuiltInRegistries.ENTITY_TYPE.getOptional(entityId).orElseThrow {
+                ApiException(400, "INVALID_ENTITY", "Entity '${request.entity}' does not exist")
+            }
+            // Killing can remove entities and spawn drops or smaller mobs. Select a snapshot first.
+            val targets = level.allEntities.filter { entity ->
+                entity.type == entityType && entity.isAlive && request.range.let { range ->
+                    range == null || hypot(
+                        hypot(entity.x - range.x, entity.y - range.y),
+                        entity.z - range.z,
+                    ) <= range.radius
+                }
+            }
+            KillResult(
+                level.dimension().identifier().toString(),
+                targets.sumOf { entity -> killIfAlive(level, entity) },
+            )
+        }
+
+    private fun killIfAlive(level: ServerLevel, entity: Entity?): Int {
+        if (entity == null || !entity.isAlive) return 0
+        entity.kill(level)
+        return if (entity.isAlive) 0 else 1
+    }
+
+    private fun resolveLevel(server: MinecraftServer, name: String): ServerLevel {
+        val dimensionId = parseIdentifier(name, "dimension")
+        val dimensionKey: ResourceKey<Level> = ResourceKey.create(Registries.DIMENSION, dimensionId)
+        return server.getLevel(dimensionKey)
+            ?: throw ApiException(404, "DIMENSION_NOT_FOUND", "Dimension '$name' is not loaded")
+    }
 
     override fun getTime(request: GetTimeRequest): CompletableFuture<TimeResult> =
         onServerThread { server ->

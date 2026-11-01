@@ -404,6 +404,93 @@ curl --fail-with-body \
 
 </Operation>
 
+## `kill_entity`
+
+<Operation id="kill_entity">
+
+<ApiEndpoint method="POST" path="/v1/world/entities/{uuid}/kill" />
+
+**Path parameters**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `uuid` | string (uuid) | UUID in hyphenated form. |
+
+**Request body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dimension` | string | yes | Namespaced ID of a loaded dimension. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `dimension` | string | Resolved namespaced dimension ID. |
+| `killedEntities` | integer | Number killed: zero or one. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"dimension":"minecraft:overworld"}' \
+  "$BOXLOOM_BASE_URL/v1/world/entities/550e8400-e29b-41d4-a716-446655440000/kill"
+```
+
+```json
+{
+  "dimension": "minecraft:overworld",
+  "killedEntities": 1
+}
+```
+
+</Operation>
+
+## `kill_entities`
+
+<Operation id="kill_entities">
+
+<ApiEndpoint method="POST" path="/v1/world/entities/kill" />
+
+**Request body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dimension` | string | yes | Namespaced ID of a loaded dimension. |
+| `entity` | string | yes | Exact registered entity type ID, such as `minecraft:zombie`. |
+| `x`, `y`, `z` | number | no | Finite absolute center coordinates. Supply together with `radius`, or omit all four range fields. |
+| `radius` | number | no | Finite non-negative radius. The boundary is included; zero selects the exact position. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `dimension` | string | Resolved namespaced dimension ID. |
+| `killedEntities` | integer | Non-negative number of entities killed. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"dimension":"minecraft:overworld","entity":"minecraft:zombie","x":0,"y":64,"z":0,"radius":20}' \
+  "$BOXLOOM_BASE_URL/v1/world/entities/kill"
+```
+
+```json
+{
+  "dimension": "minecraft:overworld",
+  "killedEntities": 3
+}
+```
+
+</Operation>
+
 ## `get_time`
 
 <Operation id="get_time">
