@@ -312,6 +312,67 @@ print(result.changed_blocks)
 
 </Operation>
 
+## `get_entities`
+
+<Operation id="get_entities">
+
+```python
+get_entities(
+    entity: Optional[str] = None,
+    *,
+    x: Optional[float] = None,
+    y: Optional[float] = None,
+    z: Optional[float] = None,
+    radius: Optional[float] = None,
+    dimension: str = "minecraft:overworld",
+    sort: Literal["arbitrary", "nearest", "furthest"] = "arbitrary",
+    limit: Optional[int] = None,
+) -> List[Entity]
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `entity` | `Optional[str]` | `None` | Exact registered type ID, such as `minecraft:zombie`. Omit for all types. |
+| `x`, `y`, `z` | `Optional[float]` | `None` | Finite absolute center coordinates. Supply all three together. Required for `radius`, `nearest`, or `furthest`. |
+| `radius` | `Optional[float]` | `None` | Finite non-negative sphere radius in blocks. Includes the boundary; zero selects the exact position. |
+| `dimension` | `str` | `"minecraft:overworld"` | ID of a loaded dimension. |
+| `sort` | `Literal["arbitrary", "nearest", "furthest"]` | `"arbitrary"` | Order by three-dimensional distance from the center, or leave the order unspecified. |
+| `limit` | `Optional[int]` | `None` | Maximum number returned after sorting, from 1 to 2,147,483,647. Omit for no limit. |
+
+Coordinates may be supplied without a radius, for example to find the nearest entity throughout the loaded dimension.
+
+**Returns** — `List[Entity]`, or `[]` when there are no matches.
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `uuid` | `str` | UUID of the entity. |
+| `entity` | `str` | Resolved namespaced entity type ID. |
+| `dimension` | `str` | Resolved namespaced dimension ID. |
+| `x`, `y`, `z` | `float` | Entity position. |
+| `yaw`, `pitch` | `float` | Horizontal and vertical rotation in degrees. |
+| `name` | `str` | Plain-text name, including a custom name when present. |
+| `health` | `Optional[float]` | Current health points; `None` for entities without health. |
+
+**Example**
+
+```python
+from boxloom import get_entities
+
+for entity in get_entities():
+    print(entity.name, entity.entity, entity.health)
+
+nearest = get_entities(
+    "minecraft:zombie", x=0, y=64, z=0,
+    radius=20, sort="nearest", limit=1,
+)
+if nearest:
+    print(nearest[0].uuid)
+```
+
+</Operation>
+
 ## `summon`
 
 <Operation id="summon">

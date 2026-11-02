@@ -4,6 +4,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 import boxloom
 
@@ -149,6 +150,89 @@ class ClientTest(unittest.TestCase):
 
         with self.assertRaises(boxloom.ProtocolError):
             boxloom.get_players()
+
+    def test_get_entities_reads_snapshots_and_encodes_filters(self):
+        item = {
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+            "entity": "minecraft:item", "dimension": "minecraft:the_nether",
+            "x": 1.5, "y": 64, "z": -2.25, "yaw": 90, "pitch": -12.5,
+            "name": "Diamond", "health": None,
+        }
+        zombie = {**item, "entity": "minecraft:zombie", "name": "Zombie", "health": 20}
+        _ApiHandler.response_body = {"entities": [item, zombie]}
+
+        result = boxloom.get_entities(
+            "minecraft:zombie", x=1.5, y=64, z=-2.25, radius=20,
+            dimension="minecraft:the_nether", sort="nearest", limit=2,
+        )
+
+        self.assertEqual([boxloom.Entity(**item), boxloom.Entity(**zombie)], result)
+        self.assertIsNone(result[0].health)
+        self.assertEqual(20.0, result[1].health)
+        path, headers, body = _ApiHandler.requests[0]
+        self.assertEqual("/v1/world/entities", urlsplit(path).path)
+        self.assertEqual({
+            "dimension": ["minecraft:the_nether"], "entity": ["minecraft:zombie"],
+            "x": ["1.5"], "y": ["64"], "z": ["-2.25"], "radius": ["20"],
+            "sort": ["nearest"], "limit": ["2"],
+        }, parse_qs(urlsplit(path).query))
+        self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+        self.assertIsNone(body)
+
+    def test_get_entities_defaults_to_all_types_and_supports_sorting_without_radius(self):
+        _ApiHandler.response_body = {"entities": []}
+        self.assertEqual([], boxloom.get_entities())
+        self.assertEqual({"dimension": ["minecraft:overworld"], "sort": ["arbitrary"]},
+                         parse_qs(urlsplit(_ApiHandler.requests[0][0]).query))
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        self.assertEqual([], client.get_entities(x=0, y=64, z=0, sort="furthest", limit=1))
+        query = parse_qs(urlsplit(_ApiHandler.requests[1][0]).query)
+        self.assertNotIn("radius", query)
+        self.assertEqual(["furthest"], query["sort"])
+
+    def test_get_entities_rejects_invalid_arguments_before_network_io(self):
+        invalid = [
+            {"entity": ""}, {"entity": True}, {"dimension": ""}, {"dimension": None},
+            {"x": 0}, {"x": 0, "y": 64}, {"radius": 20},
+            {"sort": "nearest"}, {"sort": "furthest"}, {"sort": "random"}, {"sort": []},
+            {"limit": 0}, {"limit": -1}, {"limit": True}, {"limit": 1.5}, {"limit": 2**31},
+        ]
+        for field in ("x", "y", "z", "radius"):
+            for value in (True, "1", float("nan"), float("inf"), -float("inf"), 10**1000):
+                invalid.append({**dict(x=0, y=64, z=0, radius=20), field: value})
+        invalid.append(dict(x=0, y=64, z=0, radius=-1))
+        for kwargs in invalid:
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises((TypeError, ValueError)):
+                    boxloom.get_entities(**kwargs)
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_get_entities_rejects_malformed_response_fields(self):
+        entity = {
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af", "entity": "minecraft:zombie",
+            "dimension": "minecraft:overworld", "x": 0, "y": 64, "z": 0,
+            "yaw": 0, "pitch": 0, "name": "Zombie", "health": 20,
+        }
+        invalid = [{}, {"entities": None}, {"entities": {}}, {"entities": ["invalid"]}]
+        for field in entity:
+            missing = dict(entity)
+            del missing[field]
+            invalid.append({"entities": [missing]})
+            invalid.append({"entities": [{**entity, field: True}]})
+        invalid.append({"entities": [{**entity, "health": "20"}]})
+        for body in invalid:
+            with self.subTest(body=body):
+                _ApiHandler.response_body = body
+                with self.assertRaises(boxloom.ProtocolError):
+                    boxloom.get_entities()
+
+    def test_get_entities_preserves_structured_api_errors(self):
+        _ApiHandler.response_status = 400
+        _ApiHandler.response_body = {"error": {"code": "INVALID_ENTITY", "message": "Unknown type"}}
+        with self.assertRaises(boxloom.ApiError) as raised:
+            boxloom.get_entities("minecraft:missing")
+        self.assertEqual("INVALID_ENTITY", raised.exception.code)
+        self.assertEqual(400, raised.exception.status)
 
     def test_teleport_player_posts_required_coordinates(self):
         _ApiHandler.response_body = {

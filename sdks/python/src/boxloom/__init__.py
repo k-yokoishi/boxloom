@@ -2,7 +2,7 @@
 
 import os
 import threading
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from ._client import BoxloomClient
 from .errors import (
@@ -19,6 +19,7 @@ from .events import (
     EventStreamError,
 )
 from .models import (
+    Entity,
     FillResult,
     GetBlockResult,
     KillResult,
@@ -38,6 +39,7 @@ __all__ = [
     "ChatEventStream",
     "ConfigurationError",
     "ConnectionError",
+    "Entity",
     "EventCursorExpiredError",
     "EventStreamError",
     "FillResult",
@@ -53,6 +55,7 @@ __all__ = [
     "add_time",
     "fill",
     "get_block",
+    "get_entities",
     "get_player_position",
     "get_players",
     "get_time",
@@ -247,6 +250,28 @@ def summon(
         z,
         nbt=nbt,
         dimension=dimension,
+    )
+
+
+def get_entities(
+    entity: Optional[str] = None,
+    *,
+    x: Optional[float] = None,
+    y: Optional[float] = None,
+    z: Optional[float] = None,
+    radius: Optional[float] = None,
+    dimension: str = "minecraft:overworld",
+    sort: Literal["arbitrary", "nearest", "furthest"] = "arbitrary",
+    limit: Optional[int] = None,
+) -> List[Entity]:
+    """List loaded, alive entities, optionally filtered, sorted, and limited.
+
+    Supply x, y, and z together for radius filtering or distance sorting.
+    """
+
+    return _default_client().get_entities(
+        entity, x=x, y=y, z=z, radius=radius, dimension=dimension,
+        sort=sort, limit=limit,
     )
 
 

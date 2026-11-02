@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- REST と Python SDK からロード済みエンティティを一覧取得し、種類・球形範囲・距離順・件数で絞り込める。位置・向き・名前・体力を返す。
+
 ## 0.1.0-alpha.4
 
 - REST と Python SDK から UUID 指定、または種類と任意の球形範囲指定でエンティティを kill できる。

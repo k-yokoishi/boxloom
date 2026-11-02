@@ -407,6 +407,113 @@ paths:
         '504':
           $ref: '#/components/responses/Timeout'
   /v1/world/entities:
+    get:
+      operationId: getEntities
+      summary: List loaded, alive entities in a dimension
+      description: >-
+        Returns a snapshot on the server thread, including players and dropped
+        items. No chunks are loaded. Filter by exact registered entity type and
+        an optional inclusive sphere, then sort, then apply limit. Omit entity
+        to select every type. Supply x, y, and z together; they are required when
+        radius is supplied or sort is nearest or furthest. Coordinates alone
+        are allowed. Distances are three-dimensional and measured from each
+        entity's position. A zero radius selects the exact center. Arbitrary
+        order is unspecified; distance ties are ordered by UUID ascending.
+        Unknown or repeated query parameters are rejected. No matches returns
+        an empty entities array. Health is null for entities without health.
+      parameters:
+        - name: dimension
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: ID of a loaded dimension.
+          example: minecraft:overworld
+        - name: entity
+          in: query
+          schema:
+            type: string
+            minLength: 1
+          description: Exact registered entity type ID. Omit for all types.
+          example: minecraft:zombie
+        - name: x
+          in: query
+          schema:
+            type: number
+            format: double
+          description: Finite absolute center x coordinate; supply x, y, and z together.
+        - name: y
+          in: query
+          schema:
+            type: number
+            format: double
+          description: Finite absolute center y coordinate; supply x, y, and z together.
+        - name: z
+          in: query
+          schema:
+            type: number
+            format: double
+          description: Finite absolute center z coordinate; supply x, y, and z together.
+        - name: radius
+          in: query
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          description: Finite inclusive radius in blocks; requires x, y, and z.
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [arbitrary, nearest, furthest]
+            default: arbitrary
+          description: Distance sorting requires x, y, and z, with or without radius.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 2147483647
+          description: Maximum number returned after filtering and sorting. Omit for no limit.
+      responses:
+        '200':
+          description: A snapshot of the selected entities
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entities]
+                properties:
+                  entities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Entity'
+        '400':
+          description: Invalid query, malformed dimension ID, or malformed or unregistered entity type ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The requested dimension is not loaded, or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
     post:
       operationId: summon
       summary: Summon one entity in a loaded dimension
@@ -714,6 +821,43 @@ components:
       type: http
       scheme: bearer
   schemas:
+    Entity:
+      type: object
+      description: A snapshot of a loaded, alive entity, captured on the server thread.
+      required: [uuid, entity, dimension, x, y, z, yaw, pitch, name, health]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        entity:
+          type: string
+          description: Resolved namespaced entity type ID.
+          example: minecraft:zombie
+        dimension:
+          type: string
+          description: Resolved namespaced dimension ID.
+          example: minecraft:overworld
+        x:
+          type: number
+          format: double
+        y:
+          type: number
+          format: double
+        z:
+          type: number
+          format: double
+        yaw:
+          type: number
+          description: Horizontal rotation in degrees.
+        pitch:
+          type: number
+          description: Vertical rotation in degrees.
+        name:
+          type: string
+          description: Plain-text entity name, including a custom name when present.
+        health:
+          type: [number, 'null']
+          description: Current health points, or null for entities without health.
     WorldClockId:
       type: string
       minLength: 1

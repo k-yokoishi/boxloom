@@ -56,6 +56,10 @@ internal object HttpExchangeSupport {
             )
     }
 
+    fun requireQueryFiniteDouble(parameters: Map<String, String>, name: String): Double =
+        parameters[name]?.toDoubleOrNull()?.takeIf { it.isFinite() }
+            ?: throw JsonSupport.invalid("Query parameter '$name' must be a finite number")
+
     fun requireJsonContentType(exchange: HttpExchange) {
         val contentType = exchange.requestHeaders.getFirst("Content-Type")
         val mediaType = contentType?.substringBefore(';')?.trim()
