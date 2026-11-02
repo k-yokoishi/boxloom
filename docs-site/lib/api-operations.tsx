@@ -378,6 +378,17 @@ export const apiOperations = {
     ),
     errors: eventStreamErrors,
   },
+  subscribe_event: {
+    description: (
+      <p>
+        Receive player events through serial callbacks on a background thread
+        while the calling thread continues running game logic. Registration waits
+        for the event stream to confirm readiness. The subscription exposes
+        shutdown, completion, failure, and processed cursor controls.
+      </p>
+    ),
+    errors: eventStreamErrors,
+  },
   watch_chat: {
     description: (
       <p>

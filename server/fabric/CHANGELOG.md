@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Receive typed Python event callbacks in the background with `subscribe_event()`
+  and explicit readiness, cooperative shutdown, and error propagation
 - Stream confirmed player deaths with the death message and location, and consume
   chat and death events through the Python SDK's generic `watch_event()` API
 

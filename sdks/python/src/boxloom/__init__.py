@@ -2,7 +2,7 @@
 
 import os
 import threading
-from typing import Any, Dict, List, Literal, Optional, Union, overload
+from typing import Any, Callable, Dict, List, Literal, Optional, Union, overload
 
 from ._client import BoxloomClient
 from .errors import (
@@ -19,6 +19,7 @@ from .events import (
     EventCursorExpiredError,
     EventStream,
     EventStreamError,
+    EventSubscription,
     EventType,
     PlayerDeathEvent,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "EventCursorExpiredError",
     "EventStream",
     "EventStreamError",
+    "EventSubscription",
     "EventType",
     "FillResult",
     "GetBlockResult",
@@ -71,6 +73,7 @@ __all__ = [
     "set_block",
     "set_time",
     "summon",
+    "subscribe_event",
     "teleport_player",
     "watch_chat",
     "watch_event",
@@ -203,6 +206,58 @@ def watch_event(
 
     return _default_client().watch_event(
         event_type,
+        last_event_id=last_event_id,
+        reconnect=reconnect,
+    )
+
+
+@overload
+def subscribe_event(
+    event_type: Literal["chat.message"],
+    *,
+    callback: Callable[[ChatEvent], None],
+    on_error: Optional[Callable[[Exception], None]] = None,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventSubscription: ...
+
+
+@overload
+def subscribe_event(
+    event_type: Literal["player.death"],
+    *,
+    callback: Callable[[PlayerDeathEvent], None],
+    on_error: Optional[Callable[[Exception], None]] = None,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventSubscription: ...
+
+
+@overload
+def subscribe_event(
+    event_type: None = None,
+    *,
+    callback: Callable[[Event], None],
+    on_error: Optional[Callable[[Exception], None]] = None,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventSubscription: ...
+
+
+def subscribe_event(
+    event_type: Optional[EventType] = None,
+    *,
+    callback: Callable[..., None],
+    on_error: Optional[Callable[[Exception], None]] = None,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventSubscription:
+    """Start a background callback receiver after confirming stream.ready."""
+
+    return _default_client().subscribe_event(
+        event_type,
+        callback=callback,
+        on_error=on_error,
         last_event_id=last_event_id,
         reconnect=reconnect,
     )

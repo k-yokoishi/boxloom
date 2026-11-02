@@ -79,6 +79,59 @@ Overloads make `watch_event("player.death")` yield `PlayerDeathEvent` directly,
 including inside a `with` block. The distribution includes `py.typed` so editors
 and type checkers can use these annotations after installation.
 
+Receive callbacks while game logic continues on the main thread:
+
+```python
+from threading import Event as Signal
+from boxloom import PlayerDeathEvent, subscribe_event
+
+game_over = Signal()
+
+def on_death(event: PlayerDeathEvent) -> None:
+    if event.player.username == "Steve":
+        game_over.set()
+
+def on_error(error: Exception) -> None:
+    print(f"Event monitoring failed: {error}")
+    game_over.set()
+
+with subscribe_event(
+    "player.death", callback=on_death, on_error=on_error, reconnect=False,
+) as subscription:
+    while not game_over.wait(1.0):
+        subscription.raise_if_failed()
+        # Advance the game, e.g. summon TNT above the participant.
+    subscription.raise_if_failed()
+```
+
+`subscribe_event` is also a `BoxloomClient` method. It confirms `stream.ready`
+before returning; initial failures are raised synchronously. Annotated callbacks
+are checked against the selected event type. Initialize shared state before
+subscribing, since callbacks may start before registration returns.
+
+Each subscription owns an SSE connection and one daemon thread. Callbacks run
+serially on that thread and can use the SDK; long callbacks delay later events.
+Use synchronous `def` callbacks and thread-safe signals for shared game state.
+Receive or callback failures stop the subscription, notify `on_error` once, and
+remain available through `raise_if_failed()` and normal context exit. Without an
+error handler, background failures are logged. An error handler's own failure is
+logged without replacing the original error. A context's existing exception is
+preserved during cleanup.
+
+`stop()` requests cooperative shutdown and is safe inside a callback. `join()`
+waits for termination; `join(timeout=...)` raises `TimeoutError` if it is still
+running. Calling `join()` on the callback's own thread raises `RuntimeError`.
+An idle network read may take up to the client timeout to finish; active callbacks
+and previously sent Minecraft commands are not forcibly interrupted. Always use a
+`with` block or pair `stop()` with `join()` before releasing game state.
+
+`last_event_id` advances after successful callbacks, or after skipping filtered
+events. Callback failures leave the failed event unacknowledged. Reconnection
+uses the shared cursor history; expired cursors stop the subscription. Make
+side effects idempotent when persisting cursors across process restarts.
+For games that should stop on a dropped connection, use `reconnect=False` and
+signal the game loop from `on_error`, as above.
+
 Control the world clock:
 
 ```python

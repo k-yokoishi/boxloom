@@ -9,10 +9,12 @@ from boxloom import (
     ChatEvent,
     Event,
     EventStream,
+    EventSubscription,
     EventType,
     PlayerDeathEvent,
     watch_chat,
     watch_event,
+    subscribe_event,
 )
 
 
@@ -64,3 +66,29 @@ def check_invalid_usage(client: BoxloomClient) -> None:
     with watch_event() as events:
         event = next(events)
         event.type = "player.death"  # type: ignore[misc]
+
+
+def check_subscriptions(client: BoxloomClient, kind: Optional[EventType]) -> None:
+    def on_death(event: PlayerDeathEvent) -> None:
+        assert_type(event.x, float)
+
+    def on_chat(event: ChatEvent) -> None:
+        assert_type(event.message, str)
+
+    def on_any(event: Event) -> None:
+        check_type_discriminator(event)
+
+    assert_type(subscribe_event("player.death", callback=on_death), EventSubscription)
+    assert_type(subscribe_event("chat.message", callback=on_chat), EventSubscription)
+    assert_type(subscribe_event(callback=on_any), EventSubscription)
+    assert_type(client.subscribe_event("player.death", callback=on_death), EventSubscription)
+    assert_type(client.subscribe_event("chat.message", callback=on_chat), EventSubscription)
+    assert_type(client.subscribe_event(kind, callback=on_any), EventSubscription)
+    subscribe_event("player.deth", callback=on_any)  # type: ignore[call-overload]
+    subscribe_event("chat.message", callback=on_death)  # type: ignore[call-overload]
+    client.subscribe_event(callback=on_death)  # type: ignore[arg-type]
+
+    async def async_callback(event: PlayerDeathEvent) -> None:
+        pass
+
+    subscribe_event("player.death", callback=async_callback)  # type: ignore[call-overload]
