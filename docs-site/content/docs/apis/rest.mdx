@@ -347,6 +347,65 @@ curl --fail-with-body \
 
 </Operation>
 
+## `get_entities`
+
+<Operation id="get_entities">
+
+<ApiEndpoint method="GET" path="/v1/world/entities" />
+
+**Query parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dimension` | string | yes | ID of a loaded dimension. |
+| `entity` | string | no | Exact registered entity type ID. Omit for all types. |
+| `x`, `y`, `z` | number | conditional | Finite absolute center coordinates. Supply all three together; required for `radius` or distance sorting. |
+| `radius` | number | no | Finite non-negative inclusive sphere radius in blocks. Zero selects the exact position. |
+| `sort` | string | no | `arbitrary` (default), `nearest`, or `furthest`. Distance sorting works with or without `radius`. |
+| `limit` | integer | no | Maximum number returned after sorting, from 1 to 2,147,483,647. Omit for no limit. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entities` | array | Selected entity snapshots, or `[]` when there are no matches. |
+| `entities[].uuid` | string (uuid) | UUID of the entity. |
+| `entities[].entity` | string | Resolved namespaced entity type ID. |
+| `entities[].dimension` | string | Resolved namespaced dimension ID. |
+| `entities[].x`, `entities[].y`, `entities[].z` | number | Entity position. |
+| `entities[].yaw`, `entities[].pitch` | number | Horizontal and vertical rotation in degrees. |
+| `entities[].name` | string | Plain-text name, including a custom name when present. |
+| `entities[].health` | number or null | Current health points; `null` for entities without health. |
+
+**Example**
+
+```bash
+curl --fail-with-body --get \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  --data-urlencode "dimension=minecraft:overworld" \
+  --data-urlencode "entity=minecraft:zombie" \
+  --data-urlencode "x=0" --data-urlencode "y=64" --data-urlencode "z=0" \
+  --data-urlencode "radius=20" \
+  --data-urlencode "sort=nearest" --data-urlencode "limit=1" \
+  "$BOXLOOM_BASE_URL/v1/world/entities"
+```
+
+```json
+{
+  "entities": [{
+    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+    "entity": "minecraft:zombie",
+    "dimension": "minecraft:overworld",
+    "x": 1.0, "y": 64.0, "z": 0.0,
+    "yaw": 90.0, "pitch": 0.0,
+    "name": "Zombie",
+    "health": 20.0
+  }]
+}
+```
+
+</Operation>
+
 ## `summon`
 
 <Operation id="summon">

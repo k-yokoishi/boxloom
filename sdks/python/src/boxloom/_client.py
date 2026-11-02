@@ -22,6 +22,7 @@ from ._transport import (
 from .events import ChatEventStream, EventStream, EventSubscription, EventType
 from .models import (
     ChatEvent,
+    Entity,
     Event,
     FillResult,
     GetBlockResult,
@@ -499,6 +500,92 @@ class BoxloomClient:
             y=_require_number(payload, "y"),
             z=_require_number(payload, "z"),
         )
+
+    def get_entities(
+        self,
+        entity: Optional[str] = None,
+        *,
+        x: Optional[float] = None,
+        y: Optional[float] = None,
+        z: Optional[float] = None,
+        radius: Optional[float] = None,
+        dimension: str = "minecraft:overworld",
+        sort: Literal["arbitrary", "nearest", "furthest"] = "arbitrary",
+        limit: Optional[int] = None,
+    ) -> List[Entity]:
+        """List loaded, alive entities after filtering, sorting, and limiting.
+
+        Coordinates must be supplied together, and are required for a radius
+        or distance sorting. No chunks are loaded. Health is None for entities
+        without health, such as dropped items.
+        """
+
+        if entity is not None and (
+            not isinstance(entity, str) or not entity.strip()
+        ):
+            raise ValueError("entity must be a non-empty namespaced ID or None")
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise ValueError("dimension must be a non-empty namespaced ID")
+        if not isinstance(sort, str) or sort not in ("arbitrary", "nearest", "furthest"):
+            raise ValueError("sort must be arbitrary, nearest, or furthest")
+        if limit is not None:
+            if not isinstance(limit, int) or isinstance(limit, bool):
+                raise TypeError("limit must be an integer or None")
+            if not 1 <= limit <= 2**31 - 1:
+                raise ValueError("limit must be between 1 and 2147483647")
+        coordinates = {"x": x, "y": y, "z": z}
+        has_center = any(value is not None for value in coordinates.values())
+        if has_center and any(value is None for value in coordinates.values()):
+            raise ValueError("x, y, and z must be supplied together")
+        if not has_center and (radius is not None or sort != "arbitrary"):
+            raise ValueError("x, y, and z are required for radius or distance sorting")
+        for field_name, value in {**coordinates, "radius": radius}.items():
+            if value is None:
+                continue
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise TypeError(f"{field_name} must be a number or None")
+            try:
+                finite = isfinite(value)
+            except OverflowError:
+                finite = False
+            if not finite:
+                raise ValueError(f"{field_name} must be finite")
+        if radius is not None and radius < 0:
+            raise ValueError("radius must not be negative")
+
+        parameters: Dict[str, Any] = {"dimension": dimension}
+        if entity is not None:
+            parameters["entity"] = entity
+        if has_center:
+            parameters.update(coordinates)
+        if radius is not None:
+            parameters["radius"] = radius
+        parameters["sort"] = sort
+        if limit is not None:
+            parameters["limit"] = limit
+        payload = self._get("/v1/world/entities?" + urlencode(parameters))
+        values = payload.get("entities")
+        if not isinstance(values, list):
+            raise ProtocolError("response field 'entities' must be an array")
+        entities = []
+        for index, value in enumerate(values):
+            if not isinstance(value, dict):
+                raise ProtocolError(f"response field 'entities[{index}]' must be an object")
+            if "health" not in value:
+                raise ProtocolError("response field 'health' must be a number or null")
+            entities.append(Entity(
+                uuid=_require_string(value, "uuid"),
+                entity=_require_string(value, "entity"),
+                dimension=_require_string(value, "dimension"),
+                x=_require_number(value, "x"),
+                y=_require_number(value, "y"),
+                z=_require_number(value, "z"),
+                yaw=_require_number(value, "yaw"),
+                pitch=_require_number(value, "pitch"),
+                name=_require_string(value, "name"),
+                health=None if value["health"] is None else _require_number(value, "health"),
+            ))
+        return entities
 
     def kill_entity(
         self,

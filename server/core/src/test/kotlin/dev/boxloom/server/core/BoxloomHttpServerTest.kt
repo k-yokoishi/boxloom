@@ -574,6 +574,99 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `lists entity snapshots with nullable health and captures query options`() {
+        val captured = mutableListOf<GetEntitiesRequest>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun getEntities(request: GetEntitiesRequest): CompletableFuture<List<EntitySnapshot>> {
+                captured += request
+                return CompletableFuture.completedFuture(listOf(
+                    EntitySnapshot(TEST_UUID, "minecraft:item", request.dimension, 1.5, 64.0, -2.25, 90f, -12.5f, "Diamond", null),
+                    EntitySnapshot(OTHER_UUID, "minecraft:zombie", request.dimension, 2.0, 64.0, 0.0, 0f, 0f, "Zombie", 20f),
+                ))
+            }
+        }
+        withServer(authToken = "test-secret", minecraft = minecraft) { server, _ ->
+            val path = "/v1/world/entities?dimension=minecraft%3Athe_nether&entity=minecraft%3Azombie&x=1.5&y=64&z=-2.25&radius=0&sort=nearest&limit=2"
+            assertEquals(401, get(server, path).statusCode())
+            val response = get(server, path, "test-secret")
+            assertEquals(200, response.statusCode())
+            assertEquals(
+                """{"entities":[{"uuid":"$TEST_UUID","entity":"minecraft:item","dimension":"minecraft:the_nether","x":1.5,"y":64.0,"z":-2.25,"yaw":90.0,"pitch":-12.5,"name":"Diamond","health":null},{"uuid":"$OTHER_UUID","entity":"minecraft:zombie","dimension":"minecraft:the_nether","x":2.0,"y":64.0,"z":0.0,"yaw":0.0,"pitch":0.0,"name":"Zombie","health":20.0}]}""",
+                response.body(),
+            )
+        }
+        assertEquals(listOf(GetEntitiesRequest(
+            "minecraft:the_nether", "minecraft:zombie", EntityQueryCenter(1.5, 64.0, -2.25),
+            0.0, EntitySort.NEAREST, 2,
+        )), captured)
+    }
+
+    @Test
+    fun `lists all types by default and supports distance sorting without a radius`() {
+        val captured = mutableListOf<GetEntitiesRequest>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun getEntities(request: GetEntitiesRequest): CompletableFuture<List<EntitySnapshot>> {
+                captured += request
+                return CompletableFuture.completedFuture(emptyList())
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            for (query in listOf("", "&x=0&y=64&z=0&sort=furthest&limit=1")) {
+                val response = get(server, "/v1/world/entities?dimension=minecraft:overworld$query")
+                assertEquals(200, response.statusCode())
+                assertEquals("""{"entities":[]}""", response.body())
+            }
+        }
+        assertEquals(listOf(
+            GetEntitiesRequest("minecraft:overworld"),
+            GetEntitiesRequest("minecraft:overworld", center = EntityQueryCenter(0.0, 64.0, 0.0), sort = EntitySort.FURTHEST, limit = 1),
+        ), captured)
+    }
+
+    @Test
+    fun `rejects malformed entity queries before calling Minecraft`() {
+        withServer(authToken = null) { server, _ ->
+            val invalid = listOf(
+                "", "dimension=", "dimension=minecraft:overworld&dimension=minecraft:the_nether",
+                "dimension=minecraft:overworld&unknown=1", "dimension=minecraft:overworld&entity=",
+            ) + listOf(
+                "x=0", "x=0&y=64", "radius=20", "sort=nearest", "sort=furthest", "sort=", "sort=random",
+                "x=0&y=64&z=0&radius=-1", "x=NaN&y=64&z=0", "x=Infinity&y=64&z=0",
+                "x=0&y=64&z=0&radius=1e309", "x=true&y=64&z=0", "x=&y=64&z=0",
+                "limit=0", "limit=-1", "limit=1.5", "limit=true", "limit=2147483648", "limit=",
+            ).map { "dimension=minecraft:overworld&$it" }
+            for (query in invalid) {
+                val response = get(server, "/v1/world/entities?$query")
+                assertEquals(400, response.statusCode(), query)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+        }
+    }
+
+    @Test
+    fun `entity listing preserves platform errors and times out pending operations`() {
+        for ((status, code) in listOf(400 to "INVALID_ENTITY", 400 to "INVALID_DIMENSION", 404 to "DIMENSION_NOT_FOUND")) {
+            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+                override fun getEntities(request: GetEntitiesRequest): CompletableFuture<List<EntitySnapshot>> =
+                    CompletableFuture.failedFuture(ApiException(status, code, "Invalid query"))
+            }
+            withServer(authToken = null, minecraft = minecraft) { server, _ ->
+                val response = get(server, "/v1/world/entities?dimension=minecraft:overworld")
+                assertEquals(status, response.statusCode())
+                assertContains(response.body(), code)
+            }
+        }
+        val pending = CompletableFuture<List<EntitySnapshot>>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun getEntities(request: GetEntitiesRequest) = pending
+        }
+        withServer(authToken = null, minecraft = minecraft, requestTimeout = Duration.ofMillis(100)) { server, _ ->
+            assertEquals(504, get(server, "/v1/world/entities?dimension=minecraft:overworld").statusCode())
+            assertTrue(pending.isCancelled)
+        }
+    }
+
+    @Test
     fun `kills one entity by uuid and returns its count`() {
         var captured: KillEntityRequest? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
@@ -968,9 +1061,11 @@ class BoxloomHttpServerTest {
     private fun get(
         server: BoxloomHttpServer,
         path: String,
+        authToken: String? = null,
     ): HttpResponse<String> {
         val request = HttpRequest.newBuilder()
             .uri(URI("http://127.0.0.1:${server.boundPort}$path"))
+            .apply { authToken?.let { header("Authorization", "Bearer $it") } }
             .GET()
             .build()
 
@@ -981,6 +1076,9 @@ class BoxloomHttpServerTest {
     }
 
     private object TestMinecraftOperations : MinecraftOperations {
+        override fun getEntities(request: GetEntitiesRequest): CompletableFuture<List<EntitySnapshot>> =
+            throw AssertionError("Unexpected get-entities request")
+
         override fun getTime(request: GetTimeRequest): CompletableFuture<TimeResult> =
             throw AssertionError("Unexpected get-time request")
 
@@ -1025,6 +1123,9 @@ class BoxloomHttpServerTest {
     }
 
     private object SayMinecraftOperations : MinecraftOperations {
+        override fun getEntities(request: GetEntitiesRequest): CompletableFuture<List<EntitySnapshot>> =
+            throw AssertionError("Unexpected get-entities request")
+
         override fun getTime(request: GetTimeRequest): CompletableFuture<TimeResult> =
             throw AssertionError("Unexpected get-time request")
 

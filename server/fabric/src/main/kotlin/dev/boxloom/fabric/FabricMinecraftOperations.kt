@@ -2,6 +2,8 @@ package dev.boxloom.fabric
 
 import dev.boxloom.server.core.AddTimeRequest
 import dev.boxloom.server.core.ApiException
+import dev.boxloom.server.core.EntitySnapshot
+import dev.boxloom.server.core.GetEntitiesRequest
 import dev.boxloom.server.core.FillRequest
 import dev.boxloom.server.core.FillResult
 import dev.boxloom.server.core.GetBlockRequest
@@ -52,6 +54,7 @@ import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EntitySpawnRequest
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.Mob
+import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.Relative
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Block
@@ -383,6 +386,35 @@ internal class FabricMinecraftOperations(
                 entity.x,
                 entity.y,
                 entity.z,
+            )
+        }
+
+    override fun getEntities(request: GetEntitiesRequest): CompletableFuture<List<EntitySnapshot>> =
+        onServerThread { server ->
+            val level = resolveLevel(server, request.dimension)
+            val entityId = request.entity?.let { value ->
+                parseIdentifier(value, "entity").also { id ->
+                    if (BuiltInRegistries.ENTITY_TYPE.getOptional(id).isEmpty) {
+                        throw ApiException(400, "INVALID_ENTITY", "Entity '$value' does not exist")
+                    }
+                }
+            }
+            val dimension = level.dimension().identifier().toString()
+            request.copy(entity = entityId?.toString()).select(
+                level.allEntities.asSequence().filter { it.isAlive }.map { entity ->
+                    EntitySnapshot(
+                        entity.uuid.toString(),
+                        EntityType.getKey(entity.type).toString(),
+                        dimension,
+                        entity.x,
+                        entity.y,
+                        entity.z,
+                        entity.yRot,
+                        entity.xRot,
+                        entity.name.string,
+                        (entity as? LivingEntity)?.health,
+                    )
+                },
             )
         }
 

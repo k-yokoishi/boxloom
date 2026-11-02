@@ -4,6 +4,8 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
 interface WorldOperations {
+    fun getEntities(request: GetEntitiesRequest): CompletableFuture<List<EntitySnapshot>>
+
     fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult>
 
     fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult>
