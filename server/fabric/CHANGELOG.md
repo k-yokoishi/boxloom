@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.4
 
-- Read, set, and add ticks to world clocks through REST and the Python SDK
-- Advance to built-in or custom time markers, matching Minecraft 26.3's `/time set`
+- REST と Python SDK から UUID 指定、または種類と任意の球形範囲指定でエンティティを kill できる。
+- ワールド時刻の取得・設定・加算と、組み込み・カスタムの時刻マーカーへの移動に対応する。
 
 ## 0.1.0-alpha.3
 

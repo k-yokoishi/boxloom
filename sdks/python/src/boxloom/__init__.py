@@ -67,7 +67,7 @@ __all__ = [
     "watch_chat",
 ]
 
-__version__ = "0.1.0a3"
+__version__ = "0.1.0a4"
 
 _DEFAULT_BASE_URL = "http://127.0.0.1:28886"
 _DEFAULT_TIMEOUT = 10.0
