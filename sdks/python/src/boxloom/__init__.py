@@ -2,7 +2,7 @@
 
 import os
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from ._client import BoxloomClient
 from .errors import (
@@ -26,6 +26,7 @@ from .models import (
     SayResult,
     SetBlockResult,
     SummonResult,
+    TimeResult,
 )
 
 __all__ = [
@@ -46,13 +47,17 @@ __all__ = [
     "SayResult",
     "SetBlockResult",
     "SummonResult",
+    "TimeResult",
+    "add_time",
     "fill",
     "get_block",
     "get_player_position",
     "get_players",
+    "get_time",
     "init",
     "say",
     "set_block",
+    "set_time",
     "summon",
     "teleport_player",
     "watch_chat",
@@ -146,6 +151,28 @@ def watch_chat(
         last_event_id=last_event_id,
         reconnect=reconnect,
     )
+
+
+def get_time(*, clock: str = "minecraft:overworld") -> TimeResult:
+    """Read a world clock's total elapsed ticks."""
+
+    return _default_client().get_time(clock=clock)
+
+
+def set_time(
+    time: Union[int, str],
+    *,
+    clock: str = "minecraft:overworld",
+) -> TimeResult:
+    """Set total ticks, or advance to a time marker such as 'day'."""
+
+    return _default_client().set_time(time, clock=clock)
+
+
+def add_time(ticks: int, *, clock: str = "minecraft:overworld") -> TimeResult:
+    """Add signed ticks to a world clock; Minecraft clamps the result at zero."""
+
+    return _default_client().add_time(ticks, clock=clock)
 
 
 def set_block(

@@ -1,10 +1,12 @@
 package dev.boxloom.fabric
 
+import dev.boxloom.server.core.AddTimeRequest
 import dev.boxloom.server.core.ApiException
 import dev.boxloom.server.core.FillRequest
 import dev.boxloom.server.core.FillResult
 import dev.boxloom.server.core.GetBlockRequest
 import dev.boxloom.server.core.GetBlockResult
+import dev.boxloom.server.core.GetTimeRequest
 import dev.boxloom.server.core.MinecraftOperations
 import dev.boxloom.server.core.NbtValue
 import dev.boxloom.server.core.Player
@@ -13,11 +15,15 @@ import dev.boxloom.server.core.SayRequest
 import dev.boxloom.server.core.SayResult
 import dev.boxloom.server.core.SetBlockRequest
 import dev.boxloom.server.core.SetBlockResult
+import dev.boxloom.server.core.SetTimeRequest
 import dev.boxloom.server.core.SummonRequest
 import dev.boxloom.server.core.SummonResult
 import dev.boxloom.server.core.TeleportPlayerRequest
+import dev.boxloom.server.core.TimeResult
+import dev.boxloom.server.core.TimeValue
 import net.minecraft.commands.arguments.blocks.BlockInput
 import net.minecraft.core.BlockPos
+import net.minecraft.core.Holder
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.core.registries.Registries
 import net.minecraft.nbt.ByteTag
@@ -34,6 +40,9 @@ import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
 import net.minecraft.util.Mth
 import net.minecraft.world.Difficulty
+import net.minecraft.world.clock.ClockTimeMarkers
+import net.minecraft.world.clock.ServerClockManager
+import net.minecraft.world.clock.WorldClock
 import net.minecraft.world.entity.EntitySpawnReason
 import net.minecraft.world.entity.EntitySpawnRequest
 import net.minecraft.world.entity.EntityType
@@ -370,6 +379,57 @@ internal class FabricMinecraftOperations(
                 entity.z,
             )
         }
+
+    override fun getTime(request: GetTimeRequest): CompletableFuture<TimeResult> =
+        onServerThread { server ->
+            timeResult(server, resolveClock(server, request.clock))
+        }
+
+    override fun setTime(request: SetTimeRequest): CompletableFuture<TimeResult> =
+        onServerThread { server ->
+            val clock = resolveClock(server, request.clock)
+            val manager = server.clockManager()
+            when (val time = request.time) {
+                is TimeValue.Ticks -> manager.setTotalTicks(clock, time.ticks.toLong())
+                is TimeValue.Marker -> {
+                    val markerId = parseIdentifier(time.marker, "time_marker")
+                    val marker = ResourceKey.create(ClockTimeMarkers.ROOT_ID, markerId)
+                    when (manager.moveToTimeMarker(clock, marker)) {
+                        ServerClockManager.MoveResult.NO_TIME_MARKER_FOUND -> throw ApiException(
+                            404,
+                            "TIME_MARKER_NOT_FOUND",
+                            "Time marker '${time.marker}' does not exist for clock '${request.clock}'",
+                        )
+                        ServerClockManager.MoveResult.NOT_MOVED -> throw ApiException(
+                            409,
+                            "TIME_ALREADY_AT_MARKER",
+                            "Clock '${request.clock}' is already at time marker '${time.marker}'",
+                        )
+                        ServerClockManager.MoveResult.MOVED -> Unit
+                    }
+                }
+            }
+            timeResult(server, clock)
+        }
+
+    override fun addTime(request: AddTimeRequest): CompletableFuture<TimeResult> =
+        onServerThread { server ->
+            val clock = resolveClock(server, request.clock)
+            server.clockManager().addTicks(clock, request.ticks)
+            timeResult(server, clock)
+        }
+
+    private fun resolveClock(server: MinecraftServer, name: String): Holder<WorldClock> {
+        val clockId = parseIdentifier(name, "clock")
+        val clockKey = ResourceKey.create(Registries.WORLD_CLOCK, clockId)
+        return server.registryAccess().lookupOrThrow(Registries.WORLD_CLOCK).get(clockKey)
+            .orElseThrow {
+                ApiException(404, "CLOCK_NOT_FOUND", "World clock '$name' does not exist")
+            }
+    }
+
+    private fun timeResult(server: MinecraftServer, clock: Holder<WorldClock>): TimeResult =
+        TimeResult(clock.registeredName, server.clockManager().getInstance(clock).totalTicks())
 
     private fun parseIdentifier(value: String, field: String): Identifier =
         Identifier.tryParse(value)

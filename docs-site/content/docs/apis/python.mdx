@@ -365,6 +365,119 @@ print(entity.uuid)
 
 </Operation>
 
+## `get_time`
+
+<Operation id="get_time">
+
+```python
+get_time(*, clock: str = "minecraft:overworld") -> TimeResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `clock` | `str` | `"minecraft:overworld"` | Registered world clock ID. An omitted namespace resolves to `minecraft`. |
+
+**Returns** — `TimeResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `clock` | `str` | Resolved namespaced world clock ID. |
+| `ticks` | `int` | Total elapsed ticks, a non-negative 64-bit integer. |
+
+**Example**
+
+```python
+from boxloom import get_time
+
+print(get_time().ticks)
+print(get_time(clock="minecraft:the_end").ticks)
+```
+
+</Operation>
+
+## `set_time`
+
+<Operation id="set_time">
+
+```python
+set_time(
+    time: Union[int, str],
+    *,
+    clock: str = "minecraft:overworld",
+) -> TimeResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `time` | `int` or `str` | required | Absolute total ticks from `0` to `2147483647`, or a time marker ID such as `"day"`. An omitted namespace resolves to `minecraft`. |
+| `clock` | `str` | `"minecraft:overworld"` | Registered world clock ID. |
+
+**Returns** — `TimeResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `clock` | `str` | Resolved namespaced world clock ID. |
+| `ticks` | `int` | Total elapsed ticks immediately after setting the clock. |
+
+**Example**
+
+```python
+from boxloom import set_time
+
+set_time("day")       # Equivalent to /time set day.
+set_time("night")
+result = set_time(6000)
+print(result.ticks)    # 6000
+```
+
+For the vanilla Overworld, markers occur at `1000` (`day`), `6000` (`noon`),
+`13000` (`night`), and `18000` (`midnight`) within each 24,000-tick day. If the
+clock is at `14000`, `set_time("day")` advances it to `25000`.
+`set_time(1000)` instead resets its total ticks to `1000`.
+
+</Operation>
+
+## `add_time`
+
+<Operation id="add_time">
+
+```python
+add_time(ticks: int, *, clock: str = "minecraft:overworld") -> TimeResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `ticks` | `int` | required | Signed tick count from `-2147483648` to `2147483647`. |
+| `clock` | `str` | `"minecraft:overworld"` | Registered world clock ID. |
+
+**Returns** — `TimeResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `clock` | `str` | Resolved namespaced world clock ID. |
+| `ticks` | `int` | Total elapsed ticks immediately after adding the ticks. |
+
+**Example**
+
+```python
+from boxloom import add_time
+
+add_time(6000)
+add_time(-1000)
+```
+
+These three functions are also available as `BoxloomClient` methods.
+Invalid tick types (including booleans and floats) raise `TypeError`; out-of-range
+ticks and empty clock or marker strings raise `ValueError` before any HTTP request.
+
+</Operation>
+
 ## `watch_chat`
 
 <Operation id="watch_chat">

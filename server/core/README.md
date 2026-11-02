@@ -15,7 +15,7 @@ It deliberately has no Fabric, NeoForge, Paper, or Minecraft dependency. Platfor
 
 - `BoxloomHttpServer` owns only the JDK HTTP server and executor lifecycle.
 - `http/BoxloomHttpApplication` applies authentication and error handling, then dispatches requests through `http/Router`.
-- `api/chat`, `api/players`, `api/world`, and `api/events` contain feature-scoped route registration and handlers.
+- `api/chat`, `api/players`, `api/world`, `api/time`, and `api/events` contain feature-scoped route registration and handlers.
 - Common request/response, Minecraft-operation timeout, and SSE framing behavior lives under `http`.
 
 Add new endpoints to the matching feature routes. Add another feature package and register it in `BoxloomHttpApplication` when no existing feature owns the API.

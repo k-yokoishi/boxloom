@@ -199,6 +199,141 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `reads a world clock with default or explicit clock and 64 bit ticks`() {
+        val requests = mutableListOf<GetTimeRequest>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun getTime(request: GetTimeRequest): CompletableFuture<TimeResult> {
+                requests += request
+                return CompletableFuture.completedFuture(TimeResult(request.clock, 3_000_000_000L))
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            for ((path, clock) in listOf(
+                "/v1/world/time" to "minecraft:overworld",
+                "/v1/world/time?clock=minecraft%3Athe_end" to "minecraft:the_end",
+            )) {
+                val response = get(server, path)
+                assertEquals(200, response.statusCode())
+                assertEquals(
+                    """{"clock":"$clock","ticks":3000000000}""",
+                    response.body(),
+                )
+                assertEquals(GetTimeRequest(clock), requests.last())
+            }
+        }
+    }
+
+    @Test
+    fun `sets time from a marker or total ticks`() {
+        val requests = mutableListOf<SetTimeRequest>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun setTime(request: SetTimeRequest): CompletableFuture<TimeResult> {
+                requests += request
+                return CompletableFuture.completedFuture(TimeResult(request.clock, 25_000L))
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            for ((body, expected) in listOf(
+                """{"time":"day"}""" to SetTimeRequest("minecraft:overworld", TimeValue.Marker("day")),
+                """{"clock":"example:clock","time":"example:dawn"}""" to
+                    SetTimeRequest("example:clock", TimeValue.Marker("example:dawn")),
+                """{"time":0}""" to SetTimeRequest("minecraft:overworld", TimeValue.Ticks(0)),
+                """{"time":2147483647}""" to
+                    SetTimeRequest("minecraft:overworld", TimeValue.Ticks(Int.MAX_VALUE)),
+            )) {
+                val response = post(server, "/v1/world/time", body)
+                assertEquals(200, response.statusCode())
+                assertEquals(expected, requests.last())
+                assertEquals(
+                    """{"clock":"${expected.clock}","ticks":25000}""",
+                    response.body(),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `adds signed ticks to the requested clock`() {
+        val requests = mutableListOf<AddTimeRequest>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun addTime(request: AddTimeRequest): CompletableFuture<TimeResult> {
+                requests += request
+                return CompletableFuture.completedFuture(TimeResult(request.clock, 0L))
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            for (ticks in listOf(Int.MIN_VALUE, -20, 0, 6000, Int.MAX_VALUE)) {
+                val response = post(server, "/v1/world/time/add", """{"ticks":$ticks}""")
+                assertEquals(200, response.statusCode())
+                assertEquals(AddTimeRequest("minecraft:overworld", ticks), requests.last())
+            }
+            val response = post(
+                server, "/v1/world/time/add", """{"clock":"minecraft:the_end","ticks":20}""",
+            )
+            assertEquals(200, response.statusCode())
+            assertEquals(AddTimeRequest("minecraft:the_end", 20), requests.last())
+        }
+    }
+
+    @Test
+    fun `rejects malformed time requests before scheduling a world change`() {
+        withServer(authToken = null) { server, _ ->
+            for (body in listOf(
+                "{}", """{"time":null}""", """{"time":true}""", """{"time":1.5}""",
+                """{"time":1e3}""", """{"time":{}}""", """{"time":[]}""",
+                """{"time":-1}""", """{"time":2147483648}""", """{"time":" "}""",
+                """{"time":"day","clock":null}""", """{"time":"day","clock":""}""",
+                """{"time":"day","extra":1}""",
+            )) {
+                val response = post(server, "/v1/world/time", body)
+                assertEquals(400, response.statusCode(), body)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+            for (body in listOf(
+                "{}", """{"ticks":null}""", """{"ticks":true}""", """{"ticks":1.5}""",
+                """{"ticks":"20"}""", """{"ticks":2147483648}""", """{"ticks":-2147483649}""",
+                """{"ticks":20,"clock":false}""", """{"ticks":20,"extra":1}""",
+            )) {
+                val response = post(server, "/v1/world/time/add", body)
+                assertEquals(400, response.statusCode(), body)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+            for (query in listOf("clock=", "clock=a&clock=b", "unknown=1")) {
+                val response = get(server, "/v1/world/time?$query")
+                assertEquals(400, response.statusCode(), query)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+        }
+    }
+
+    @Test
+    fun `time operations require authentication and preserve platform errors`() {
+        withServer(authToken = "secret") { server, _ ->
+            assertEquals(401, get(server, "/v1/world/time").statusCode())
+            assertEquals(401, post(server, "/v1/world/time", """{"time":"day"}""").statusCode())
+            assertEquals(401, post(server, "/v1/world/time/add", """{"ticks":20}""").statusCode())
+        }
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun setTime(request: SetTimeRequest): CompletableFuture<TimeResult> {
+                val error = if (request.time == TimeValue.Marker("day")) {
+                    ApiException(409, "TIME_ALREADY_AT_MARKER", "The clock is already at this marker")
+                } else {
+                    ApiException(404, "TIME_MARKER_NOT_FOUND", "The requested marker does not exist")
+                }
+                return CompletableFuture.failedFuture(error)
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val response = post(server, "/v1/world/time", """{"time":"missing"}""")
+            assertEquals(404, response.statusCode())
+            assertContains(response.body(), "TIME_MARKER_NOT_FOUND")
+            val alreadyAtMarker = post(server, "/v1/world/time", """{"time":"day"}""")
+            assertEquals(409, alreadyAtMarker.statusCode())
+            assertContains(alreadyAtMarker.body(), "TIME_ALREADY_AT_MARKER")
+        }
+    }
+
+    @Test
     fun `gets a block from query parameters`() {
         var capturedRequest: GetBlockRequest? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
@@ -726,6 +861,15 @@ class BoxloomHttpServerTest {
     }
 
     private object TestMinecraftOperations : MinecraftOperations {
+        override fun getTime(request: GetTimeRequest): CompletableFuture<TimeResult> =
+            throw AssertionError("Unexpected get-time request")
+
+        override fun setTime(request: SetTimeRequest): CompletableFuture<TimeResult> =
+            throw AssertionError("Unexpected set-time request")
+
+        override fun addTime(request: AddTimeRequest): CompletableFuture<TimeResult> =
+            throw AssertionError("Unexpected add-time request")
+
         override fun players(): CompletableFuture<List<Player>> =
             CompletableFuture.completedFuture(emptyList())
 
@@ -755,6 +899,15 @@ class BoxloomHttpServerTest {
     }
 
     private object SayMinecraftOperations : MinecraftOperations {
+        override fun getTime(request: GetTimeRequest): CompletableFuture<TimeResult> =
+            throw AssertionError("Unexpected get-time request")
+
+        override fun setTime(request: SetTimeRequest): CompletableFuture<TimeResult> =
+            throw AssertionError("Unexpected set-time request")
+
+        override fun addTime(request: AddTimeRequest): CompletableFuture<TimeResult> =
+            throw AssertionError("Unexpected add-time request")
+
         override fun say(request: SayRequest): CompletableFuture<SayResult> =
             CompletableFuture.completedFuture(SayResult(request.message, 2))
 
