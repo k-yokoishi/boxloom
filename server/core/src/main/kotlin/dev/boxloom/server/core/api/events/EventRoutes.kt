@@ -5,6 +5,7 @@ import dev.boxloom.server.core.ApiException
 import dev.boxloom.server.core.BoxloomEventBroker
 import dev.boxloom.server.core.EventCursorExpiredException
 import dev.boxloom.server.core.InvalidEventCursorException
+import dev.boxloom.server.core.PlayerDeathEvent
 import dev.boxloom.server.core.http.Router
 import dev.boxloom.server.core.http.SseWriter
 import kotlinx.serialization.json.buildJsonObject
@@ -74,10 +75,10 @@ internal class EventRoutes(
 
                 available.forEach { event ->
                     writer.event(
-                        "chat.message",
+                        event.type,
                         event.id,
                         buildJsonObject {
-                            put("type", "chat.message")
+                            put("type", event.type)
                             put("id", event.id)
                             put("timestamp", event.timestamp.toString())
                             put("message", event.message)
@@ -85,6 +86,12 @@ internal class EventRoutes(
                                 put("username", event.username)
                                 put("uuid", event.uuid)
                             })
+                            if (event is PlayerDeathEvent) {
+                                put("dimension", event.dimension)
+                                put("x", event.x)
+                                put("y", event.y)
+                                put("z", event.z)
+                            }
                         }.toString(),
                     )
                     currentCursor = event.cursor

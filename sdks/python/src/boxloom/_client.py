@@ -2,7 +2,7 @@ import json
 import re
 import socket
 from math import isfinite
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Literal, Mapping, Optional, Union, overload
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -19,12 +19,15 @@ from ._transport import (
     _require_number,
     _require_string,
 )
-from .events import ChatEventStream
+from .events import ChatEventStream, EventStream, EventType
 from .models import (
+    ChatEvent,
+    Event,
     FillResult,
     GetBlockResult,
     KillResult,
     Player,
+    PlayerDeathEvent,
     PlayerPosition,
     SayResult,
     SetBlockResult,
@@ -112,12 +115,12 @@ class BoxloomClient:
             not isinstance(dimension, str) or not dimension.strip()
         ):
             raise ValueError("dimension must be a non-empty namespaced ID or None")
-        for field_name, value in (("yaw", yaw), ("pitch", pitch)):
-            if value is None:
+        for field_name, angle in (("yaw", yaw), ("pitch", pitch)):
+            if angle is None:
                 continue
-            if not isinstance(value, (int, float)) or isinstance(value, bool):
+            if not isinstance(angle, (int, float)) or isinstance(angle, bool):
                 raise TypeError(f"{field_name} must be a number or None")
-            if not isfinite(value):
+            if not isfinite(angle):
                 raise ValueError(f"{field_name} must be finite")
 
         body: Dict[str, Any] = {"x": x, "y": y, "z": z}
@@ -175,6 +178,51 @@ class BoxloomClient:
             timeout=self._timeout,
             last_event_id=last_event_id,
             reconnect=reconnect,
+        )
+
+    @overload
+    def watch_event(
+        self,
+        event_type: Literal["chat.message"],
+        *,
+        last_event_id: Optional[str] = None,
+        reconnect: bool = True,
+    ) -> EventStream[ChatEvent]: ...
+
+    @overload
+    def watch_event(
+        self,
+        event_type: Literal["player.death"],
+        *,
+        last_event_id: Optional[str] = None,
+        reconnect: bool = True,
+    ) -> EventStream[PlayerDeathEvent]: ...
+
+    @overload
+    def watch_event(
+        self,
+        event_type: Optional[EventType] = None,
+        *,
+        last_event_id: Optional[str] = None,
+        reconnect: bool = True,
+    ) -> EventStream[Event]: ...
+
+    def watch_event(
+        self,
+        event_type: Optional[EventType] = None,
+        *,
+        last_event_id: Optional[str] = None,
+        reconnect: bool = True,
+    ) -> EventStream[Event]:
+        """Open a resumable event stream, optionally filtered by event type."""
+
+        return EventStream(
+            base_url=self._base_url,
+            auth_token=self._auth_token,
+            timeout=self._timeout,
+            last_event_id=last_event_id,
+            reconnect=reconnect,
+            event_type=event_type,
         )
 
     def get_time(self, *, clock: str = "minecraft:overworld") -> TimeResult:
@@ -455,7 +503,7 @@ class BoxloomClient:
                     finite = False
                 if not finite:
                     raise ValueError(f"{field_name} must be finite")
-            if radius < 0:
+            if radius is not None and radius < 0:
                 raise ValueError("radius must not be negative")
             body.update(region)
         return _kill_result(self._post("/v1/world/entities/kill", body))

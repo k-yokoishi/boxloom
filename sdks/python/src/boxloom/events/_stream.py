@@ -1,7 +1,7 @@
 import socket
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Iterator, List, Literal, Mapping, Optional, Union
+from typing import Any, Iterator, List, Literal, Mapping, Optional, TypeVar, Union, cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -9,6 +9,7 @@ from .._transport import (
     _api_error,
     _connection_error,
     _decode_object,
+    _require_number,
     _require_string,
 )
 from ..errors import (
@@ -19,7 +20,7 @@ from ..errors import (
     EventStreamError,
     ProtocolError,
 )
-from ..models import ChatEvent, Player
+from ..models import ChatEvent, Event, EventType, Player, PlayerDeathEvent
 
 
 @dataclass(frozen=True)
@@ -35,15 +36,6 @@ class _StreamReadyEvent:
     cursor: str
     event_name: Literal["stream.ready"] = field(
         default="stream.ready",
-        init=False,
-    )
-
-
-@dataclass(frozen=True)
-class _ChatMessageEvent:
-    chat_event: ChatEvent
-    event_name: Literal["chat.message"] = field(
-        default="chat.message",
         init=False,
     )
 
@@ -70,13 +62,17 @@ class _ErrorEvent:
 
 _BoxloomEvent = Union[
     _StreamReadyEvent,
-    _ChatMessageEvent,
+    ChatEvent,
+    PlayerDeathEvent,
     _StreamResetEvent,
     _ErrorEvent,
 ]
 
 
-class ChatEventStream(Iterator[ChatEvent]):
+_EventT = TypeVar("_EventT", bound=Event, covariant=True)
+
+
+class EventStream(Iterator[_EventT]):
     """Context-managed iterator over a resumable server-sent event stream."""
 
     def __init__(
@@ -87,7 +83,10 @@ class ChatEventStream(Iterator[ChatEvent]):
         timeout: float,
         last_event_id: Optional[str],
         reconnect: bool,
+        event_type: Optional[EventType] = None,
     ) -> None:
+        if event_type is not None and event_type not in ("chat.message", "player.death"):
+            raise ValueError("event_type must be 'chat.message', 'player.death', or None")
         if last_event_id is not None and (
             not isinstance(last_event_id, str)
             or not last_event_id.strip()
@@ -105,6 +104,7 @@ class ChatEventStream(Iterator[ChatEvent]):
         self._timeout = timeout
         self._last_event_id = last_event_id
         self._reconnect = reconnect
+        self._event_name = event_type
         self._retry_seconds = 1.0
         self._response: Any = None
         self._closed = threading.Event()
@@ -115,16 +115,16 @@ class ChatEventStream(Iterator[ChatEvent]):
 
         return self._last_event_id
 
-    def __enter__(self) -> "ChatEventStream":
+    def __enter__(self) -> "EventStream[_EventT]":
         return self
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         self.close()
 
-    def __iter__(self) -> "ChatEventStream":
+    def __iter__(self) -> "EventStream[_EventT]":
         return self
 
-    def __next__(self) -> ChatEvent:
+    def __next__(self) -> _EventT:
         while not self._closed.is_set():
             try:
                 if self._response is None:
@@ -163,15 +163,18 @@ class ChatEventStream(Iterator[ChatEvent]):
                 self._last_event_id = frame.event_id
             try:
                 event = _decode_boxloom_event(frame)
-                if event is None or event.event_name == "stream.ready":
+                if event is None or isinstance(event, _StreamReadyEvent):
                     continue
-                if event.event_name == "chat.message":
-                    return event.chat_event
-                if event.event_name == "stream.reset":
+                if isinstance(event, (ChatEvent, PlayerDeathEvent)):
+                    if self._event_name is None or self._event_name == event.type:
+                        # watch_event overloads tie the filter to the yielded type.
+                        return cast(_EventT, event)
+                    continue
+                if isinstance(event, _StreamResetEvent):
                     if event.code == "EVENT_CURSOR_EXPIRED":
                         raise EventCursorExpiredError(event.message)
                     raise EventStreamError(event.code, event.message)
-                if event.event_name == "error":
+                if isinstance(event, _ErrorEvent):
                     raise EventStreamError(event.code, event.message)
             except (ProtocolError, EventCursorExpiredError, EventStreamError):
                 self._disconnect()
@@ -259,12 +262,35 @@ class ChatEventStream(Iterator[ChatEvent]):
                 retry_milliseconds = int(value)
 
 
+class ChatEventStream(EventStream[ChatEvent]):
+    """Context-managed iterator of player chat messages."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        auth_token: Optional[str],
+        timeout: float,
+        last_event_id: Optional[str],
+        reconnect: bool,
+    ) -> None:
+        super().__init__(
+            base_url=base_url,
+            auth_token=auth_token,
+            timeout=timeout,
+            last_event_id=last_event_id,
+            reconnect=reconnect,
+            event_type="chat.message",
+        )
+
+
 def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
     if frame.data is None:
         return None
     if frame.event_name not in {
         "stream.ready",
         "chat.message",
+        "player.death",
         "stream.reset",
         "error",
     }:
@@ -281,9 +307,9 @@ def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
             raise ProtocolError("stream ready cursor must match the SSE event id")
         return _StreamReadyEvent(cursor=cursor)
     if frame.event_name == "chat.message":
-        return _ChatMessageEvent(
-            chat_event=_decode_chat_event(payload, frame.event_id),
-        )
+        return _decode_chat_event(payload, frame.event_id)
+    if frame.event_name == "player.death":
+        return _decode_player_death_event(payload, frame.event_id)
 
     code = _require_string(payload, "code")
     message = _require_string(payload, "message")
@@ -311,4 +337,30 @@ def _decode_chat_event(
             username=_require_string(player_value, "username"),
             uuid=_require_string(player_value, "uuid"),
         ),
+    )
+
+
+def _decode_player_death_event(
+    payload: Mapping[str, Any],
+    event_id: Optional[str],
+) -> PlayerDeathEvent:
+    payload_id = _require_string(payload, "id")
+    if event_id is None or event_id != payload_id:
+        raise ProtocolError("player death event payload id must match the SSE event id")
+    player_value = payload.get("player")
+    if not isinstance(player_value, dict):
+        raise ProtocolError("response field 'player' must be an object")
+
+    return PlayerDeathEvent(
+        id=payload_id,
+        timestamp=_require_string(payload, "timestamp"),
+        message=_require_string(payload, "message"),
+        player=Player(
+            username=_require_string(player_value, "username"),
+            uuid=_require_string(player_value, "uuid"),
+        ),
+        dimension=_require_string(payload, "dimension"),
+        x=_require_number(payload, "x"),
+        y=_require_number(payload, "y"),
+        z=_require_number(payload, "z"),
     )

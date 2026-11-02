@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Stream confirmed player deaths with the death message and location, and consume
+  chat and death events through the Python SDK's generic `watch_event()` API
+
 ## 0.1.0-alpha.4
 
 - REST と Python SDK から UUID 指定、または種類と任意の球形範囲指定でエンティティを kill できる。

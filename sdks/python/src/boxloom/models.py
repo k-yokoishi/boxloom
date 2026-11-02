@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import floor
-from typing import Tuple
+from typing import Literal, Tuple, Union
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,26 @@ class ChatEvent:
     timestamp: str
     message: str
     player: Player
+    type: Literal["chat.message"] = field(default="chat.message", init=False)
+
+
+@dataclass(frozen=True)
+class PlayerDeathEvent:
+    """A player's death, including the message and position at the time of death."""
+
+    id: str
+    timestamp: str
+    message: str
+    player: Player
+    dimension: str
+    x: float
+    y: float
+    z: float
+    type: Literal["player.death"] = field(default="player.death", init=False)
+
+
+Event = Union[ChatEvent, PlayerDeathEvent]
+EventType = Literal["chat.message", "player.death"]
 
 
 @dataclass(frozen=True)

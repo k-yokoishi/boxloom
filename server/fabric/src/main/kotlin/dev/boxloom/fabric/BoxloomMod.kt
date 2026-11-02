@@ -4,10 +4,12 @@ import dev.boxloom.server.core.BoxloomConfig
 import dev.boxloom.server.core.BoxloomEventBroker
 import dev.boxloom.server.core.BoxloomHttpServer
 import net.fabricmc.api.ModInitializer
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
 import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.server.MinecraftServer
+import net.minecraft.server.level.ServerPlayer
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
@@ -38,6 +40,20 @@ object BoxloomMod : ModInitializer {
                 sender.name.string,
                 sender.uuid.toString(),
             )
+        }
+        ServerLivingEntityEvents.AFTER_DEATH.register { entity, source ->
+            if (entity is ServerPlayer) {
+                events.publishPlayerDeath(
+                    // The combat tracker has already been cleared by this callback.
+                    source.getLocalizedDeathMessage(entity).string,
+                    entity.name.string,
+                    entity.uuid.toString(),
+                    entity.level().dimension().identifier().toString(),
+                    entity.x,
+                    entity.y,
+                    entity.z,
+                )
+            }
         }
 
         val configPath = FabricLoader.getInstance().configDir.resolve("boxloom.json")

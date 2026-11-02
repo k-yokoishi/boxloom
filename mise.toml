@@ -24,6 +24,14 @@ description = "Build the Python SDK distributions"
 dir = "sdks/python"
 run = "uv build --clear"
 
+[tasks.python-typecheck]
+description = "Check event API types with mypy and Pyright"
+dir = "sdks/python"
+run = '''
+uv run mypy
+uv run pyright
+'''
+
 [tasks.python-publish-testpypi]
 description = "Test, build, and publish the Python SDK to TestPyPI"
 dir = "sdks/python"

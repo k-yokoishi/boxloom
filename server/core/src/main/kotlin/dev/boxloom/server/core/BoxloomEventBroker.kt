@@ -14,7 +14,7 @@ class BoxloomEventBroker(
 ) : AutoCloseable {
     private val lock = ReentrantLock()
     private val changed = lock.newCondition()
-    private val events = ArrayDeque<ChatMessageEvent>()
+    private val events = ArrayDeque<BoxloomEvent>()
     private var instanceId = UUID.randomUUID().toString()
     private var sequence = 0L
     private var closed = false
@@ -24,17 +24,28 @@ class BoxloomEventBroker(
     }
 
     fun publishChatMessage(message: String, username: String, uuid: String): ChatMessageEvent =
+        publish { cursor, timestamp ->
+            ChatMessageEvent(cursor, timestamp, message, username, uuid)
+        }
+
+    fun publishPlayerDeath(
+        message: String,
+        username: String,
+        uuid: String,
+        dimension: String,
+        x: Double,
+        y: Double,
+        z: Double,
+    ): PlayerDeathEvent = publish { cursor, timestamp ->
+        PlayerDeathEvent(cursor, timestamp, message, username, uuid, dimension, x, y, z)
+    }
+
+    private fun <T : BoxloomEvent> publish(create: (EventCursor, Instant) -> T): T =
         lock.withLock {
             check(!closed) { "The event broker is closed" }
             sequence = Math.incrementExact(sequence)
 
-            val event = ChatMessageEvent(
-                EventCursor(instanceId, sequence),
-                clock.instant(),
-                message,
-                username,
-                uuid,
-            )
+            val event = create(EventCursor(instanceId, sequence), clock.instant())
             events.addLast(event)
 
             while (events.size > capacity) {
@@ -55,7 +66,7 @@ class BoxloomEventBroker(
         }
     }
 
-    fun awaitAfter(cursor: EventCursor, timeout: Duration): List<ChatMessageEvent>? {
+    fun awaitAfter(cursor: EventCursor, timeout: Duration): List<BoxloomEvent>? {
         return lock.withLock {
             require(!timeout.isNegative) { "Event wait timeout must not be negative" }
             var remainingNanos = timeout.toNanos()
@@ -146,15 +157,41 @@ class EventCursor internal constructor(
     override fun toString(): String = "$instanceId:$sequence"
 }
 
-class ChatMessageEvent internal constructor(
+sealed class BoxloomEvent(
     val cursor: EventCursor,
     val timestamp: Instant,
     val message: String,
     val username: String,
     val uuid: String,
 ) {
+    abstract val type: String
+
     val id: String
         get() = cursor.toString()
+}
+
+class ChatMessageEvent internal constructor(
+    cursor: EventCursor,
+    timestamp: Instant,
+    message: String,
+    username: String,
+    uuid: String,
+) : BoxloomEvent(cursor, timestamp, message, username, uuid) {
+    override val type: String = "chat.message"
+}
+
+class PlayerDeathEvent internal constructor(
+    cursor: EventCursor,
+    timestamp: Instant,
+    message: String,
+    username: String,
+    uuid: String,
+    val dimension: String,
+    val x: Double,
+    val y: Double,
+    val z: Double,
+) : BoxloomEvent(cursor, timestamp, message, username, uuid) {
+    override val type: String = "player.death"
 }
 
 class InvalidEventCursorException(message: String) : IllegalArgumentException(message)

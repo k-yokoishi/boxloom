@@ -562,6 +562,83 @@ ticks and empty clock or marker strings raise `ValueError` before any HTTP reque
 
 </Operation>
 
+## `watch_event`
+
+<Operation id="watch_event">
+
+```python
+EventType = Literal["chat.message", "player.death"]
+Event = Union[ChatEvent, PlayerDeathEvent]
+
+watch_event(
+    event_type: Optional[EventType] = None,
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventStream[Event]
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `event_type` | `Optional[EventType]` | `None` | Receive all supported event types, or filter to `"chat.message"` or `"player.death"`. Unknown values raise `ValueError`. |
+| `last_event_id` | `Optional[str]` | `None` | Resume strictly after this event ID. `None` starts at the live position when iteration first opens the connection. |
+| `reconnect` | `bool` | `True` | Reconnect automatically using the last received cursor after a connection drops. |
+
+**Returns** — `EventStream[Event]`, an iterator and context manager with `last_event_id` and `close()`.
+
+The stream yields `ChatEvent` and `PlayerDeathEvent`. Both carry:
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `type` | `EventType` | Fixed discriminator: `"chat.message"` or `"player.death"`. |
+| `id` | `str` | Opaque event ID, usable as `last_event_id`. |
+| `timestamp` | `str` | UTC ISO-8601 instant. |
+| `player` | `Player` | The player, with `username` and `uuid`. |
+| `message` | `str` | The chat text or Minecraft's plain-text death message. |
+
+`PlayerDeathEvent` also carries:
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `dimension` | `str` | Namespaced dimension ID at death. |
+| `x`, `y`, `z` | `float` | Player position captured at death. |
+
+**Example**
+
+```python
+from boxloom import watch_event
+
+with watch_event() as events:
+    for event in events:
+        if event.type == "chat.message":
+            print(f"<{event.player.username}> {event.message}")
+        elif event.type == "player.death":
+            print(event.player.username, event.dimension, event.x, event.y, event.z)
+
+# A literal filter selects the yielded type without an additional branch:
+with watch_event("player.death") as deaths:
+    for death in deaths:
+        print(death.x)  # Inferred as PlayerDeathEvent by mypy and Pyright.
+```
+
+`EventType` uses `Literal`, so editors can suggest valid strings and type checkers
+reject misspellings such as `"player.deth"`. `event.type` narrows the `Event` union.
+Overloads return `EventStream[ChatEvent]` for `"chat.message"` and
+`EventStream[PlayerDeathEvent]` for `"player.death"`. These types are included in the
+installed package through its `py.typed` marker.
+
+This function also exists on `BoxloomClient`. Filtering happens in the SDK over
+the same `GET /v1/events` connection; skipped events still advance the cursor.
+Unknown event names are skipped for forward compatibility. `stream.ready` is
+handled internally, while stream resets and errors raise SDK exceptions.
+Only confirmed player deaths are emitted; mob deaths and successful totem saves
+do not produce `player.death`. Death notifications work even when Minecraft's
+death messages are hidden.
+
+</Operation>
+
 ## `watch_chat`
 
 <Operation id="watch_chat">
@@ -594,6 +671,7 @@ Each `ChatEvent` carries:
 | Attribute | Type | Description |
 | --- | --- | --- |
 | `id` | `str` | Opaque event ID. Use it as the next `last_event_id`. |
+| `type` | `Literal["chat.message"]` | Fixed event discriminator. |
 | `timestamp` | `str` | UTC ISO-8601 instant. |
 | `message` | `str` | The chat message. |
 | `player` | `Player` | The sender, with `username` and `uuid`. |

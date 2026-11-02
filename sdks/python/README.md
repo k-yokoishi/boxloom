@@ -51,6 +51,34 @@ with watch_chat() as events:
 
 More runnable examples are available in [`../../examples/python`](../../examples/python).
 
+Handle chat and player deaths through one event stream:
+
+```python
+from boxloom import watch_event
+
+with watch_event() as events:
+    for event in events:
+        if event.type == "chat.message":
+            print(f"<{event.player.username}> {event.message}")
+        elif event.type == "player.death":
+            print(f"{event.player.username} died: {event.message}")
+            print(event.dimension, event.x, event.y, event.z)
+```
+
+`watch_event("player.death")` receives only player deaths;
+`watch_event("chat.message")` receives only chat. `watch_event` also exists on
+`BoxloomClient` and accepts `last_event_id` and `reconnect`, like `watch_chat`.
+Filtering happens in the SDK; both types share the `GET /v1/events` stream and
+its combined history of 1,024 events. Unknown event names are skipped. Existing
+`watch_chat()` callers continue to receive only chat messages.
+
+`EventType` is `Literal["chat.message", "player.death"]`. Type checkers reject
+unknown event type strings. `watch_event()` yields `Event`, a union of `ChatEvent`
+and `PlayerDeathEvent`, and checking `event.type` narrows it to the matching class.
+Overloads make `watch_event("player.death")` yield `PlayerDeathEvent` directly,
+including inside a `with` block. The distribution includes `py.typed` so editors
+and type checkers can use these annotations after installation.
+
 Control the world clock:
 
 ```python
@@ -95,6 +123,7 @@ From the repository root:
 mise install
 mise run python-sync
 mise run python-test
+mise run python-typecheck
 mise run python-build
 ```
 
