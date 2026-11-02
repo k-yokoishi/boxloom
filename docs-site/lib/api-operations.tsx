@@ -200,6 +200,33 @@ export const apiOperations = {
       dimensionNotFound,
     ],
   },
+  get_entities: {
+    description: (
+      <>
+        <p>
+          List loaded, alive entities in one dimension, including players and
+          dropped items. The result is a snapshot captured on the server thread;
+          no chunks are loaded.
+        </p>
+        <p>
+          Filter by exact entity type and an optional inclusive sphere, then sort,
+          then apply the limit. Omit the type for all types. Supply all three
+          center coordinates for a radius or distance sorting. Distance ties use
+          UUID order; arbitrary order is unspecified. No matches returns an empty
+          list. Health is null for entities without health.
+        </p>
+      </>
+    ),
+    errors: [
+      invalidDimension,
+      {
+        status: 400,
+        code: 'INVALID_ENTITY',
+        meaning: 'The entity type ID is malformed or not registered.',
+      },
+      dimensionNotFound,
+    ],
+  },
   summon: {
     description: (
       <>
