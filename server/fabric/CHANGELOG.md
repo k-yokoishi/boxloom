@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.5
 
 - Stream confirmed player deaths with the death message and location, and consume
   chat and death events through the Python SDK's generic `watch_event()` API
+- Ship Python type information with `py.typed` and narrow event types based on
+  the selected filter
 - List loaded entities through REST and the Python SDK, with type and sphere
   filters, distance sorting, and a result limit; return position, rotation, name,
   and health
