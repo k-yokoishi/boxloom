@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-- REST と Python SDK からロード済みエンティティを一覧取得し、種類・球形範囲・距離順・件数で絞り込める。位置・向き・名前・体力を返す。
+- Stream confirmed player deaths with the death message and location, and consume
+  chat and death events through the Python SDK's generic `watch_event()` API
+- List loaded entities through REST and the Python SDK, with type and sphere
+  filters, distance sorting, and a result limit; return position, rotation, name,
+  and health
 
 ## 0.1.0-alpha.4
 

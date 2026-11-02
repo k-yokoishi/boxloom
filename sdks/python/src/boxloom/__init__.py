@@ -2,7 +2,7 @@
 
 import os
 import threading
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 from ._client import BoxloomClient
 from .errors import (
@@ -15,8 +15,12 @@ from .errors import (
 from .events import (
     ChatEvent,
     ChatEventStream,
+    Event,
     EventCursorExpiredError,
+    EventStream,
     EventStreamError,
+    EventType,
+    PlayerDeathEvent,
 )
 from .models import (
     Entity,
@@ -40,12 +44,16 @@ __all__ = [
     "ConfigurationError",
     "ConnectionError",
     "Entity",
+    "Event",
     "EventCursorExpiredError",
+    "EventStream",
     "EventStreamError",
+    "EventType",
     "FillResult",
     "GetBlockResult",
     "KillResult",
     "Player",
+    "PlayerDeathEvent",
     "PlayerPosition",
     "ProtocolError",
     "SayResult",
@@ -68,6 +76,7 @@ __all__ = [
     "summon",
     "teleport_player",
     "watch_chat",
+    "watch_event",
 ]
 
 __version__ = "0.1.0a4"
@@ -155,6 +164,48 @@ def watch_chat(
     """Open a resumable stream of player chat messages."""
 
     return _default_client().watch_chat(
+        last_event_id=last_event_id,
+        reconnect=reconnect,
+    )
+
+
+@overload
+def watch_event(
+    event_type: Literal["chat.message"],
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventStream[ChatEvent]: ...
+
+
+@overload
+def watch_event(
+    event_type: Literal["player.death"],
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventStream[PlayerDeathEvent]: ...
+
+
+@overload
+def watch_event(
+    event_type: Optional[EventType] = None,
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventStream[Event]: ...
+
+
+def watch_event(
+    event_type: Optional[EventType] = None,
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventStream[Event]:
+    """Open a resumable event stream, optionally filtered by event type."""
+
+    return _default_client().watch_event(
+        event_type,
         last_event_id=last_event_id,
         reconnect=reconnect,
     )

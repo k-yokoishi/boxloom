@@ -387,6 +387,164 @@ class ClientTest(unittest.TestCase):
             with self.assertRaises(boxloom.ProtocolError):
                 next(events)
 
+    def test_watch_event_returns_mixed_events_with_type_discriminators(self):
+        _ApiHandler.stream_responses = [
+            (200, "text/event-stream",
+             _sse("stream.ready", "session:0",
+                  {"type": "stream.ready", "cursor": "session:0"})
+             + _chat_sse("session:1", "hello")
+             + _sse("future.event", "session:2", {"type": "future.event"})
+             + _death_sse("session:3"))
+        ]
+
+        with boxloom.watch_event(reconnect=False) as events:
+            chat = next(events)
+            death = next(events)
+            self.assertEqual("session:3", events.last_event_id)
+
+        self.assertIsInstance(chat, boxloom.ChatEvent)
+        self.assertEqual("chat.message", chat.type)
+        self.assertEqual("hello", chat.message)
+        self.assertIsInstance(death, boxloom.PlayerDeathEvent)
+        self.assertEqual("player.death", death.type)
+        self.assertEqual("session:3", death.id)
+        self.assertEqual(1, len(_ApiHandler.requests))
+
+    def test_watch_event_filters_chat_by_keyword(self):
+        _ApiHandler.stream_responses = [
+            (200, "text/event-stream", _death_sse("session:1")
+             + _chat_sse("session:2", "hello"))
+        ]
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+
+        with client.watch_event(event_type="chat.message", reconnect=False) as events:
+            event = next(events)
+        self.assertEqual("chat.message", event.type)
+        self.assertEqual("session:2", event.id)
+
+    def test_watch_event_streams_an_authenticated_death_and_skips_chat(self):
+        event_id = "session:2"
+        _ApiHandler.stream_responses = [
+            (200, "text/event-stream", _chat_sse("session:1", "hello")
+             + _death_sse(event_id))
+        ]
+
+        with boxloom.watch_event("player.death", reconnect=False) as events:
+            event = next(events)
+            self.assertEqual(event_id, events.last_event_id)
+            self.assertIsInstance(events, boxloom.EventStream)
+
+        self.assertEqual(
+            boxloom.PlayerDeathEvent(
+                id=event_id,
+                timestamp="2026-08-14T00:00:00Z",
+                message="Player_123 fell from a high place",
+                player=boxloom.Player(
+                    "Player_123", "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+                ),
+                dimension="minecraft:the_nether",
+                x=1.5,
+                y=64.0,
+                z=-2.25,
+            ),
+            event,
+        )
+        path, headers, body = _ApiHandler.requests[0]
+        self.assertEqual("/v1/events", path)
+        self.assertEqual("text/event-stream", headers["Accept"])
+        self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+        self.assertIsNone(body)
+
+    def test_watch_chat_skips_player_deaths(self):
+        _ApiHandler.stream_responses = [
+            (200, "text/event-stream", _death_sse("session:1")
+             + _chat_sse("session:2", "still here"))
+        ]
+
+        with boxloom.watch_chat(reconnect=False) as events:
+            self.assertEqual("still here", next(events).message)
+
+    def test_watch_event_resumes_after_skipped_events_on_reconnect(self):
+        _ApiHandler.stream_responses = [
+            (200, "text/event-stream", b"retry: 1\n\n"
+             + _sse("stream.ready", "session:0",
+                    {"type": "stream.ready", "cursor": "session:0"})
+             + _chat_sse("session:1", "hello")
+             + _sse("future.event", "session:2", {"type": "future.event"})),
+            (200, "text/event-stream", _death_sse("session:3")),
+        ]
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+
+        with client.watch_event("player.death", last_event_id="saved:0") as events:
+            self.assertEqual("session:3", next(events).id)
+
+        headers = [
+            {name.lower(): value for name, value in request[1].items()}
+            for request in _ApiHandler.requests
+        ]
+        self.assertEqual("saved:0", headers[0]["last-event-id"])
+        self.assertEqual("session:2", headers[1]["last-event-id"])
+
+    def test_watch_event_rejects_malformed_death_payloads(self):
+        cases = [
+            {"type": "chat.message"},
+            {"id": "different:1"},
+            {"id": None},
+            {"player": None},
+            {"player": {"username": "Player_123"}},
+            {"timestamp": None},
+            {"message": None},
+            {"dimension": None},
+            {"x": True},
+            {"y": "64"},
+            {"z": None},
+        ]
+        for changes in cases:
+            with self.subTest(changes=changes):
+                _ApiHandler.stream_responses = [
+                    (200, "text/event-stream", _death_sse("session:1", **changes))
+                ]
+                with boxloom.watch_event("player.death", reconnect=False) as events:
+                    with self.assertRaises(boxloom.ProtocolError):
+                        next(events)
+
+    def test_watch_event_maps_expired_cursor_and_stream_reset(self):
+        _ApiHandler.response_status = 410
+        _ApiHandler.response_body = {
+            "error": {"code": "EVENT_CURSOR_EXPIRED", "message": "Expired"},
+        }
+        with boxloom.watch_event("player.death", last_event_id="saved:1") as events:
+            with self.assertRaises(boxloom.EventCursorExpiredError):
+                next(events)
+
+        _ApiHandler.stream_responses = [
+            (200, "text/event-stream", _sse("stream.reset", None, {
+                "type": "stream.reset",
+                "code": "EVENT_CURSOR_EXPIRED",
+                "message": "The server session changed",
+            }))
+        ]
+        with boxloom.watch_event("player.death", reconnect=False) as events:
+            with self.assertRaises(boxloom.EventCursorExpiredError):
+                next(events)
+
+    def test_watch_event_validates_options_and_stops_when_closed(self):
+        for cursor in ("", "\n", "saved:1\r\nInjected: value", 1):
+            with self.subTest(cursor=cursor):
+                with self.assertRaises(boxloom.ConfigurationError):
+                    boxloom.watch_event("player.death", last_event_id=cursor)
+        with self.assertRaises(boxloom.ConfigurationError):
+            boxloom.watch_event("player.death", reconnect="yes")
+        for event_type in ("", "player.deth", 1, ["player.death"]):
+            with self.subTest(event_type=event_type):
+                with self.assertRaises(ValueError):
+                    boxloom.watch_event(event_type)
+        events = boxloom.watch_event("player.death")
+        events.close()
+        with self.assertRaises(StopIteration):
+            next(events)
+        self.assertEqual([], _ApiHandler.requests)
+
     def test_watch_chat_reconnects_with_the_last_event_id(self):
         first_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:1"
         second_id = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af:2"
@@ -954,6 +1112,25 @@ def _sse(event, event_id, payload):
         "data: " + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     )
     return ("\n".join(fields) + "\n\n").encode("utf-8")
+
+
+def _death_sse(event_id, **changes):
+    payload = {
+        "type": "player.death",
+        "id": event_id,
+        "timestamp": "2026-08-14T00:00:00Z",
+        "message": "Player_123 fell from a high place",
+        "player": {
+            "username": "Player_123",
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+        },
+        "dimension": "minecraft:the_nether",
+        "x": 1.5,
+        "y": 64,
+        "z": -2.25,
+    }
+    payload.update(changes)
+    return _sse("player.death", event_id, payload)
 
 
 def _chat_sse(event_id, message):

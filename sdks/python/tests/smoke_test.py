@@ -3,9 +3,10 @@ import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.metadata import version
+from importlib.resources import files
 
 import boxloom
-from boxloom.events import ChatEventStream
+from boxloom.events import ChatEventStream, EventStream, EventType, PlayerDeathEvent
 from boxloom import (
     ChatEvent,
     EventCursorExpiredError,
@@ -28,6 +29,7 @@ from boxloom import (
     summon,
     teleport_player,
     watch_chat,
+    watch_event,
 )
 
 
@@ -48,6 +50,11 @@ assert callable(kill_entities)
 assert KillResult.__name__ == "KillResult"
 assert callable(teleport_player)
 assert callable(watch_chat)
+assert callable(watch_event)
+assert boxloom.EventStream is EventStream
+assert boxloom.EventType is EventType
+assert boxloom.PlayerDeathEvent is PlayerDeathEvent
+assert files("boxloom").joinpath("py.typed").is_file()
 assert FillResult.__name__ == "FillResult"
 assert GetBlockResult.__name__ == "GetBlockResult"
 assert boxloom.ChatEventStream is ChatEventStream
@@ -113,6 +120,20 @@ event = ChatEvent(
     player=player,
 )
 assert event.player.username == "Player"
+assert event.type == "chat.message"
+death = PlayerDeathEvent(
+    id="00000000-0000-0000-0000-000000000000:2",
+    timestamp="2026-08-14T00:00:01Z",
+    message="Player died",
+    player=player,
+    dimension="minecraft:overworld",
+    x=1.5,
+    y=64.0,
+    z=-2.25,
+)
+assert death.type == "player.death"
+with watch_event("player.death", reconnect=False) as deaths:
+    assert isinstance(deaths, EventStream)
 summon_result = boxloom.SummonResult(
     uuid="00000000-0000-0000-0000-000000000001",
     entity="minecraft:pig",

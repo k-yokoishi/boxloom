@@ -27,6 +27,34 @@ class BoxloomEventBrokerTest {
     }
 
     @Test
+    fun `chat and player deaths share ordered replay and retention`() {
+        BoxloomEventBroker(capacity = 2, clock = clock).use { broker ->
+            val expired = broker.openCursor(null)
+            val chat = broker.publishChatMessage("hello", "Steve", TEST_UUID)
+            val death = broker.publishPlayerDeath(
+                "Steve fell from a high place", "Steve", TEST_UUID,
+                "minecraft:the_nether", 1.5, 64.0, -2.25,
+            )
+            assertEquals(listOf(chat, death), broker.awaitAfter(expired, Duration.ZERO))
+            assertEquals("2026-08-14T00:00:00Z", death.timestamp.toString())
+            assertEquals("player.death", death.type)
+
+            val nextChat = broker.publishChatMessage("again", "Steve", TEST_UUID)
+            assertEquals(
+                listOf(death, nextChat),
+                broker.awaitAfter(broker.openCursor(chat.id), Duration.ZERO),
+            )
+            assertEquals(
+                listOf(nextChat),
+                broker.awaitAfter(broker.openCursor(death.id), Duration.ZERO),
+            )
+            assertFailsWith<EventCursorExpiredException> {
+                broker.awaitAfter(expired, Duration.ZERO)
+            }
+        }
+    }
+
+    @Test
     fun `reopens a retained cursor without duplicating acknowledged events`() {
         BoxloomEventBroker(clock = clock).use { broker ->
             broker.publishChatMessage("first", "Steve", TEST_UUID)

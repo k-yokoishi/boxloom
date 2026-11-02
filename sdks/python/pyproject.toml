@@ -32,3 +32,23 @@ explicit = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+boxloom = ["py.typed"]
+
+[tool.mypy]
+files = ["src", "tests/typing"]
+strict = true
+warn_unused_ignores = true
+
+[tool.pyright]
+include = ["tests/typing"]
+typeCheckingMode = "strict"
+reportUnnecessaryTypeIgnoreComment = true
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pyright>=1.1.414",
+    "typing-extensions>=4.16.0",
+]

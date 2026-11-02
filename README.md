@@ -94,6 +94,22 @@ with watch_chat() as events:
 
 Runnable examples are available in [`examples/python`](examples/python).
 
+Handle chat and player deaths through one event stream:
+
+```python
+from boxloom import watch_event
+
+with watch_event() as events:
+    for event in events:
+        if event.type == "chat.message":
+            print(f"<{event.player.username}> {event.message}")
+        elif event.type == "player.death":
+            print(f"{event.player.username} died: {event.message}")
+```
+
+Use `watch_event("player.death")` to receive only player deaths, including their
+dimension and `x`, `y`, `z` coordinates. Both event types use `GET /v1/events`.
+
 ## Development
 
 The repository uses [mise](https://mise.jdx.dev/) to install Java 25 and uv and to run the common development tasks.
@@ -102,6 +118,7 @@ The repository uses [mise](https://mise.jdx.dev/) to install Java 25 and uv and 
 mise install
 mise run python-sync
 mise run python-test
+mise run python-typecheck
 mise run python-build
 mise run fabric-build
 mise run docs-install

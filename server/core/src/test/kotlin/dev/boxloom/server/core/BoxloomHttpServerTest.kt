@@ -814,7 +814,7 @@ class BoxloomHttpServerTest {
     }
 
     @Test
-    fun `streams chat messages as server sent events`() {
+    fun `streams chat messages and player deaths as server sent events`() {
         withServer(authToken = null) { server, events ->
             val request = HttpRequest.newBuilder()
                 .uri(URI("http://127.0.0.1:${server.boundPort}/v1/events"))
@@ -844,6 +844,18 @@ class BoxloomHttpServerTest {
                 assertEquals(published.id, chat["id"])
                 assertContains(chat.getValue("data"), "\"message\":\"hello\"")
                 assertContains(chat.getValue("data"), "\"username\":\"Steve\"")
+
+                val publishedDeath = events.publishPlayerDeath(
+                    "Steve fell from a high place", "Steve", TEST_UUID,
+                    "minecraft:the_nether", 1.5, 64.0, -2.25,
+                )
+                val death = readSseEvent(reader)
+                assertEquals("player.death", death["event"])
+                assertEquals(publishedDeath.id, death["id"])
+                assertEquals(
+                    """{"type":"player.death","id":"${publishedDeath.id}","timestamp":"${publishedDeath.timestamp}","message":"Steve fell from a high place","player":{"username":"Steve","uuid":"$TEST_UUID"},"dimension":"minecraft:the_nether","x":1.5,"y":64.0,"z":-2.25}""",
+                    death["data"],
+                )
             }
         }
     }
@@ -873,9 +885,12 @@ class BoxloomHttpServerTest {
     }
 
     @Test
-    fun `replays retained chat messages after last event id`() {
+    fun `replays retained player deaths and chat messages after last event id`() {
         val events = BoxloomEventBroker()
         val acknowledged = events.publishChatMessage("one", "Steve", TEST_UUID)
+        val replayedDeath = events.publishPlayerDeath(
+            "Steve died", "Steve", TEST_UUID, "minecraft:overworld", 0.0, 64.0, 0.0,
+        )
         val replayed = events.publishChatMessage("two", "Alex", OTHER_UUID)
 
         withServer(authToken = null, events = events) { server, _ ->
@@ -894,6 +909,9 @@ class BoxloomHttpServerTest {
                 val reader = BufferedReader(InputStreamReader(body, StandardCharsets.UTF_8))
                 assertEquals("stream.ready", readSseEvent(reader)["event"])
 
+                val death = readSseEvent(reader)
+                assertEquals("player.death", death["event"])
+                assertEquals(replayedDeath.id, death["id"])
                 val chat = readSseEvent(reader)
                 assertEquals("chat.message", chat["event"])
                 assertEquals(replayed.id, chat["id"])

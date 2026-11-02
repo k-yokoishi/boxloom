@@ -101,6 +101,30 @@ const clockNotFound: ApiErrorRow = {
   meaning: 'The requested world clock does not exist.',
 };
 
+const eventStreamErrors: ApiErrorRow[] = [
+  {
+    status: 400,
+    code: 'INVALID_EVENT_CURSOR',
+    meaning: 'The cursor is malformed or ahead of the live stream.',
+  },
+  {
+    status: 406,
+    code: 'NOT_ACCEPTABLE',
+    meaning: (
+      <>
+        The <code>Accept</code> header does not allow{' '}
+        <code>text/event-stream</code>.
+      </>
+    ),
+  },
+  {
+    status: 410,
+    code: 'EVENT_CURSOR_EXPIRED',
+    meaning:
+      'The cursor belongs to another server session, or its following events are no longer retained.',
+  },
+];
+
 /**
  * What every interface page says the same way: the prose describing an
  * operation and the errors it can return. Each page contributes only its own
@@ -368,6 +392,19 @@ export const apiOperations = {
     ),
     errors: [invalidClock, clockNotFound],
   },
+  watch_event: {
+    description: (
+      <p>
+        Listen for player events through one long-lived stream, distinguishing
+        chat and deaths by their type. With no cursor the stream starts at the
+        current live position. Reconnecting with the ID of the last processed
+        event replays retained events strictly after it. The server keeps the
+        most recent 1,024 events across all types, and cursors do not survive a
+        Minecraft server restart.
+      </p>
+    ),
+    errors: eventStreamErrors,
+  },
   watch_chat: {
     description: (
       <p>
@@ -375,33 +412,11 @@ export const apiOperations = {
         the stream starts at the current live position and does not replay chat
         that predates the connection. Reconnecting with the ID of the last event
         you processed replays retained events strictly after it; the server keeps
-        the most recent 1,024 chat events, and cursors do not survive a Minecraft
-        server restart.
+        the most recent 1,024 events across all types, and cursors do not survive
+        a Minecraft server restart.
       </p>
     ),
-    errors: [
-      {
-        status: 400,
-        code: 'INVALID_EVENT_CURSOR',
-        meaning: 'The cursor is malformed or ahead of the live stream.',
-      },
-      {
-        status: 406,
-        code: 'NOT_ACCEPTABLE',
-        meaning: (
-          <>
-            The <code>Accept</code> header does not allow{' '}
-            <code>text/event-stream</code>.
-          </>
-        ),
-      },
-      {
-        status: 410,
-        code: 'EVENT_CURSOR_EXPIRED',
-        meaning:
-          'The cursor belongs to another server session, or its following events are no longer retained.',
-      },
-    ],
+    errors: eventStreamErrors,
   },
 } satisfies Record<string, ApiOperation>;
 

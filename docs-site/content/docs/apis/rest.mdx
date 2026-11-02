@@ -660,9 +660,9 @@ curl --fail-with-body \
 
 </Operation>
 
-## `watch_chat`
+## `watch_event`
 
-<Operation id="watch_chat">
+<Operation id="watch_event">
 
 <ApiEndpoint method="GET" path="/v1/events" />
 
@@ -681,10 +681,16 @@ The stream opens with `retry: 1000`, sends comment heartbeats while idle, and em
 | --- | --- | --- |
 | `stream.ready` | `type`, `cursor` | The stream is open at the given cursor. |
 | `chat.message` | `type`, `id`, `timestamp`, `message`, `player.username`, `player.uuid` | A player chat message. Its `id` equals the SSE `id`. |
+| `player.death` | `type`, `id`, `timestamp`, `message`, `player.username`, `player.uuid`, `dimension`, `x`, `y`, `z` | A confirmed player death, including its Minecraft death message and location. Its `id` equals the SSE `id`. |
 | `stream.reset` | `type`, `code`, `message` | The cursor became unusable; the response ends after this event. |
 | `error` | `type`, `code`, `message` | An unrecoverable stream failure; the response ends. |
 
 Event IDs are opaque and must not be parsed. Use them for deduplication when your processing and cursor persistence are not atomic.
+
+Both application event types share one ordered history of 1,024 events. JSON
+`type` equals the SSE event name. All event types are sent on this endpoint; the
+Python SDK's optional `event_type` filter operates on the client. Only player
+deaths are emitted, independently of whether death messages are shown in chat.
 
 **Example**
 
@@ -701,6 +707,10 @@ retry: 1000
 event: chat.message
 id: 2f5e31b8-1a7b-40ec-a17e-3daf8e2938a0:42
 data: {"type":"chat.message","id":"2f5e31b8-1a7b-40ec-a17e-3daf8e2938a0:42","timestamp":"2026-08-14T00:00:00Z","message":"hello","player":{"username":"Steve","uuid":"58f6e634-15d9-4d4c-8ca0-8a4b23fe38af"}}
+
+event: player.death
+id: 2f5e31b8-1a7b-40ec-a17e-3daf8e2938a0:43
+data: {"type":"player.death","id":"2f5e31b8-1a7b-40ec-a17e-3daf8e2938a0:43","timestamp":"2026-08-14T00:00:01Z","message":"Steve fell from a high place","player":{"username":"Steve","uuid":"58f6e634-15d9-4d4c-8ca0-8a4b23fe38af"},"dimension":"minecraft:overworld","x":1.5,"y":64.0,"z":-2.25}
 ```
 
 </Operation>
