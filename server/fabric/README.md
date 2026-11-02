@@ -2,7 +2,7 @@
 
 This directory contains the initial Kotlin-based, server-side Fabric mod PoC. It connects Minecraft and Fabric to the platform-independent [`../core`](../core) module and is designed to work in both a Fabric Dedicated Server and an integrated server.
 
-The PoC implements eleven Minecraft operations and one event stream:
+The mod exposes Minecraft operations and a live player event stream:
 
 - Broadcast a system message to connected players
 - List connected players
@@ -12,8 +12,10 @@ The PoC implements eleven Minecraft operations and one event stream:
 - Set one block
 - Fill an inclusive block region
 - Summon one entity with optional NBT
+- List loaded entities with type and sphere filters, distance sorting, and a result limit
+- Kill entities by UUID or by type and optional sphere
 - Read, set, and add ticks to a world clock, including `/time set day` markers
-- Stream player chat messages as resumable Server-Sent Events
+- Stream player chat messages and deaths as resumable Server-Sent Events
 
 Arbitrary command execution is intentionally outside this PoC.
 
@@ -39,7 +41,15 @@ The mod uses a common `main` entrypoint and does not reference `net.minecraft.cl
 
 `server/core` owns the JDK `HttpServer`, optional Bearer authentication, input validation, JSON serialization, errors, and shared operation types. This adapter implements `MinecraftOperations`; all player and world access is handed to `MinecraftServer#execute`, and a `CompletableFuture` returns the result to a virtual HTTP worker thread. Operations time out after five seconds by default, and timed-out futures prevent queued work from running if it has not reached the server thread yet.
 
-Fabric's `ServerMessageEvents.CHAT_MESSAGE` callback publishes signed player chat content to an in-memory history containing the most recent 1,024 events. `GET /v1/events` holds an HTTP response open and emits SSE frames as messages arrive. Event IDs combine a per-server-session identity and a monotonic sequence. Clients reconnect with `Last-Event-ID`; retained messages after that cursor are replayed, while a cursor from another session or evicted history returns `410 EVENT_CURSOR_EXPIRED`. Cursors are provided by boxloom, not persisted by Fabric or Minecraft.
+Fabric's `ServerMessageEvents.CHAT_MESSAGE` callback publishes signed player chat
+content, and `ServerLivingEntityEvents.AFTER_DEATH` publishes confirmed player
+deaths with a death message and location. They share an in-memory history of the
+most recent 1,024 events. `GET /v1/events` holds an HTTP response open and emits
+SSE frames as events arrive. Event IDs combine a per-server-session identity and
+a monotonic sequence. Clients reconnect with `Last-Event-ID`; retained events
+after that cursor are replayed, while a cursor from another session or evicted
+history returns `410 EVENT_CURSOR_EXPIRED`. Cursors are provided by boxloom, not
+persisted by Fabric or Minecraft.
 
 The distributable Fabric JAR embeds the core JAR, so installation still requires only one top-level file. The HTTP transport uses only JDK classes and therefore adds no HTTP-framework runtime JARs. Kotlin and kotlinx serialization remain supplied by the required Fabric Language Kotlin dependency.
 
@@ -78,7 +88,7 @@ cd server
 ./gradlew :fabric:clean :fabric:build
 ```
 
-The mod JAR is written to `fabric/build/libs/boxloom-0.1.0-alpha.3.jar`.
+The mod JAR is written to `fabric/build/libs/boxloom-0.1.0-alpha.5.jar`.
 
 ## Docker PoC
 

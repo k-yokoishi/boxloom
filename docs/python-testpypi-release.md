@@ -24,14 +24,17 @@ The workflow can publish only from `main`. It uses the Python version in `sdks/p
 
 TestPyPI does not allow a published distribution file to be replaced. Increment the package version before publishing another build.
 
-Python SDK `0.1.0a4` はワールド時刻の操作とエンティティの kill に対応する。ループバック接続では認証トークンを省略でき、ループバック以外へ bind する Fabric mod には空でないトークンが必要になる。
+Python SDK `0.1.0a5` adds loaded entity queries and typed player death event
+streams. It also supports world clock operations and entity killing. Loopback
+connections may omit the authentication token; a Fabric mod bound to a
+non-loopback address requires a non-empty token.
 
 ## Verify the published package
 
 The current SDK has no third-party runtime dependencies, so it can be installed directly from TestPyPI in a clean environment:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a4
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a5
 ```
 
 Then verify the installed package:
