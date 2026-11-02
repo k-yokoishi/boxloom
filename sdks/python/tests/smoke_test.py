@@ -10,6 +10,7 @@ from boxloom.events import ChatEventStream, EventStream, EventType, PlayerDeathE
 from boxloom import (
     ChatEvent,
     EventCursorExpiredError,
+    Entity,
     FillResult,
     GetBlockResult,
     KillResult,
@@ -17,6 +18,7 @@ from boxloom import (
     PlayerPosition,
     fill,
     get_block,
+    get_entities,
     get_player_position,
     get_players,
     init,
@@ -36,6 +38,8 @@ assert callable(init)
 assert callable(say)
 assert callable(fill)
 assert callable(get_block)
+assert callable(get_entities)
+assert Entity.__name__ == "Entity"
 assert callable(get_player_position)
 assert callable(get_players)
 assert callable(set_block)

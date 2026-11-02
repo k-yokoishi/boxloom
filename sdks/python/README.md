@@ -96,6 +96,31 @@ These functions also exist on `BoxloomClient`. They default to the
 to select another clock. A marker advances to its next occurrence, while an integer
 sets total elapsed ticks. `add_time` accepts signed ticks and clamps at zero.
 
+List entities, or find the nearest zombie within 20 blocks:
+
+```python
+from boxloom import get_entities
+
+for entity in get_entities():
+    print(entity.uuid, entity.name, entity.entity, entity.health)
+
+nearest = get_entities(
+    "minecraft:zombie", x=0, y=64, z=0,
+    radius=20, sort="nearest", limit=1,
+)
+```
+
+`get_entities` also exists on `BoxloomClient` and returns frozen `Entity`
+snapshots with UUID, type, dimension, position, rotation, name, and health.
+It includes loaded, alive entities, including players and dropped items;
+health is `None` for entities without health. No chunks are loaded.
+The default dimension is `minecraft:overworld`. Omit `entity` for all types.
+Supply `x`, `y`, and `z` together for an inclusive non-negative `radius` or
+`sort="nearest"` / `"furthest"`. Sorting works without a radius.
+Filtering precedes sorting, then `limit` (a positive 32-bit integer) is applied.
+Distance ties use UUID order; the default `sort="arbitrary"` order is unspecified.
+An empty selection returns `[]`.
+
 Kill entities by UUID or by type and optional range:
 
 ```python

@@ -2,8 +2,11 @@ package dev.boxloom.server.core.api.world
 
 import com.sun.net.httpserver.HttpExchange
 import dev.boxloom.server.core.EntityKillRange
+import dev.boxloom.server.core.EntityQueryCenter
+import dev.boxloom.server.core.EntitySort
 import dev.boxloom.server.core.FillRequest
 import dev.boxloom.server.core.GetBlockRequest
+import dev.boxloom.server.core.GetEntitiesRequest
 import dev.boxloom.server.core.JsonSupport
 import dev.boxloom.server.core.KillEntitiesRequest
 import dev.boxloom.server.core.KillEntityRequest
@@ -15,6 +18,9 @@ import dev.boxloom.server.core.http.HttpExchangeSupport
 import dev.boxloom.server.core.http.MinecraftOperationRunner
 import dev.boxloom.server.core.http.Router
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.put
 import java.util.UUID
 
@@ -26,11 +32,68 @@ internal class WorldRoutes(
         router.get("/world/blocks") { exchange, _ -> getBlock(exchange) }
         router.post("/world/blocks") { exchange, _ -> setBlock(exchange) }
         router.post("/world/blocks/fill") { exchange, _ -> fill(exchange) }
+        router.get("/world/entities") { exchange, _ -> getEntities(exchange) }
         router.post("/world/entities") { exchange, _ -> summon(exchange) }
         router.post("/world/entities/{uuid}/kill") { exchange, parameters ->
             killEntity(exchange, HttpExchangeSupport.decodePathSegment(parameters["uuid"], "uuid"))
         }
         router.post("/world/entities/kill") { exchange, _ -> killEntities(exchange) }
+    }
+
+    private fun getEntities(exchange: HttpExchange) {
+        val parameters = HttpExchangeSupport.queryParameters(exchange)
+        HttpExchangeSupport.requireOnlyQueryParameters(parameters, GET_ENTITIES_FIELDS)
+        val dimension = HttpExchangeSupport.requireQueryString(parameters, "dimension")
+        val entity = parameters["entity"]?.let {
+            HttpExchangeSupport.requireQueryString(parameters, "entity")
+        }
+        val center = if (ENTITY_CENTER_FIELDS.any { it in parameters }) {
+            EntityQueryCenter(
+                HttpExchangeSupport.requireQueryFiniteDouble(parameters, "x"),
+                HttpExchangeSupport.requireQueryFiniteDouble(parameters, "y"),
+                HttpExchangeSupport.requireQueryFiniteDouble(parameters, "z"),
+            )
+        } else {
+            null
+        }
+        val radius = parameters["radius"]?.let {
+            HttpExchangeSupport.requireQueryFiniteDouble(parameters, "radius").also { radius ->
+                if (radius < 0) throw JsonSupport.invalid("Query parameter 'radius' must not be negative")
+            }
+        }
+        val sort = parameters["sort"]?.let { value ->
+            EntitySort.entries.firstOrNull { it.value == value }
+                ?: throw JsonSupport.invalid("Query parameter 'sort' must be arbitrary, nearest, or furthest")
+        } ?: EntitySort.ARBITRARY
+        if (center == null && (radius != null || sort != EntitySort.ARBITRARY)) {
+            throw JsonSupport.invalid("Query parameters 'x', 'y', and 'z' are required for radius or distance sorting")
+        }
+        val limit = parameters["limit"]?.let {
+            HttpExchangeSupport.requireQueryInteger(parameters, "limit").also { limit ->
+                if (limit <= 0) throw JsonSupport.invalid("Query parameter 'limit' must be positive")
+            }
+        }
+        val request = GetEntitiesRequest(dimension, entity, center, radius, sort, limit)
+        val entities = operations.await(minecraft.getEntities(request))
+        val response = buildJsonObject {
+            put("entities", buildJsonArray {
+                entities.forEach { entity ->
+                    add(buildJsonObject {
+                        put("uuid", entity.uuid)
+                        put("entity", entity.entity)
+                        put("dimension", entity.dimension)
+                        put("x", entity.x)
+                        put("y", entity.y)
+                        put("z", entity.z)
+                        put("yaw", entity.yaw)
+                        put("pitch", entity.pitch)
+                        put("name", entity.name)
+                        put("health", entity.health?.let { JsonPrimitive(it) } ?: JsonNull)
+                    })
+                }
+            })
+        }.toString()
+        HttpExchangeSupport.sendJson(exchange, 200, response)
     }
 
     private fun getBlock(exchange: HttpExchange) {
@@ -192,6 +255,9 @@ internal class WorldRoutes(
     }
 
     companion object {
+        private val ENTITY_CENTER_FIELDS = setOf("x", "y", "z")
+        private val GET_ENTITIES_FIELDS =
+            setOf("dimension", "entity", "radius", "sort", "limit") + ENTITY_CENTER_FIELDS
         private val GET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z")
         private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block")
         private val FILL_FIELDS = setOf(

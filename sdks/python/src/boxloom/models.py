@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from math import floor
-from typing import Literal, Tuple, Union
+from typing import Literal, Optional, Tuple, Union
 
 
 @dataclass(frozen=True)
@@ -112,6 +112,22 @@ class FillResult:
     y2: int
     z2: int
     block: str
+
+
+@dataclass(frozen=True)
+class Entity:
+    """A snapshot of a loaded, alive entity, including players and dropped items."""
+
+    uuid: str
+    entity: str
+    dimension: str
+    x: float
+    y: float
+    z: float
+    yaw: float
+    pitch: float
+    name: str
+    health: Optional[float] = None
 
 
 @dataclass(frozen=True)
