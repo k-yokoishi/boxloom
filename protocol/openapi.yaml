@@ -461,6 +461,124 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/world/entities/{uuid}/kill:
+    post:
+      operationId: killEntity
+      summary: Kill one loaded entity by UUID
+      description: >-
+        Performs Minecraft's kill operation in the specified dimension, including
+        normal death processing. An absent, unloaded, or already dead entity
+        returns killedEntities equal to zero. No chunks are loaded for this request.
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KillEntityRequest'
+      responses:
+        '200':
+          description: The number of entities killed (zero or one)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The requested dimension is not loaded, or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
+  /v1/world/entities/kill:
+    post:
+      operationId: killEntities
+      summary: Kill loaded entities by exact type, optionally within a sphere
+      description: >-
+        The entity field is an exact registered entity type ID. Supply x, y, z,
+        and radius together for an inclusive sphere measured from each entity's
+        position in absolute coordinates. Omit all four to select all loaded
+        entities of that type in the specified dimension. No chunks are loaded.
+        Only entities selected before killing starts are processed; new drops or
+        smaller mobs spawned by death processing are not added to the selection.
+        An empty selection returns killedEntities equal to zero.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KillEntitiesRequest'
+      responses:
+        '200':
+          description: The number of entities killed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The requested dimension is not loaded, or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/world/time:
     get:
       operationId: getTime
@@ -963,6 +1081,66 @@ components:
           type: number
         z:
           type: number
+    KillEntityRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - dimension
+      properties:
+        dimension:
+          type: string
+          minLength: 1
+          examples:
+            - minecraft:overworld
+    KillEntitiesRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - dimension
+        - entity
+      dependentRequired:
+        x: [y, z, radius]
+        y: [x, z, radius]
+        z: [x, y, radius]
+        radius: [x, y, z]
+      properties:
+        dimension:
+          type: string
+          minLength: 1
+          examples:
+            - minecraft:overworld
+        entity:
+          type: string
+          minLength: 1
+          description: Exact registered entity type ID
+          examples:
+            - minecraft:zombie
+        x:
+          type: number
+          description: Finite absolute center X coordinate
+        y:
+          type: number
+          description: Finite absolute center Y coordinate
+        z:
+          type: number
+          description: Finite absolute center Z coordinate
+        radius:
+          type: number
+          minimum: 0
+          description: Finite non-negative radius; the boundary is included
+    KillResult:
+      type: object
+      additionalProperties: false
+      required:
+        - dimension
+        - killedEntities
+      properties:
+        dimension:
+          type: string
+        killedEntities:
+          type: integer
+          format: int32
+          minimum: 0
     NbtCompound:
       type: object
       description: >-

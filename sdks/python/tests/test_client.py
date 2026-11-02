@@ -716,6 +716,92 @@ class ClientTest(unittest.TestCase):
 
         self.assertEqual([], _ApiHandler.requests)
 
+    def test_kill_entity_posts_uuid_and_dimension(self):
+        uuid = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af"
+        _ApiHandler.response_body = {"dimension": "minecraft:the_nether", "killedEntities": 1}
+
+        result = boxloom.kill_entity(uuid, dimension="minecraft:the_nether")
+
+        self.assertEqual(boxloom.KillResult("minecraft:the_nether", 1), result)
+        path, headers, body = _ApiHandler.requests[0]
+        self.assertEqual(f"/v1/world/entities/{uuid}/kill", path)
+        self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+        self.assertEqual({"dimension": "minecraft:the_nether"}, body)
+
+    def test_kill_entities_posts_complete_range(self):
+        _ApiHandler.response_body = {"dimension": "minecraft:the_end", "killedEntities": 3}
+
+        result = boxloom.kill_entities(
+            "minecraft:zombie", x=1.5, y=64, z=-2.25, radius=20,
+            dimension="minecraft:the_end",
+        )
+
+        self.assertEqual(boxloom.KillResult("minecraft:the_end", 3), result)
+        self.assertEqual("/v1/world/entities/kill", _ApiHandler.requests[0][0])
+        self.assertEqual(
+            {"dimension": "minecraft:the_end", "entity": "minecraft:zombie",
+             "x": 1.5, "y": 64, "z": -2.25, "radius": 20},
+            _ApiHandler.requests[0][2],
+        )
+
+    def test_client_kill_defaults_and_zero_results(self):
+        _ApiHandler.response_body = {"dimension": "minecraft:overworld", "killedEntities": 0}
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+
+        self.assertEqual(0, client.kill_entity("58f6e634-15d9-4d4c-8ca0-8a4b23fe38af").killed_entities)
+        self.assertEqual(0, client.kill_entities("minecraft:zombie").killed_entities)
+        self.assertEqual({"dimension": "minecraft:overworld"}, _ApiHandler.requests[0][2])
+        self.assertEqual(
+            {"dimension": "minecraft:overworld", "entity": "minecraft:zombie"},
+            _ApiHandler.requests[1][2],
+        )
+
+    def test_kill_entities_accepts_zero_radius(self):
+        _ApiHandler.response_body = {"dimension": "minecraft:overworld", "killedEntities": 1}
+
+        boxloom.kill_entities("minecraft:zombie", x=0, y=64, z=0, radius=0)
+
+        self.assertEqual(0, _ApiHandler.requests[0][2]["radius"])
+
+    def test_kill_rejects_invalid_parameters_before_request(self):
+        for uuid in ("not-a-uuid", "1-1-1-1-1", "@e", "", None, 123):
+            with self.subTest(uuid=uuid), self.assertRaises(ValueError):
+                boxloom.kill_entity(uuid)
+        for kwargs in (
+            {"x": 0}, {"radius": 20}, {"x": 0, "y": 64, "z": 0},
+            {"x": 0, "y": 64, "z": 0, "radius": -1},
+            {"x": True, "y": 64, "z": 0, "radius": 20},
+            {"x": "0", "y": 64, "z": 0, "radius": 20},
+            {"x": float("inf"), "y": 64, "z": 0, "radius": 20},
+            {"x": 0, "y": 64, "z": 0, "radius": float("nan")},
+            {"x": 10**400, "y": 64, "z": 0, "radius": 20},
+            {"dimension": ""},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises((TypeError, ValueError)):
+                boxloom.kill_entities("minecraft:zombie", **kwargs)
+        for entity in ("", " ", None, 123):
+            with self.subTest(entity=entity), self.assertRaises(ValueError):
+                boxloom.kill_entities(entity)
+        with self.assertRaises(ValueError):
+            boxloom.kill_entity("58f6e634-15d9-4d4c-8ca0-8a4b23fe38af", dimension="")
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_kill_rejects_malformed_responses(self):
+        for payload in (
+            {}, {"dimension": "minecraft:overworld"},
+            {"dimension": "minecraft:overworld", "killedEntities": -1},
+            {"dimension": "minecraft:overworld", "killedEntities": True},
+            {"dimension": "minecraft:overworld", "killedEntities": 1.5},
+            {"dimension": None, "killedEntities": 1},
+        ):
+            _ApiHandler.response_body = payload
+            for operation in (
+                lambda: boxloom.kill_entity("58f6e634-15d9-4d4c-8ca0-8a4b23fe38af"),
+                lambda: boxloom.kill_entities("minecraft:zombie"),
+            ):
+                with self.subTest(payload=payload), self.assertRaises(boxloom.ProtocolError):
+                    operation()
+
     def test_api_error_does_not_expose_auth_token(self):
         _ApiHandler.response_status = 403
         _ApiHandler.response_body = {

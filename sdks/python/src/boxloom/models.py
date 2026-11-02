@@ -104,3 +104,11 @@ class SummonResult:
     x: float
     y: float
     z: float
+
+
+@dataclass(frozen=True)
+class KillResult:
+    """Number of entities killed in a loaded dimension."""
+
+    dimension: str
+    killed_entities: int

@@ -246,6 +246,42 @@ export const apiOperations = {
       },
     ],
   },
+  kill_entity: {
+    description: (
+      <p>
+        Kill one entity by UUID in a loaded dimension, using Minecraft&apos;s
+        normal kill processing. An absent, unloaded, or already dead entity
+        reports zero. This operation does not load chunks.
+      </p>
+    ),
+    errors: [invalidDimension, dimensionNotFound],
+  },
+  kill_entities: {
+    description: (
+      <>
+        <p>
+          Kill loaded entities with an exact entity type ID. Supply absolute
+          coordinates and a radius together to select an inclusive sphere around
+          that position, measured from each entity&apos;s position. Omit all four
+          range fields to select that type throughout the dimension.
+        </p>
+        <p>
+          No chunks are loaded. An empty selection reports zero. The selection is
+          captured before killing starts, so new drops or smaller mobs spawned
+          during death processing are not added to it.
+        </p>
+      </>
+    ),
+    errors: [
+      invalidDimension,
+      {
+        status: 400,
+        code: 'INVALID_ENTITY',
+        meaning: 'The entity type ID is malformed or not registered.',
+      },
+      dimensionNotFound,
+    ],
+  },
   get_time: {
     description: (
       <p>

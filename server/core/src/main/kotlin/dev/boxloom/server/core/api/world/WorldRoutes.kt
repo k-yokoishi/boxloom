@@ -1,9 +1,13 @@
 package dev.boxloom.server.core.api.world
 
 import com.sun.net.httpserver.HttpExchange
+import dev.boxloom.server.core.EntityKillRange
 import dev.boxloom.server.core.FillRequest
 import dev.boxloom.server.core.GetBlockRequest
 import dev.boxloom.server.core.JsonSupport
+import dev.boxloom.server.core.KillEntitiesRequest
+import dev.boxloom.server.core.KillEntityRequest
+import dev.boxloom.server.core.KillResult
 import dev.boxloom.server.core.SetBlockRequest
 import dev.boxloom.server.core.SummonRequest
 import dev.boxloom.server.core.WorldOperations
@@ -12,6 +16,7 @@ import dev.boxloom.server.core.http.MinecraftOperationRunner
 import dev.boxloom.server.core.http.Router
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.util.UUID
 
 internal class WorldRoutes(
     private val minecraft: WorldOperations,
@@ -22,6 +27,10 @@ internal class WorldRoutes(
         router.post("/world/blocks") { exchange, _ -> setBlock(exchange) }
         router.post("/world/blocks/fill") { exchange, _ -> fill(exchange) }
         router.post("/world/entities") { exchange, _ -> summon(exchange) }
+        router.post("/world/entities/{uuid}/kill") { exchange, parameters ->
+            killEntity(exchange, HttpExchangeSupport.decodePathSegment(parameters["uuid"], "uuid"))
+        }
+        router.post("/world/entities/kill") { exchange, _ -> killEntities(exchange) }
     }
 
     private fun getBlock(exchange: HttpExchange) {
@@ -130,6 +139,58 @@ internal class WorldRoutes(
         HttpExchangeSupport.sendJson(exchange, 200, response)
     }
 
+    private fun killEntity(exchange: HttpExchange, uuid: String) {
+        val entityUuid = try {
+            UUID.fromString(uuid).also {
+                if (!it.toString().equals(uuid, ignoreCase = true)) {
+                    throw IllegalArgumentException()
+                }
+            }
+        } catch (_: IllegalArgumentException) {
+            throw JsonSupport.invalid("Path parameter 'uuid' must be a UUID in hyphenated form")
+        }
+        HttpExchangeSupport.requireJsonContentType(exchange)
+        val objectValue = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
+        JsonSupport.requireOnlyFields(objectValue, KILL_ENTITY_FIELDS)
+        val request = KillEntityRequest(
+            JsonSupport.requireString(objectValue, "dimension"),
+            entityUuid,
+        )
+        sendKillResult(exchange, operations.await(minecraft.killEntity(request)))
+    }
+
+    private fun killEntities(exchange: HttpExchange) {
+        HttpExchangeSupport.requireJsonContentType(exchange)
+        val objectValue = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
+        JsonSupport.requireOnlyFields(objectValue, KILL_ENTITIES_FIELDS)
+        val range = if (KILL_RANGE_FIELDS.any { it in objectValue }) {
+            val x = JsonSupport.requireFiniteDouble(objectValue, "x")
+            val y = JsonSupport.requireFiniteDouble(objectValue, "y")
+            val z = JsonSupport.requireFiniteDouble(objectValue, "z")
+            val radius = JsonSupport.requireFiniteDouble(objectValue, "radius")
+            if (radius < 0) {
+                throw JsonSupport.invalid("Field 'radius' must not be negative")
+            }
+            EntityKillRange(x, y, z, radius)
+        } else {
+            null
+        }
+        val request = KillEntitiesRequest(
+            JsonSupport.requireString(objectValue, "dimension"),
+            JsonSupport.requireString(objectValue, "entity"),
+            range,
+        )
+        sendKillResult(exchange, operations.await(minecraft.killEntities(request)))
+    }
+
+    private fun sendKillResult(exchange: HttpExchange, result: KillResult) {
+        val response = buildJsonObject {
+            put("dimension", result.dimension)
+            put("killedEntities", result.killedEntities)
+        }.toString()
+        HttpExchangeSupport.sendJson(exchange, 200, response)
+    }
+
     companion object {
         private val GET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z")
         private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block")
@@ -144,6 +205,9 @@ internal class WorldRoutes(
             "block",
         )
         private val SUMMON_FIELDS = setOf("dimension", "entity", "x", "y", "z", "nbt")
+        private val KILL_ENTITY_FIELDS = setOf("dimension")
+        private val KILL_RANGE_FIELDS = setOf("x", "y", "z", "radius")
+        private val KILL_ENTITIES_FIELDS = setOf("dimension", "entity") + KILL_RANGE_FIELDS
         private const val MAX_FILL_BLOCKS = 32_768
 
         private fun requireFillWithinLimit(request: FillRequest) {

@@ -9,6 +9,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -573,6 +574,107 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `kills one entity by uuid and returns its count`() {
+        var captured: KillEntityRequest? = null
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun killEntity(request: KillEntityRequest): CompletableFuture<KillResult> {
+                captured = request
+                return CompletableFuture.completedFuture(KillResult(request.dimension, 1))
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val response = post(
+                server, "/v1/world/entities/$TEST_UUID/kill",
+                """{"dimension":"minecraft:the_nether"}""",
+            )
+            assertEquals(200, response.statusCode())
+            assertEquals("""{"dimension":"minecraft:the_nether","killedEntities":1}""", response.body())
+        }
+        assertEquals(KillEntityRequest("minecraft:the_nether", UUID.fromString(TEST_UUID)), captured)
+    }
+
+    @Test
+    fun `kills entities by type with an optional complete range`() {
+        val captured = mutableListOf<KillEntitiesRequest>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun killEntities(request: KillEntitiesRequest): CompletableFuture<KillResult> {
+                captured += request
+                return CompletableFuture.completedFuture(KillResult(request.dimension, 3))
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            for (range in listOf("", """, "x":1.5,"y":64,"z":-2.25,"radius":0""")) {
+                val response = post(
+                    server, "/v1/world/entities/kill",
+                    """{"dimension":"minecraft:overworld","entity":"minecraft:zombie"$range}""",
+                )
+                assertEquals(200, response.statusCode())
+                assertEquals("""{"dimension":"minecraft:overworld","killedEntities":3}""", response.body())
+            }
+        }
+        assertEquals(
+            listOf(
+                KillEntitiesRequest("minecraft:overworld", "minecraft:zombie"),
+                KillEntitiesRequest("minecraft:overworld", "minecraft:zombie", EntityKillRange(1.5, 64.0, -2.25, 0.0)),
+            ),
+            captured,
+        )
+    }
+
+    @Test
+    fun `rejects incomplete and invalid entity kill requests before running them`() {
+        withServer(authToken = null) { server, _ ->
+            for (uuid in listOf("not-a-uuid", "1-1-1-1-1", "@e")) {
+                val response = post(server, "/v1/world/entities/$uuid/kill", """{"dimension":"minecraft:overworld"}""")
+                assertEquals(400, response.statusCode(), uuid)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+            for (body in listOf("{}", """{"dimension":"minecraft:overworld","entity":"minecraft:zombie"}""")) {
+                assertEquals(400, post(server, "/v1/world/entities/$TEST_UUID/kill", body).statusCode())
+            }
+            val base = """"dimension":"minecraft:overworld","entity":"minecraft:zombie""""
+            val invalidBodies = listOf(
+                """{"entity":"minecraft:zombie"}""",
+                """{"dimension":"minecraft:overworld"}""",
+                """{$base,"x":0}""",
+                """{$base,"radius":20}""",
+                """{$base,"x":0,"y":64,"z":0}""",
+                """{$base,"x":0,"y":64,"z":0,"radius":-1}""",
+                """{$base,"x":true,"y":64,"z":0,"radius":20}""",
+                """{$base,"x":0,"y":64,"z":0,"radius":1e309}""",
+                """{$base,"x":0,"y":64,"z":0,"radius":null}""",
+                """{$base,"selector":"@e"}""",
+            )
+            for (body in invalidBodies) {
+                val response = post(server, "/v1/world/entities/kill", body)
+                assertEquals(400, response.statusCode(), body)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+        }
+    }
+
+    @Test
+    fun `entity kill operations return zero and preserve structured dimension errors`() {
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun killEntity(request: KillEntityRequest): CompletableFuture<KillResult> =
+                CompletableFuture.completedFuture(KillResult(request.dimension, 0))
+
+            override fun killEntities(request: KillEntitiesRequest): CompletableFuture<KillResult> =
+                CompletableFuture.failedFuture(ApiException(404, "DIMENSION_NOT_FOUND", "Dimension is not loaded"))
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val missing = post(server, "/v1/world/entities/$TEST_UUID/kill", """{"dimension":"minecraft:overworld"}""")
+            assertEquals(200, missing.statusCode())
+            assertContains(missing.body(), "\"killedEntities\":0")
+            val dimension = post(server, "/v1/world/entities/kill", """{"dimension":"missing:world","entity":"minecraft:zombie"}""")
+            assertEquals(404, dimension.statusCode())
+            assertContains(dimension.body(), "DIMENSION_NOT_FOUND")
+            assertEquals(405, get(server, "/v1/world/entities/kill").statusCode())
+            assertEquals(405, get(server, "/v1/world/entities/$TEST_UUID/kill").statusCode())
+        }
+    }
+
+    @Test
     fun `returns structured method and route errors`() {
         withServer(authToken = null) { server, _ ->
             val wrongMethod = HttpRequest.newBuilder()
@@ -896,6 +998,12 @@ class BoxloomHttpServerTest {
 
         override fun summon(request: SummonRequest): CompletableFuture<SummonResult> =
             throw AssertionError("Unexpected summon request")
+
+        override fun killEntity(request: KillEntityRequest): CompletableFuture<KillResult> =
+            throw AssertionError("Unexpected kill-entity request")
+
+        override fun killEntities(request: KillEntitiesRequest): CompletableFuture<KillResult> =
+            throw AssertionError("Unexpected kill-entities request")
     }
 
     private object SayMinecraftOperations : MinecraftOperations {
@@ -934,6 +1042,12 @@ class BoxloomHttpServerTest {
 
         override fun summon(request: SummonRequest): CompletableFuture<SummonResult> =
             throw AssertionError("Unexpected summon request")
+
+        override fun killEntity(request: KillEntityRequest): CompletableFuture<KillResult> =
+            throw AssertionError("Unexpected kill-entity request")
+
+        override fun killEntities(request: KillEntitiesRequest): CompletableFuture<KillResult> =
+            throw AssertionError("Unexpected kill-entities request")
     }
 
     companion object {

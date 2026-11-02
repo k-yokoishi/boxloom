@@ -365,6 +365,90 @@ print(entity.uuid)
 
 </Operation>
 
+## `kill_entity`
+
+<Operation id="kill_entity">
+
+```python
+kill_entity(
+    uuid: str,
+    *,
+    dimension: str = "minecraft:overworld",
+) -> KillResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `uuid` | `str` | required | UUID in hyphenated form, such as the `uuid` returned by `summon`. |
+| `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
+
+**Returns** — `KillResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `dimension` | `str` | Resolved namespaced dimension ID. |
+| `killed_entities` | `int` | Number killed: zero or one. |
+
+**Example**
+
+```python
+from boxloom import kill_entity, summon
+
+entity = summon("minecraft:pig", 0, 100, 0)
+print(kill_entity(entity.uuid).killed_entities)  # 1
+print(kill_entity(entity.uuid).killed_entities)  # 0
+```
+
+</Operation>
+
+## `kill_entities`
+
+<Operation id="kill_entities">
+
+```python
+kill_entities(
+    entity: str,
+    *,
+    x: Optional[float] = None,
+    y: Optional[float] = None,
+    z: Optional[float] = None,
+    radius: Optional[float] = None,
+    dimension: str = "minecraft:overworld",
+) -> KillResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `entity` | `str` | required | Exact registered entity type ID, such as `minecraft:zombie`. |
+| `x`, `y`, `z` | `Optional[float]` | `None` | Finite absolute center coordinates. Must be supplied together with `radius`. |
+| `radius` | `Optional[float]` | `None` | Finite non-negative radius. The boundary is included; zero selects the exact position. |
+| `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
+
+**Returns** — `KillResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `dimension` | `str` | Resolved namespaced dimension ID. |
+| `killed_entities` | `int` | Non-negative number of entities killed. |
+
+**Example**
+
+```python
+from boxloom import kill_entities
+
+result = kill_entities("minecraft:zombie", x=0, y=64, z=0, radius=20)
+print(result.killed_entities)
+
+# All loaded zombies in the Nether:
+kill_entities("minecraft:zombie", dimension="minecraft:the_nether")
+```
+
+</Operation>
+
 ## `get_time`
 
 <Operation id="get_time">
