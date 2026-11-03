@@ -16,6 +16,8 @@ from boxloom import (
     KillResult,
     Player,
     PlayerPosition,
+    blocks,
+    entities,
     fill,
     get_block,
     get_entities,
@@ -43,6 +45,10 @@ assert Entity.__name__ == "Entity"
 assert callable(get_player_position)
 assert callable(get_players)
 assert callable(set_block)
+assert blocks.DIAMOND_BLOCK == "minecraft:diamond_block"
+assert entities.ZOMBIE == "minecraft:zombie"
+assert blocks.MINECRAFT_VERSION == entities.MINECRAFT_VERSION
+assert blocks.MINECRAFT_VERSION
 assert not hasattr(boxloom, "setblock")
 assert callable(summon)
 assert callable(kill_entity)
