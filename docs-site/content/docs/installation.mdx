@@ -68,9 +68,9 @@ For a loopback server without authentication, omit `BOXLOOM_AUTH_TOKEN`.
 You can now call boxloom from Python:
 
 ```python
-from boxloom import set_block
+from boxloom import blocks, set_block
 
-set_block(0, 100, 0, "minecraft:diamond_block")
+set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
 ```
 
 Continue to the [Python SDK reference](./apis/python) for the available operations, or the [REST API reference](./apis/rest) to call boxloom from another language.

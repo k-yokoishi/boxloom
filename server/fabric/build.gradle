@@ -46,6 +46,39 @@ java {
     targetCompatibility = JavaVersion.VERSION_25
 }
 
+// Development-only code: the exporter is never included in the mod JAR.
+sourceSets {
+    registryGenerator {
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+}
+
+def registrySnapshot = rootProject.layout.projectDirectory.file("../data/minecraft/registries.json")
+
+[exportRegistries: false, verifyRegistries: true].each { taskName, checkOnly ->
+    tasks.register(taskName, JavaExec) {
+        group = checkOnly ? "verification" : "generation"
+        description = checkOnly
+            ? "Verify the committed vanilla registry snapshot against Minecraft."
+            : "Export vanilla block and entity IDs from the configured Minecraft version."
+        classpath = sourceSets.registryGenerator.runtimeClasspath
+        mainClass = "dev.boxloom.fabric.RegistryExporter"
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+        args registrySnapshot.asFile.absolutePath, project.minecraft_version
+        if (checkOnly) {
+            args "--check"
+        }
+        // Minecraft's logging output stays in the ignored build directory.
+        workingDir = layout.buildDirectory.dir("registryGenerator").get().asFile
+        doFirst {
+            workingDir.mkdirs()
+        }
+    }
+}
+
 tasks.register("verifyNoClientCode") {
     group = "verification"
     description = "Fails if the Fabric server adapter references client-only Minecraft classes."
@@ -63,3 +96,4 @@ tasks.register("verifyNoClientCode") {
 }
 
 check.dependsOn tasks.named("verifyNoClientCode")
+check.dependsOn tasks.named("verifyRegistries")

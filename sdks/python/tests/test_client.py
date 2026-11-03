@@ -722,7 +722,7 @@ class ClientTest(unittest.TestCase):
             "block": "minecraft:gold_block",
         }
 
-        result = boxloom.set_block(1, 80, -2, "minecraft:gold_block")
+        result = boxloom.set_block(1, 80, -2, boxloom.blocks.GOLD_BLOCK)
 
         self.assertTrue(result.changed)
         self.assertEqual("minecraft:gold_block", result.block)
@@ -862,7 +862,7 @@ class ClientTest(unittest.TestCase):
         }
 
         boxloom.BoxloomClient(base_url=self.base_url).fill(
-            0, 64, 0, 0, 64, 0, "minecraft:gold_block"
+            0, 64, 0, 0, 64, 0, boxloom.blocks.GOLD_BLOCK
         )
 
         self.assertEqual(
@@ -894,7 +894,7 @@ class ClientTest(unittest.TestCase):
             "Tags": ["boxloom", "example"],
         }
 
-        result = boxloom.summon("minecraft:arrow", 1.5, 72, -2.25, nbt=nbt)
+        result = boxloom.summon(boxloom.entities.ARROW, 1.5, 72, -2.25, nbt=nbt)
 
         self.assertEqual(
             boxloom.SummonResult(

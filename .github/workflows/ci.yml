@@ -67,7 +67,10 @@ jobs:
       - name: Run unit tests
         run: uv run python -m unittest discover -s tests -v
 
-      - name: Check Python event API types
+      - name: Verify generated registry constants
+        run: uv run python scripts/generate_registry_constants.py --check
+
+      - name: Check Python SDK types
         run: |
           uv run mypy
           uv run pyright

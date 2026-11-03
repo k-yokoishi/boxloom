@@ -1,4 +1,5 @@
 from boxloom import (
+    blocks,
     fill,
     get_block,
     get_player_position,
@@ -22,7 +23,7 @@ def main() -> None:
         x + 1,
         y - 1,
         z,
-        "minecraft:diamond_block",
+        blocks.DIAMOND_BLOCK,
         dimension=position.dimension,
     )
     get_block_result = get_block(x + 1, y - 1, z, dimension=position.dimension)
@@ -33,7 +34,7 @@ def main() -> None:
         x + 4,
         y - 1,
         z,
-        "minecraft:emerald_block",
+        blocks.EMERALD_BLOCK,
         dimension=position.dimension,
     )
 
