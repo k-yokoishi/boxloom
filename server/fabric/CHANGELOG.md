@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-alpha.6
+
+- Ship the versioned vanilla registry snapshot used by Python SDK `0.1.0a6` for
+  `blocks` and `entities` constants with editor completion
+- Add a development-only registry exporter and verify the snapshot against
+  Minecraft 26.3 during builds; keep generation tooling outside the mod JAR
+
 ## 0.1.0-alpha.5
 
 - Stream confirmed player deaths with the death message and location, and consume
