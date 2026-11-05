@@ -114,8 +114,8 @@ To keep a game running while events arrive in the background, use
 `subscribe_event("player.death", callback=on_death)`. Registration waits for the
 stream to be ready; callbacks then run serially on a background thread. Use a
 `with` block to stop and join the receiver and surface failures. The
-[`callback example`](examples/python/subscribe_event.py) drops TNT until the
-selected player dies.
+[`callback example`](examples/python/subscribe_event.py) prints chat messages and
+player deaths as they arrive.
 
 ## Development
 
