@@ -4,6 +4,7 @@ import os
 import threading
 from typing import Any, Callable, Dict, List, Literal, Optional, Union, overload
 
+from . import blocks, entities
 from ._client import BoxloomClient
 from .errors import (
     ApiError,
@@ -63,6 +64,8 @@ __all__ = [
     "SummonResult",
     "TimeResult",
     "add_time",
+    "blocks",
+    "entities",
     "fill",
     "get_block",
     "get_entities",
@@ -82,7 +85,7 @@ __all__ = [
     "watch_event",
 ]
 
-__version__ = "0.1.0a5"
+__version__ = "0.1.0a6"
 
 _DEFAULT_BASE_URL = "http://127.0.0.1:28886"
 _DEFAULT_TIMEOUT = 10.0

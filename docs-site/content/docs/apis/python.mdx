@@ -13,6 +13,30 @@ Top-level functions share one process-wide client. Call `boxloom.init()` to conf
 
 Dimensions, blocks, and entities are named with namespaced IDs such as `minecraft:overworld`, `minecraft:stone`, and `minecraft:arrow`. A dimension must be loaded by the running server; a block or entity ID must exist in the server's registries. Operations that act on the world take `dimension` as a keyword argument defaulting to `minecraft:overworld`.
 
+### Block and entity constants
+
+Use `blocks` and `entities` to select vanilla IDs with editor completion:
+
+```python
+from boxloom import blocks, entities, set_block, summon
+
+set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
+summon(entities.PIG, 0, 101, 0)
+```
+
+Type `blocks.` or `entities.` to browse names. These are ordinary strings, such as
+`blocks.DIAMOND_BLOCK == "minecraft:diamond_block"`, annotated with `Final[str]`.
+Block constants also work with `fill`; entity constants also work with
+`kill_entities`. All `BoxloomClient` methods accept them as well.
+
+Constants cover vanilla Minecraft 26.3 and are bundled with the SDK, so completion
+works without connecting to a server. `blocks.MINECRAFT_VERSION` and
+`entities.MINECRAFT_VERSION` expose their source version. Namespaced strings remain
+accepted, including IDs from installed Mods. The server validates availability and
+summonability; some registered types, such as `entities.PLAYER`, cannot be summoned.
+
+### Coordinates and results
+
 Block coordinates are `int` and must fit in 32 bits. Player and entity coordinates are `float` and must be finite. Every result is a frozen dataclass, so its attributes are read-only.
 
 Every operation runs on the Minecraft server thread, so a stalled server surfaces as a timeout rather than a hang.
@@ -257,9 +281,9 @@ set_block(
 **Example**
 
 ```python
-from boxloom import set_block
+from boxloom import blocks, set_block
 
-result = set_block(0, 100, 0, "minecraft:diamond_block")
+result = set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
 print(result.changed)
 ```
 
@@ -304,9 +328,9 @@ fill(
 **Example**
 
 ```python
-from boxloom import fill
+from boxloom import blocks, fill
 
-result = fill(0, 100, 0, 4, 100, 4, "minecraft:gold_block")
+result = fill(0, 100, 0, 4, 100, 4, blocks.GOLD_BLOCK)
 print(result.changed_blocks)
 ```
 
@@ -412,10 +436,10 @@ summon(
 **Example**
 
 ```python
-from boxloom import summon
+from boxloom import entities, summon
 
 entity = summon(
-    "minecraft:arrow",
+    entities.ARROW,
     0,
     100,
     0,

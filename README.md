@@ -38,7 +38,7 @@ Ports, memory, and the local API token can be changed by copying [`.env.example`
 The current alpha is published on TestPyPI:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a5
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a6
 ```
 
 Point the SDK at a running boxloom Fabric server:
@@ -55,18 +55,30 @@ The Docker Compose environment sets these values automatically inside its browse
 Place a block:
 
 ```python
-from boxloom import set_block
+from boxloom import blocks, set_block
 
-set_block(0, 100, 0, "minecraft:diamond_block")
+set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
 ```
 
 Fill an inclusive block region:
 
 ```python
-from boxloom import fill
+from boxloom import blocks, fill
 
-fill(0, 100, 0, 4, 100, 4, "minecraft:gold_block")
+fill(0, 100, 0, 4, 100, 4, blocks.GOLD_BLOCK)
 ```
+
+Summon an entity:
+
+```python
+from boxloom import entities, summon
+
+summon(entities.PIG, 0, 100, 0)
+```
+
+Type `blocks.` or `entities.` in your editor to browse vanilla IDs with completion.
+These constants are ordinary strings; namespaced strings such as `"example:custom_block"`
+are also accepted for installed Mods.
 
 Set the time to day:
 
@@ -126,6 +138,7 @@ mise install
 mise run python-sync
 mise run python-test
 mise run python-typecheck
+mise run python-check-constants
 mise run python-build
 mise run fabric-build
 mise run docs-install
@@ -133,6 +146,10 @@ mise run docs-build
 ```
 
 The Fabric mod JAR is written to `server/fabric/build/libs/`.
+
+After updating the supported Minecraft version, run `mise run python-generate-constants`
+to refresh the registry snapshot and Python constants. See
+[`data/minecraft/README.md`](data/minecraft/README.md) for the generation workflow.
 
 ## Documentation
 

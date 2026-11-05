@@ -10,7 +10,7 @@ The boxloom Python SDK connects Python programs to a Minecraft server running th
 The current alpha is published on TestPyPI:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a5
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a6
 ```
 
 Configure the connection to the Fabric server with environment variables:
@@ -25,19 +25,39 @@ export BOXLOOM_AUTH_TOKEN=replace-me
 Place a block:
 
 ```python
-from boxloom import set_block
+from boxloom import blocks, set_block
 
-set_block(0, 100, 0, "minecraft:diamond_block")
+set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
 ```
 
 Fill an inclusive block region (up to 32,768 blocks per call):
 
 ```python
-from boxloom import fill
+from boxloom import blocks, fill
 
-result = fill(0, 100, 0, 4, 100, 4, "minecraft:gold_block")
+result = fill(0, 100, 0, 4, 100, 4, blocks.GOLD_BLOCK)
 print(result.changed_blocks)
 ```
+
+### Block and entity constants
+
+Import `blocks` and `entities`, then type `blocks.` or `entities.` to browse IDs
+with editor completion. They contain vanilla IDs for Minecraft 26.3, exposed as
+ordinary strings with `Final[str]` annotations. For example,
+`blocks.DIAMOND_BLOCK == "minecraft:diamond_block"` and
+`entities.ZOMBIE == "minecraft:zombie"`.
+
+Use block constants with `set_block` and `fill`, and entity constants with `summon`
+and `kill_entities`, including their `BoxloomClient` methods. Namespaced strings
+are still accepted, including IDs from installed Mods. The server checks whether
+an ID exists and whether an entity type can be summoned; registry constants such
+as `entities.PLAYER` do not imply that the type is summonable.
+
+`blocks.MINECRAFT_VERSION` and `entities.MINECRAFT_VERSION` identify the source
+version. The constants are bundled with the SDK, so editor completion does not
+require a running Minecraft server.
+
+### More samples
 
 Listen for player chat messages:
 
@@ -177,12 +197,12 @@ An empty selection returns `[]`.
 Kill entities by UUID or by type and optional range:
 
 ```python
-from boxloom import kill_entities, kill_entity, summon
+from boxloom import entities, kill_entities, kill_entity, summon
 
-zombie = summon("minecraft:zombie", 0, 64, 0)
+zombie = summon(entities.ZOMBIE, 0, 64, 0)
 print(kill_entity(zombie.uuid).killed_entities)
 
-result = kill_entities("minecraft:zombie", x=0, y=64, z=0, radius=20)
+result = kill_entities(entities.ZOMBIE, x=0, y=64, z=0, radius=20)
 print(result.killed_entities)
 ```
 
@@ -202,7 +222,13 @@ mise install
 mise run python-sync
 mise run python-test
 mise run python-typecheck
+mise run python-check-constants
 mise run python-build
 ```
+
+When updating Minecraft, run `mise run python-generate-constants` from the
+repository root. This exports the version pinned in `server/gradle.properties`
+and regenerates both modules. Commit the snapshot and generated files together.
+See [`../../data/minecraft/README.md`](../../data/minecraft/README.md).
 
 Detailed API documentation will be maintained separately from this README.
