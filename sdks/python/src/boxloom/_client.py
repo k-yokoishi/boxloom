@@ -2,7 +2,7 @@ import json
 import re
 import socket
 from math import isfinite
-from typing import Any, Dict, List, Literal, Mapping, Optional, Union, overload
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Union, overload
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -19,7 +19,7 @@ from ._transport import (
     _require_number,
     _require_string,
 )
-from .events import ChatEventStream, EventStream, EventType
+from .events import ChatEventStream, EventStream, EventSubscription, EventType
 from .models import (
     ChatEvent,
     Entity,
@@ -224,6 +224,56 @@ class BoxloomClient:
             last_event_id=last_event_id,
             reconnect=reconnect,
             event_type=event_type,
+        )
+
+    @overload
+    def subscribe_event(
+        self,
+        event_type: Literal["chat.message"],
+        *,
+        callback: Callable[[ChatEvent], None],
+        on_error: Optional[Callable[[Exception], None]] = None,
+        last_event_id: Optional[str] = None,
+        reconnect: bool = True,
+    ) -> EventSubscription: ...
+
+    @overload
+    def subscribe_event(
+        self,
+        event_type: Literal["player.death"],
+        *,
+        callback: Callable[[PlayerDeathEvent], None],
+        on_error: Optional[Callable[[Exception], None]] = None,
+        last_event_id: Optional[str] = None,
+        reconnect: bool = True,
+    ) -> EventSubscription: ...
+
+    @overload
+    def subscribe_event(
+        self,
+        event_type: None = None,
+        *,
+        callback: Callable[[Event], None],
+        on_error: Optional[Callable[[Exception], None]] = None,
+        last_event_id: Optional[str] = None,
+        reconnect: bool = True,
+    ) -> EventSubscription: ...
+
+    def subscribe_event(
+        self,
+        event_type: Optional[EventType] = None,
+        *,
+        callback: Callable[..., None],
+        on_error: Optional[Callable[[Exception], None]] = None,
+        last_event_id: Optional[str] = None,
+        reconnect: bool = True,
+    ) -> EventSubscription:
+        """Start a background callback receiver after confirming stream.ready."""
+
+        return EventSubscription(
+            self.watch_event(event_type, last_event_id=last_event_id, reconnect=reconnect),
+            callback=callback,
+            on_error=on_error,
         )
 
     def get_time(self, *, clock: str = "minecraft:overworld") -> TimeResult:

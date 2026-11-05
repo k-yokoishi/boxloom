@@ -724,6 +724,87 @@ death messages are hidden.
 
 </Operation>
 
+## `subscribe_event`
+
+<Operation id="subscribe_event">
+
+```python
+subscribe_event(
+    event_type: Optional[EventType] = None,
+    *,
+    callback: Callable[[Event], None],
+    on_error: Optional[Callable[[Exception], None]] = None,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventSubscription
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `event_type` | `Optional[EventType]` | `None` | All supported types, `"chat.message"`, or `"player.death"`. Filtering happens in the SDK. |
+| `callback` | `Callable[[Event], None]` | required | A synchronous callback. Overloads accept `Callable[[ChatEvent], None]` for `"chat.message"` and `Callable[[PlayerDeathEvent], None]` for `"player.death"`. |
+| `on_error` | `Optional[Callable[[Exception], None]]` | `None` | Called once when background reception or a callback fails. Without it, the failure is logged. |
+| `last_event_id` | `Optional[str]` | `None` | Resume strictly after this cursor; otherwise start at the live position. |
+| `reconnect` | `bool` | `True` | Retry transient receive failures using the current cursor. Use `False` to treat a dropped connection as a game-ending error. |
+
+**Returns** — `EventSubscription`, after the server has sent `stream.ready`.
+Initial authentication, connection, readiness, and protocol failures are raised
+synchronously. Each subscription owns its connection and a daemon thread. Its
+callbacks run serially, in receive order, and may call other SDK operations.
+Initialize shared game state before subscribing; callbacks can start before the
+registration call returns. Prefer annotated `def` handlers for type checking;
+coroutine callbacks are rejected.
+
+| Member | Description |
+| --- | --- |
+| `stop()` | Request cooperative shutdown without waiting. Idempotent and safe inside a callback. |
+| `join(timeout=None)` | Wait for the worker to finish. A finite timeout raises `TimeoutError` if it is still running. Joining from the callback thread raises `RuntimeError`. |
+| `raise_if_failed()` | Re-raise a saved receive or callback failure on the calling thread. |
+| `last_event_id` | Last successfully processed cursor, advanced after callbacks return or filtered-out events are skipped. |
+| `with` | Request a stop and join on exit, then surface a background error unless the context already has an exception. |
+
+**Example**
+
+```python
+from threading import Event as Signal
+from boxloom import PlayerDeathEvent, subscribe_event
+
+game_over = Signal()
+
+def on_death(event: PlayerDeathEvent) -> None:
+    if event.player.username == "Steve":
+        game_over.set()
+
+def on_error(error: Exception) -> None:
+    print(f"Event monitoring failed: {error}")
+    game_over.set()
+
+with subscribe_event(
+    "player.death", callback=on_death, on_error=on_error, reconnect=False,
+) as subscription:
+    while not game_over.wait(1.0):
+        subscription.raise_if_failed()
+        # Advance the game, e.g. summon TNT above the participant.
+    subscription.raise_if_failed()
+```
+
+A long-running callback delays subsequent delivery. Use thread-safe signals or
+locks when sharing state with the game loop. Stopping does not interrupt an
+active callback or cancel Minecraft commands already sent; an idle network read
+can take up to the configured client timeout to finish. Use a `with` block, or
+call `stop()` and `join()` before releasing state used by callbacks.
+
+Background failures stop the subscription and remain observable even when
+`on_error` is supplied. A failing error handler is logged without replacing the
+original failure. The failed event is not acknowledged and its callback is not
+retried automatically. Reconnection reuses retained cursor history; an expired
+cursor is a terminal error. Use idempotent side effects when persisting cursors
+across process restarts.
+
+</Operation>
+
 ## `watch_chat`
 
 <Operation id="watch_chat">

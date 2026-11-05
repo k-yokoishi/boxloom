@@ -1,5 +1,6 @@
 import socket
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any, Iterator, List, Literal, Mapping, Optional, TypeVar, Union, cast
 from urllib.error import HTTPError, URLError
@@ -125,67 +126,104 @@ class EventStream(Iterator[_EventT]):
         return self
 
     def __next__(self) -> _EventT:
+        while True:
+            event = self._next_event()
+            if isinstance(event, (ChatEvent, PlayerDeathEvent)) and self._accepts(event):
+                # watch_event overloads tie the filter to the yielded type.
+                return cast(_EventT, event)
+
+    def _accepts(self, event: Event) -> bool:
+        return self._event_name is None or self._event_name == event.type
+
+    def _open(self) -> str:
+        """Open once and consume stream.ready before a subscription is returned."""
+
+        try:
+            self._connect()
+            deadline = time.monotonic() + self._timeout
+            while not self._closed.is_set():
+                if time.monotonic() >= deadline:
+                    raise ConnectionError("boxloom event stream readiness timed out")
+                event = self._receive()
+                if isinstance(event, _StreamReadyEvent):
+                    return event.cursor
+                if isinstance(event, (ChatEvent, PlayerDeathEvent)):
+                    raise ProtocolError("event stream must send stream.ready before events")
+            raise ConnectionError("boxloom event stream closed before it was ready")
+        except (URLError, socket.timeout, TimeoutError, OSError) as error:
+            self._disconnect()
+            raise _connection_error(error) from None
+        except BaseException:
+            self._disconnect()
+            raise
+
+    def _next_event(self) -> Optional[_BoxloomEvent]:
         while not self._closed.is_set():
             try:
                 if self._response is None:
                     self._connect()
-                frame = self._read_frame()
-                if frame is None:
-                    raise ConnectionError("boxloom event stream disconnected")
+                return self._receive()
             except ApiError as error:
                 self._disconnect()
+                if self._closed.is_set():
+                    raise StopIteration
                 if not self._reconnect or error.status < 500:
                     raise
                 self._wait_to_reconnect()
                 continue
             except ConnectionError:
                 self._disconnect()
+                if self._closed.is_set():
+                    raise StopIteration
                 if not self._reconnect:
                     raise
                 self._wait_to_reconnect()
                 continue
-            except ProtocolError:
+            except (ProtocolError, EventStreamError):
                 self._disconnect()
                 raise
             except (URLError, socket.timeout, TimeoutError, OSError) as error:
                 self._disconnect()
+                if self._closed.is_set():
+                    raise StopIteration
                 if not self._reconnect:
                     raise _connection_error(error) from None
                 self._wait_to_reconnect()
                 continue
 
-            if frame.retry_milliseconds is not None:
-                self._retry_seconds = max(
-                    0.001,
-                    min(frame.retry_milliseconds / 1000.0, 30.0),
-                )
-            if frame.event_id is not None:
-                self._last_event_id = frame.event_id
-            try:
-                event = _decode_boxloom_event(frame)
-                if event is None or isinstance(event, _StreamReadyEvent):
-                    continue
-                if isinstance(event, (ChatEvent, PlayerDeathEvent)):
-                    if self._event_name is None or self._event_name == event.type:
-                        # watch_event overloads tie the filter to the yielded type.
-                        return cast(_EventT, event)
-                    continue
-                if isinstance(event, _StreamResetEvent):
-                    if event.code == "EVENT_CURSOR_EXPIRED":
-                        raise EventCursorExpiredError(event.message)
-                    raise EventStreamError(event.code, event.message)
-                if isinstance(event, _ErrorEvent):
-                    raise EventStreamError(event.code, event.message)
-            except (ProtocolError, EventCursorExpiredError, EventStreamError):
-                self._disconnect()
-                raise
-
         raise StopIteration
+
+    def _receive(self) -> Optional[_BoxloomEvent]:
+        frame = self._read_frame()
+        if self._closed.is_set():
+            raise StopIteration
+        if frame is None:
+            raise ConnectionError("boxloom event stream disconnected")
+        if frame.retry_milliseconds is not None:
+            self._retry_seconds = max(
+                0.001,
+                min(frame.retry_milliseconds / 1000.0, 30.0),
+            )
+        event = _decode_boxloom_event(frame)
+        if isinstance(event, _StreamResetEvent):
+            if event.code == "EVENT_CURSOR_EXPIRED":
+                raise EventCursorExpiredError(event.message)
+            raise EventStreamError(event.code, event.message)
+        if isinstance(event, _ErrorEvent):
+            raise EventStreamError(event.code, event.message)
+        if frame.event_id is not None:
+            self._last_event_id = frame.event_id
+        return event
+
+    def _request_stop(self) -> None:
+        # Only the receiving thread closes the response, avoiding cross-thread
+        # close/read deadlocks. Reads remain bounded by the configured timeout.
+        self._closed.set()
 
     def close(self) -> None:
         """Close the active HTTP response and stop reconnecting."""
 
-        self._closed.set()
+        self._request_stop()
         self._disconnect()
 
     def _connect(self) -> None:
@@ -229,7 +267,7 @@ class EventStream(Iterator[_EventT]):
         data_lines: List[str] = []
         retry_milliseconds = None
 
-        while True:
+        while not self._closed.is_set():
             source = self._response.readline()
             if source == b"":
                 return None
@@ -260,6 +298,8 @@ class EventStream(Iterator[_EventT]):
                 event_id = value
             elif field == "retry" and value.isdigit():
                 retry_milliseconds = int(value)
+
+        return None
 
 
 class ChatEventStream(EventStream[ChatEvent]):

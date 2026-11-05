@@ -122,6 +122,13 @@ with watch_event() as events:
 Use `watch_event("player.death")` to receive only player deaths, including their
 dimension and `x`, `y`, `z` coordinates. Both event types use `GET /v1/events`.
 
+To keep a game running while events arrive in the background, use
+`subscribe_event("player.death", callback=on_death)`. Registration waits for the
+stream to be ready; callbacks then run serially on a background thread. Use a
+`with` block to stop and join the receiver and surface failures. The
+[`callback example`](examples/python/subscribe_event.py) prints chat messages and
+player deaths as they arrive.
+
 ## Development
 
 The repository uses [mise](https://mise.jdx.dev/) to install Java 25 and uv and to run the common development tasks.

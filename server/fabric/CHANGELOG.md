@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Receive typed Python event callbacks in the background with `subscribe_event()`
+  and explicit readiness, cooperative shutdown, and error propagation
+
 ## 0.1.0-alpha.6
 
 - Ship the versioned vanilla registry snapshot used by Python SDK `0.1.0a6` for

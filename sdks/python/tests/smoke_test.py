@@ -6,7 +6,7 @@ from importlib.metadata import version
 from importlib.resources import files
 
 import boxloom
-from boxloom.events import ChatEventStream, EventStream, EventType, PlayerDeathEvent
+from boxloom.events import ChatEventStream, EventStream, EventSubscription, EventType, PlayerDeathEvent
 from boxloom import (
     ChatEvent,
     EventCursorExpiredError,
@@ -32,6 +32,7 @@ from boxloom import (
     teleport_player,
     watch_chat,
     watch_event,
+    subscribe_event,
 )
 
 
@@ -57,6 +58,8 @@ assert KillResult.__name__ == "KillResult"
 assert callable(teleport_player)
 assert callable(watch_chat)
 assert callable(watch_event)
+assert callable(subscribe_event)
+assert boxloom.EventSubscription is EventSubscription
 assert boxloom.EventStream is EventStream
 assert boxloom.EventType is EventType
 assert boxloom.PlayerDeathEvent is PlayerDeathEvent
