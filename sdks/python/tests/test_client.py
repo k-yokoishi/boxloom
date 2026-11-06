@@ -74,6 +74,7 @@ class ClientTest(unittest.TestCase):
         _ApiHandler.response_body = {"target": self._target()}
         target = player.get_targeted_block()
         self.assertEqual(boxloom.TargetedBlock(**self._target()), target)
+        self.assertIsInstance(target, boxloom.Block)
         self.assertEqual("/v1/players/Steve/targeted-block", _ApiHandler.requests[-1][0])
         self.assertEqual("Bearer origin-secret", _ApiHandler.requests[-1][1]["Authorization"])
         _ApiHandler.response_body = {"swung": True, "target": self._target(), "broken": True}
@@ -953,6 +954,7 @@ class ClientTest(unittest.TestCase):
         result = boxloom.get_block(
             1, 64, -2, dimension="minecraft:the_nether"
         )
+        self.assertIs(type(result), boxloom.Block)
 
         self.assertEqual(
             boxloom.GetBlockResult(

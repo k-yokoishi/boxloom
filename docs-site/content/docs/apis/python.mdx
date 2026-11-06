@@ -41,6 +41,26 @@ Block coordinates are `int` and must fit in 32 bits. Player and entity coordinat
 
 Every operation runs on the Minecraft server thread, so a stalled server surfaces as a timeout rather than a hang.
 
+`get_block()` returns the immutable `Block` class. It holds `dimension`, `x`, `y`,
+`z`, and the namespaced block ID in `block`. `TargetedBlock` inherits from `Block`,
+so functions that need this common information can accept either result:
+
+```python
+from boxloom import Block, get_block, get_player
+
+def describe(block: Block) -> str:
+    return f"{block.block} at ({block.x}, {block.y}, {block.z})"
+
+print(describe(get_block(0, 64, 0)))
+target = get_player("Steve").get_targeted_block()
+if target is not None:
+    print(describe(target))
+```
+
+`TargetedBlock` additionally carries the hit `face` and `distance`.
+`GetBlockResult` remains an alias for `Block` for compatibility with earlier SDK
+releases; its constructor arguments and the wire format are preserved.
+
 ## Errors
 
 Every failure raises a subclass of `boxloom.BoxloomError`.
@@ -328,7 +348,7 @@ get_block(
     z: int,
     *,
     dimension: str = "minecraft:overworld",
-) -> GetBlockResult
+) -> Block
 ```
 
 **Parameters**
@@ -338,7 +358,7 @@ get_block(
 | `x`, `y`, `z` | `int` | required | Block coordinates, within the 32-bit integer range. |
 | `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
 
-**Returns** — `GetBlockResult`
+**Returns** — `Block`
 
 | Attribute | Type | Description |
 | --- | --- | --- |

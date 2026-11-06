@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Return Python block reads as `Block`, with `TargetedBlock` inheriting the common
+  block fields and `GetBlockResult` retained as a compatibility alias
+
 - Read targeted blocks and perform a single native block attack through REST and
   client-bound Python `Player` methods; include arm swings, reach checks, native
   protections, and immediate cancellation of sustained mining

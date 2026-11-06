@@ -52,14 +52,20 @@ BlockFace = Literal["down", "up", "north", "south", "west", "east"]
 
 
 @dataclass(frozen=True)
-class TargetedBlock:
-    """A block hit by a ray from the player's eyes, before an action is performed."""
+class Block:
+    """An immutable snapshot of a block's dimension, coordinates and namespaced ID."""
 
     dimension: str
     x: int
     y: int
     z: int
     block: str
+
+
+@dataclass(frozen=True)
+class TargetedBlock(Block):
+    """A block hit by a ray from the player's eyes, with the hit face and distance."""
+
     face: BlockFace
     distance: float
 
@@ -195,15 +201,8 @@ class PlayerPosition:
         return floor(self.x), floor(self.y), floor(self.z)
 
 
-@dataclass(frozen=True)
-class GetBlockResult:
-    """Result returned after reading a block in a loaded dimension."""
-
-    dimension: str
-    x: int
-    y: int
-    z: int
-    block: str
+# Compatibility name for callers of earlier SDK releases; block reads return Block.
+GetBlockResult = Block
 
 
 @dataclass(frozen=True)

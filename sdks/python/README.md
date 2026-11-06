@@ -46,6 +46,12 @@ swing can prevent a new swing. Event player snapshots and manually constructed
 `Player` values are not bound; resolve them with the appropriate client's
 `get_player()` before calling methods.
 
+`get_block()` returns an immutable `Block` snapshot with `dimension`, `x`, `y`,
+`z`, and the namespaced ID in `block`. `TargetedBlock` inherits from `Block` and
+adds `face` and `distance`, so code can accept `Block` from either API.
+`GetBlockResult` remains an alias for `Block` for compatibility; existing
+constructor arguments and response formats are preserved.
+
 Place a block:
 
 ```python

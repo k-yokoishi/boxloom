@@ -25,7 +25,7 @@ from .models import (
     Entity,
     Event,
     FillResult,
-    GetBlockResult,
+    Block,
     GameMode,
     KillResult,
     Player,
@@ -503,7 +503,7 @@ class BoxloomClient:
         z: int,
         *,
         dimension: str = "minecraft:overworld",
-    ) -> GetBlockResult:
+    ) -> Block:
         for field_name, value in (("x", x), ("y", y), ("z", z)):
             if not isinstance(value, int) or isinstance(value, bool):
                 raise TypeError(f"{field_name} must be an integer")
@@ -521,7 +521,7 @@ class BoxloomClient:
             }
         )
         payload = self._get(f"/v1/world/blocks?{query}")
-        return GetBlockResult(
+        return Block(
             dimension=_require_string(payload, "dimension"),
             x=_require_integer(payload, "x"),
             y=_require_integer(payload, "y"),

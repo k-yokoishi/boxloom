@@ -29,6 +29,7 @@ from .events import (
     ItemUseEvent,
 )
 from .models import (
+    Block,
     Entity,
     FillResult,
     GetBlockResult,
@@ -47,6 +48,7 @@ from .models import (
 
 __all__ = [
     "ApiError",
+    "Block",
     "BoxloomClient",
     "BoxloomError",
     "ChatEvent",
@@ -420,7 +422,7 @@ def get_block(
     z: int,
     *,
     dimension: str = "minecraft:overworld",
-) -> GetBlockResult:
+) -> Block:
     """Return information about a block in a loaded Minecraft dimension."""
 
     return _default_client().get_block(x, y, z, dimension=dimension)
