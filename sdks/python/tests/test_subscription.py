@@ -135,6 +135,39 @@ class SubscriptionTest(unittest.TestCase):
         self.subscriptions.append(subscription)
         return subscription
 
+    def test_player_actions_reach_callbacks_with_optional_filter(self):
+        kinds = ("player.swing", "block.attack", "block.use", "item.use")
+        for event_filter in (None, *kinds):
+            with self.subTest(event_filter=event_filter):
+                scenario = self.scenario()
+                calls = []
+                received = threading.Event()
+                expected = list(kinds) if event_filter is None else [event_filter]
+
+                def callback(event):
+                    calls.append(event)
+                    if len(calls) == len(expected):
+                        received.set()
+
+                subscription = self.subscribe(event_filter, callback=callback)
+                for i, kind in enumerate(kinds, 1):
+                    fields = dict(
+                        id=f"session:{i}", timestamp="2026-11-06T00:00:00Z",
+                        player={"username": "Steve", "uuid": "player-uuid"},
+                        dimension="minecraft:overworld", x=1.0, y=64.0, z=2.0,
+                        hand="main_hand", item="minecraft:diamond_sword",
+                    )
+                    if kind.startswith("block."):
+                        fields.update(block="minecraft:stone", block_x=1, block_y=63,
+                                      block_z=2, face="up")
+                    scenario.frames.put(_frame(kind, f"session:{i}", **fields))
+                self.assertTrue(received.wait(2))
+                subscription.stop()
+                subscription.join(2)
+                subscription.raise_if_failed()
+                self.assertEqual(expected, [event.type for event in calls])
+                self.assertTrue(all(event.item == "minecraft:diamond_sword" for event in calls))
+
     def test_registration_waits_for_ready_and_callback_runs_in_background(self):
         scenario = self.scenario(ready=False)
         received = threading.Event()

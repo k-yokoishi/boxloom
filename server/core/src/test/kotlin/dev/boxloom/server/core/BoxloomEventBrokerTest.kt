@@ -55,6 +55,43 @@ class BoxloomEventBrokerTest {
     }
 
     @Test
+    fun `player actions share ordered replay and retention with chat and deaths`() {
+        BoxloomEventBroker(capacity = 4, clock = clock).use { broker ->
+            val start = broker.openCursor(null)
+            val chat = broker.publishChatMessage("hello", "Steve", TEST_UUID)
+            val context = PlayerActionContext(
+                "Steve", TEST_UUID, "minecraft:overworld", 1.5, 64.0, -2.25,
+                "main_hand", "minecraft:diamond_sword",
+            )
+            val target = BlockTarget("minecraft:stone", -2, 63, 4, "up")
+            val swing = broker.publishPlayerSwing(context)
+            val attack = broker.publishBlockAttack(context, target)
+            val useBlock = broker.publishBlockUse(context.copy(item = null), target)
+            val useItem = broker.publishItemUse(context.copy(hand = "off_hand"))
+
+            assertEquals(
+                listOf(swing, attack, useBlock, useItem),
+                broker.awaitAfter(broker.openCursor(chat.id), Duration.ZERO),
+            )
+            assertEquals(
+                listOf(useBlock, useItem),
+                broker.awaitAfter(broker.openCursor(attack.id), Duration.ZERO),
+            )
+            assertEquals("player.swing", swing.type)
+            assertEquals("block.attack", attack.type)
+            assertEquals("block.use", useBlock.type)
+            assertEquals("item.use", useItem.type)
+            assertEquals("2026-08-14T00:00:00Z", swing.timestamp.toString())
+            assertEquals(target, attack.target)
+            assertEquals(null, useBlock.context.item)
+            assertFailsWith<EventCursorExpiredException> { broker.awaitAfter(start, Duration.ZERO) }
+
+            broker.reset()
+            assertFailsWith<EventCursorExpiredException> { broker.openCursor(useItem.id) }
+        }
+    }
+
+    @Test
     fun `reopens a retained cursor without duplicating acknowledged events`() {
         BoxloomEventBroker(clock = clock).use { broker ->
             broker.publishChatMessage("first", "Steve", TEST_UUID)

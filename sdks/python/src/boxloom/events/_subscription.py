@@ -4,7 +4,7 @@ import math
 import threading
 from typing import Any, Callable, Optional, TypeVar
 
-from ..models import ChatEvent, Event, PlayerDeathEvent
+from ..models import Event, _EVENT_CLASSES
 from ._stream import EventStream
 
 
@@ -131,7 +131,7 @@ class EventSubscription:
                     break
                 if self._stopping.is_set():
                     break
-                if isinstance(event, (ChatEvent, PlayerDeathEvent)) and self._stream._accepts(event):
+                if isinstance(event, _EVENT_CLASSES) and self._stream._accepts(event):
                     _invoke(self._callback, event)
                 self._acknowledge(self._stream.last_event_id)
         except Exception as error:

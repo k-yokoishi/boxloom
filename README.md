@@ -119,6 +119,14 @@ with watch_event() as events:
             print(f"{event.player.username} died: {event.message}")
 ```
 
+Watch attack swings (including misses) with `watch_event("player.swing")`.
+`"block.attack"`, `"block.use"`, and `"item.use"` observe block attack, block use,
+and held-item use attempts. Action events include the player, hand, held item,
+and position; block events also include the targeted block and its coordinates.
+These are server-observed attempts, not confirmations of success, and require
+no client-side mod. See the [action example](examples/python/watch_player_actions.py)
+and the [Python SDK event reference](sdks/python/README.md).
+
 Use `watch_event("player.death")` to receive only player deaths, including their
 dimension and `x`, `y`, `z` coordinates. Both event types use `GET /v1/events`.
 

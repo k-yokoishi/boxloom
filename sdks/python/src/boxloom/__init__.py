@@ -23,6 +23,10 @@ from .events import (
     EventSubscription,
     EventType,
     PlayerDeathEvent,
+    PlayerSwingEvent,
+    BlockAttackEvent,
+    BlockUseEvent,
+    ItemUseEvent,
 )
 from .models import (
     Entity,
@@ -57,6 +61,10 @@ __all__ = [
     "KillResult",
     "Player",
     "PlayerDeathEvent",
+    "PlayerSwingEvent",
+    "BlockAttackEvent",
+    "BlockUseEvent",
+    "ItemUseEvent",
     "PlayerPosition",
     "ProtocolError",
     "SayResult",
@@ -195,6 +203,42 @@ def watch_event(
 
 @overload
 def watch_event(
+    event_type: Literal["player.swing"],
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventStream[PlayerSwingEvent]: ...
+
+
+@overload
+def watch_event(
+    event_type: Literal["block.attack"],
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventStream[BlockAttackEvent]: ...
+
+
+@overload
+def watch_event(
+    event_type: Literal["block.use"],
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventStream[BlockUseEvent]: ...
+
+
+@overload
+def watch_event(
+    event_type: Literal["item.use"],
+    *,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventStream[ItemUseEvent]: ...
+
+
+@overload
+def watch_event(
     event_type: Optional[EventType] = None,
     *,
     last_event_id: Optional[str] = None,
@@ -233,6 +277,50 @@ def subscribe_event(
     event_type: Literal["player.death"],
     *,
     callback: Callable[[PlayerDeathEvent], None],
+    on_error: Optional[Callable[[Exception], None]] = None,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventSubscription: ...
+
+
+@overload
+def subscribe_event(
+    event_type: Literal["player.swing"],
+    *,
+    callback: Callable[[PlayerSwingEvent], None],
+    on_error: Optional[Callable[[Exception], None]] = None,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventSubscription: ...
+
+
+@overload
+def subscribe_event(
+    event_type: Literal["block.attack"],
+    *,
+    callback: Callable[[BlockAttackEvent], None],
+    on_error: Optional[Callable[[Exception], None]] = None,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventSubscription: ...
+
+
+@overload
+def subscribe_event(
+    event_type: Literal["block.use"],
+    *,
+    callback: Callable[[BlockUseEvent], None],
+    on_error: Optional[Callable[[Exception], None]] = None,
+    last_event_id: Optional[str] = None,
+    reconnect: bool = True,
+) -> EventSubscription: ...
+
+
+@overload
+def subscribe_event(
+    event_type: Literal["item.use"],
+    *,
+    callback: Callable[[ItemUseEvent], None],
     on_error: Optional[Callable[[Exception], None]] = None,
     last_event_id: Optional[str] = None,
     reconnect: bool = True,

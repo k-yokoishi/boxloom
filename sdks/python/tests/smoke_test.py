@@ -63,6 +63,13 @@ assert boxloom.EventSubscription is EventSubscription
 assert boxloom.EventStream is EventStream
 assert boxloom.EventType is EventType
 assert boxloom.PlayerDeathEvent is PlayerDeathEvent
+for event_name, cls in (
+    ("player.swing", boxloom.PlayerSwingEvent),
+    ("block.attack", boxloom.BlockAttackEvent),
+    ("block.use", boxloom.BlockUseEvent),
+    ("item.use", boxloom.ItemUseEvent),
+):
+    assert getattr(boxloom.events, cls.__name__) is cls
 assert files("boxloom").joinpath("py.typed").is_file()
 assert FillResult.__name__ == "FillResult"
 assert GetBlockResult.__name__ == "GetBlockResult"
@@ -143,6 +150,9 @@ death = PlayerDeathEvent(
 assert death.type == "player.death"
 with watch_event("player.death", reconnect=False) as deaths:
     assert isinstance(deaths, EventStream)
+for event_name in ("player.swing", "block.attack", "block.use", "item.use"):
+    with watch_event(event_name, reconnect=False) as actions:
+        assert isinstance(actions, EventStream)
 summon_result = boxloom.SummonResult(
     uuid="00000000-0000-0000-0000-000000000001",
     entity="minecraft:pig",

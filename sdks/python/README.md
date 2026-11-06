@@ -88,16 +88,53 @@ with watch_event() as events:
 `watch_event("player.death")` receives only player deaths;
 `watch_event("chat.message")` receives only chat. `watch_event` also exists on
 `BoxloomClient` and accepts `last_event_id` and `reconnect`, like `watch_chat`.
-Filtering happens in the SDK; both types share the `GET /v1/events` stream and
+Filtering happens in the SDK; all types share the `GET /v1/events` stream and
 its combined history of 1,024 events. Unknown event names are skipped. Existing
 `watch_chat()` callers continue to receive only chat messages.
 
-`EventType` is `Literal["chat.message", "player.death"]`. Type checkers reject
-unknown event type strings. `watch_event()` yields `Event`, a union of `ChatEvent`
-and `PlayerDeathEvent`, and checking `event.type` narrows it to the matching class.
+`EventType` includes `"chat.message"`, `"player.death"`, `"player.swing"`,
+`"block.attack"`, `"block.use"`, and `"item.use"`. Type checkers reject
+unknown event type strings. `watch_event()` yields `Event`, a union of the six
+event classes, and checking `event.type` narrows it to the matching class.
 Overloads make `watch_event("player.death")` yield `PlayerDeathEvent` directly,
 including inside a `with` block. The distribution includes `py.typed` so editors
 and type checkers can use these annotations after installation.
+
+Watch attack swings, including misses, without a client-side mod:
+
+```python
+from boxloom import watch_event
+
+with watch_event("player.swing") as swings:
+    for event in swings:  # PlayerSwingEvent
+        if event.item == "minecraft:diamond_sword":
+            print(event.player.username, "swung a diamond sword")
+```
+
+| Filter | Yielded class | Meaning |
+| --- | --- | --- |
+| `"player.swing"` | `PlayerSwingEvent` | An attack arm swing, including misses. |
+| `"block.attack"` | `BlockAttackEvent` | A request to start attacking a block. |
+| `"block.use"` | `BlockUseEvent` | A request to use a block. |
+| `"item.use"` | `ItemUseEvent` | A request to use a non-empty held item. |
+
+All four classes have `id`, `timestamp`, `player`, `dimension`, `x`, `y`, `z`,
+`hand` (`"main_hand"` or `"off_hand"`), and `item` (namespaced ID, or `None`
+for an empty hand). `x`, `y`, and `z` are the player's position. Block events
+also have `block`, integer `block_x`, `block_y`, `block_z`, and `face` (`"down"`,
+`"up"`, `"north"`, `"south"`, `"west"`, or `"east"`). Item and target values
+are server-thread snapshots taken before consumption or other changes.
+
+These events describe attempts, not successful results. `player.swing` also
+fires for attacks that hit and for block attacks; it does not tell you whether
+an attack missed. A single operation can emit both swing and block events.
+Holding a button can repeat actions. In Minecraft 26.3, attack swings use the
+main hand. Item use on a block, including placement, is observed as `block.use`;
+`item.use` observes the separate item-use path. Spectator actions are excluded.
+
+The same filters work with `subscribe_event`, with callbacks typed to the
+corresponding event class. See [`watch_player_actions.py`](../../examples/python/watch_player_actions.py)
+and [`subscribe_player_swing.py`](../../examples/python/subscribe_player_swing.py).
 
 Receive callbacks while game logic continues on the main thread:
 

@@ -3,9 +3,12 @@ package dev.boxloom.server.core.api.events
 import com.sun.net.httpserver.HttpExchange
 import dev.boxloom.server.core.ApiException
 import dev.boxloom.server.core.BoxloomEventBroker
+import dev.boxloom.server.core.BlockActionEvent
+import dev.boxloom.server.core.ChatMessageEvent
 import dev.boxloom.server.core.EventCursorExpiredException
 import dev.boxloom.server.core.InvalidEventCursorException
 import dev.boxloom.server.core.PlayerDeathEvent
+import dev.boxloom.server.core.PlayerActionEvent
 import dev.boxloom.server.core.http.Router
 import dev.boxloom.server.core.http.SseWriter
 import kotlinx.serialization.json.buildJsonObject
@@ -81,7 +84,11 @@ internal class EventRoutes(
                             put("type", event.type)
                             put("id", event.id)
                             put("timestamp", event.timestamp.toString())
-                            put("message", event.message)
+                            when (event) {
+                                is ChatMessageEvent -> put("message", event.message)
+                                is PlayerDeathEvent -> put("message", event.message)
+                                else -> Unit
+                            }
                             put("player", buildJsonObject {
                                 put("username", event.username)
                                 put("uuid", event.uuid)
@@ -91,6 +98,23 @@ internal class EventRoutes(
                                 put("x", event.x)
                                 put("y", event.y)
                                 put("z", event.z)
+                            }
+                            if (event is PlayerActionEvent) {
+                                val context = event.context
+                                put("dimension", context.dimension)
+                                put("x", context.x)
+                                put("y", context.y)
+                                put("z", context.z)
+                                put("hand", context.hand)
+                                put("item", context.item)
+                            }
+                            if (event is BlockActionEvent) {
+                                val target = event.target
+                                put("block", target.block)
+                                put("block_x", target.x)
+                                put("block_y", target.y)
+                                put("block_z", target.z)
+                                put("face", target.face)
                             }
                         }.toString(),
                     )

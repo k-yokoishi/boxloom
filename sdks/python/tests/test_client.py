@@ -410,6 +410,74 @@ class ClientTest(unittest.TestCase):
         self.assertEqual("session:3", death.id)
         self.assertEqual(1, len(_ApiHandler.requests))
 
+    def test_watch_event_decodes_all_player_actions_and_filters_by_type(self):
+        kinds = ("player.swing", "block.attack", "block.use", "item.use")
+        classes = (
+            boxloom.PlayerSwingEvent, boxloom.BlockAttackEvent,
+            boxloom.BlockUseEvent, boxloom.ItemUseEvent,
+        )
+        for kind, cls in zip(kinds, classes):
+            with self.subTest(kind=kind):
+                _ApiHandler.stream_responses = [(200, "text/event-stream",
+                    _chat_sse("session:1", "skip")
+                    + _action_sse(kind, "session:2", hand="off_hand", item=None))]
+                with boxloom.watch_event(kind, reconnect=False) as events:
+                    event = next(events)
+                    self.assertEqual("session:2", events.last_event_id)
+                self.assertIsInstance(event, cls)
+                self.assertEqual(kind, event.type)
+                self.assertEqual("Player_123", event.player.username)
+                self.assertEqual("off_hand", event.hand)
+                self.assertIsNone(event.item)
+                self.assertEqual((1.5, 64.0, -2.25), (event.x, event.y, event.z))
+                if kind.startswith("block."):
+                    self.assertEqual("minecraft:stone", event.block)
+                    self.assertEqual((-2, 63, 4), (event.block_x, event.block_y, event.block_z))
+                    self.assertEqual("up", event.face)
+
+        _ApiHandler.stream_responses = [(200, "text/event-stream", b"".join(
+            _action_sse(kind, f"session:{i}") for i, kind in enumerate(kinds, 1)
+        ))]
+        with boxloom.watch_event(reconnect=False) as events:
+            self.assertEqual(list(kinds), [next(events).type for _ in kinds])
+
+    def test_action_events_are_skipped_by_chat_filter_and_advance_resume_cursor(self):
+        _ApiHandler.stream_responses = [
+            (200, "text/event-stream", b"retry: 1\n\n"
+             + _action_sse("player.swing", "session:1")
+             + _action_sse("block.attack", "session:2")),
+            (200, "text/event-stream", _chat_sse("session:3", "after swing")),
+        ]
+        with boxloom.watch_chat() as events:
+            self.assertEqual("after swing", next(events).message)
+        self.assertEqual("session:2", _ApiHandler.requests[1][1]["Last-Event-Id"])
+
+    def test_watch_event_rejects_malformed_action_payloads(self):
+        for kind in ("player.swing", "block.attack", "block.use", "item.use"):
+            cases = [
+                {"id": "wrong"}, {"type": "wrong"}, {"player": None},
+                {"player": {"username": "Steve"}}, {"timestamp": None},
+                {"dimension": None}, {"x": True}, {"y": "64"},
+                {"hand": "left"}, {"hand": None}, {"item": 1},
+            ]
+            if kind.startswith("block."):
+                cases += [{"block": None}, {"block_x": 1.5}, {"block_y": True},
+                          {"block_z": "4"}, {"face": "diagonal"}]
+            for changes in cases:
+                with self.subTest(kind=kind, changes=changes):
+                    _ApiHandler.stream_responses = [(200, "text/event-stream",
+                        _action_sse(kind, "session:1", **changes))]
+                    with boxloom.watch_event(kind, reconnect=False) as events:
+                        with self.assertRaises(boxloom.ProtocolError):
+                            next(events)
+        payload = _action_payload("player.swing", "session:1")
+        del payload["item"]
+        _ApiHandler.stream_responses = [(200, "text/event-stream",
+            _sse("player.swing", "session:1", payload))]
+        with boxloom.watch_event("player.swing", reconnect=False) as events:
+            with self.assertRaises(boxloom.ProtocolError):
+                next(events)
+
     def test_watch_event_filters_chat_by_keyword(self):
         _ApiHandler.stream_responses = [
             (200, "text/event-stream", _death_sse("session:1")
@@ -1112,6 +1180,24 @@ def _sse(event, event_id, payload):
         "data: " + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     )
     return ("\n".join(fields) + "\n\n").encode("utf-8")
+
+
+def _action_payload(kind, event_id):
+    payload = {
+        "type": kind, "id": event_id, "timestamp": "2026-11-06T00:00:00Z",
+        "player": {"username": "Player_123", "uuid": "player-uuid"},
+        "dimension": "minecraft:overworld", "x": 1.5, "y": 64, "z": -2.25,
+        "hand": "main_hand", "item": "minecraft:diamond_sword",
+    }
+    if kind.startswith("block."):
+        payload.update(block="minecraft:stone", block_x=-2, block_y=63, block_z=4, face="up")
+    return payload
+
+
+def _action_sse(kind, event_id, **changes):
+    payload = _action_payload(kind, event_id)
+    payload.update(changes)
+    return _sse(kind, event_id, payload)
 
 
 def _death_sse(event_id, **changes):
