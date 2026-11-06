@@ -393,7 +393,7 @@ public class PlayerBlockActionsGameTest {
         test.setBlock(TARGET, Blocks.DIRT);
         PlayerMiningActions.INSTANCE.start(player);
         test.runAfterDelay(3, () -> {
-            PlayerBlockActions.INSTANCE.blockAction(player, PlayerBlockActions.INSTANCE.blockHit(player),
+            PlayerBlockActions.INSTANCE.blockAction(player, PlayerBlockActions.INSTANCE.findTargetedBlockHit(player),
                 net.minecraft.network.protocol.game.ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK);
             PlayerMiningActions.INSTANCE.stop(player);
         });

@@ -23,7 +23,7 @@ import net.minecraft.world.phys.HitResult
 /** Server-thread-only targeting and single-click actions. */
 internal object PlayerBlockActions {
     fun targetedBlock(player: ServerPlayer): TargetedBlock? =
-        blockHit(player)?.let { snapshot(player, it) }
+        findTargetedBlockHit(player)?.let { snapshot(player, it) }
 
     fun attack(player: ServerPlayer): PlayerAttackResult {
         requireCanAttack(player)
@@ -31,7 +31,7 @@ internal object PlayerBlockActions {
         abortMining(player)
         val stack = player.mainHandItem
         val attackRange = stack.get(DataComponents.ATTACK_RANGE) ?: AttackRange.defaultFor(player)
-        val hit = pick(player, attackRange.effectiveMaxRange(player).toDouble())
+        val hit = raycastFromPlayerView(player, attackRange.effectiveMaxRange(player).toDouble())
         val blockHit = (hit as? BlockHitResult)?.takeIf { it.type == HitResult.Type.BLOCK }
         val target = blockHit?.let { snapshot(player, it) }
         var broken = false
@@ -76,8 +76,9 @@ internal object PlayerBlockActions {
         return swung
     }
 
-    fun blockHit(player: ServerPlayer): BlockHitResult? =
-        (pick(player) as? BlockHitResult)?.takeIf { it.type == HitResult.Type.BLOCK }
+    /** Returns a native block hit under the crosshair, or null for entities and misses. */
+    fun findTargetedBlockHit(player: ServerPlayer): BlockHitResult? =
+        (raycastFromPlayerView(player) as? BlockHitResult)?.takeIf { it.type == HitResult.Type.BLOCK }
 
     fun blockAction(player: ServerPlayer, hit: BlockHitResult, action: Action) {
         player.gameMode.handleBlockBreakAction(hit.blockPos, action, hit.direction, player.level().maxY, 0)
@@ -97,7 +98,8 @@ internal object PlayerBlockActions {
         }
     }
 
-    private fun pick(player: ServerPlayer, entityReach: Double = player.blockInteractionRange()): HitResult {
+    /** Traces the player's view from their eyes, returning a block/entity hit or a miss. */
+    private fun raycastFromPlayerView(player: ServerPlayer, entityReach: Double = player.blockInteractionRange()): HitResult {
         val range = maxOf(player.blockInteractionRange(), entityReach)
         val blockHit = player.pick(range, 1.0f, false)
         val eye = player.eyePosition
