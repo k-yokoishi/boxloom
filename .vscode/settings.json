@@ -4,5 +4,8 @@
       "type": "gradle",
       "path": "file:///$PROJECT_DIR$/server/build.gradle"
     }
+  ],
+  "cSpell.words": [
+    "boxloom"
   ]
 }
