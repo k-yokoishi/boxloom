@@ -34,6 +34,10 @@ object BoxloomMod : ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPED.register { server ->
             currentServer.compareAndSet(server, null)
             events.reset()
+            if (server.isDedicatedServer) {
+                // The HTTP dispatcher otherwise keeps the JVM alive before shutdown hooks run.
+                stopHttpServer()
+            }
             logger.info("boxloom detached from the stopped Minecraft server")
         }
         ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
@@ -91,7 +95,10 @@ object BoxloomMod : ModInitializer {
     }
 
     private fun stopHttpServer() {
-        httpServer.getAndSet(null)?.close()
+        httpServer.getAndSet(null)?.let { server ->
+            server.close()
+            logger.info("boxloom HTTP server stopped")
+        }
     }
 
     @JvmStatic

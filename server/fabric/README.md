@@ -55,6 +55,11 @@ These versions were validated by the original Codorie Learn PoC and are kept fix
 
 The mod uses a common `main` entrypoint and does not reference `net.minecraft.client.*`. `ServerLifecycleEvents.SERVER_STARTED` and `SERVER_STOPPED` track the current server, allowing one JAR to work with dedicated and integrated servers.
 
+When a dedicated server stops, boxloom closes its HTTP server so the JVM can exit
+after saving the world. Integrated servers keep the HTTP server available between
+world sessions and reset event cursors when a world closes. A JVM shutdown hook
+also closes the HTTP server when the application exits.
+
 `server/core` owns the JDK `HttpServer`, optional Bearer authentication, input validation, JSON serialization, errors, and shared operation types. This adapter implements `MinecraftOperations`; all player and world access is handed to `MinecraftServer#execute`, and a `CompletableFuture` returns the result to a virtual HTTP worker thread. Operations time out after five seconds by default, and timed-out futures prevent queued work from running if it has not reached the server thread yet.
 
 Fabric's `ServerMessageEvents.CHAT_MESSAGE` callback publishes signed player chat
