@@ -204,6 +204,120 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `sets either player game mode and returns the player snapshot`() {
+        val requests = mutableListOf<Pair<String, SetPlayerGameModeRequest>>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun setPlayerGameMode(
+                username: String,
+                request: SetPlayerGameModeRequest,
+            ): CompletableFuture<PlayerGameMode> {
+                requests += username to request
+                return CompletableFuture.completedFuture(PlayerGameMode("Steve", TEST_UUID, request.mode))
+            }
+        }
+        withServer(authToken = "test-secret", minecraft = minecraft) { server, _ ->
+            for (mode in GameMode.entries) {
+                val response = post(
+                    server, "/v1/players/steve/gamemode", """{"mode":"${mode.value}"}""", "test-secret",
+                )
+                assertEquals(200, response.statusCode())
+                assertEquals("steve" to SetPlayerGameModeRequest(mode), requests.last())
+                assertEquals(
+                    """{"username":"Steve","uuid":"$TEST_UUID","mode":"${mode.value}"}""",
+                    response.body(),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `rejects invalid game mode bodies before calling Minecraft`() {
+        withServer(authToken = null) { server, _ ->
+            for (body in listOf(
+                "", "{", "[]", "null", "{}", """{"mode":null}""", """{"mode":1}""",
+                """{"mode":true}""", """{"mode":[]}""", """{"mode":""}""",
+                """{"mode":"CREATIVE"}""", """{"mode":" survival"}""",
+                """{"mode":"spectator"}""", """{"mode":"adventure"}""",
+                """{"mode":"creative","extra":true}""",
+            )) {
+                val response = post(server, "/v1/players/Steve/gamemode", body)
+                assertEquals(400, response.statusCode(), body)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+        }
+    }
+
+    @Test
+    fun `rejects invalid game mode usernames before calling Minecraft`() {
+        withServer(authToken = null) { server, _ ->
+            for (username in listOf("ab", "a".repeat(17), "has-dash", "%40a", "Steve%2Fkill")) {
+                val response = post(server, "/v1/players/$username/gamemode", """{"mode":"creative"}""")
+                assertEquals(400, response.statusCode(), username)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+        }
+    }
+
+    @Test
+    fun `game mode changes require authentication and a JSON POST`() {
+        withServer(authToken = "test-secret") { server, _ ->
+            val path = "/v1/players/Steve/gamemode"
+            assertEquals(401, post(server, path, """{"mode":"creative"}""").statusCode())
+            assertEquals(403, post(server, path, """{"mode":"creative"}""", "wrong").statusCode())
+            val wrongMethod = get(server, path, "test-secret")
+            assertEquals(405, wrongMethod.statusCode())
+            assertEquals("POST", wrongMethod.headers().firstValue("Allow").orElseThrow())
+
+            val wrongContentType = HttpRequest.newBuilder()
+                .uri(URI("http://127.0.0.1:${server.boundPort}$path"))
+                .header("Authorization", "Bearer test-secret")
+                .header("Content-Type", "text/plain")
+                .POST(HttpRequest.BodyPublishers.ofString("""{"mode":"creative"}"""))
+                .build()
+            val response = HttpClient.newHttpClient().send(wrongContentType, HttpResponse.BodyHandlers.ofString())
+            assertEquals(415, response.statusCode())
+            assertContains(response.body(), "UNSUPPORTED_MEDIA_TYPE")
+        }
+    }
+
+    @Test
+    fun `preserves structured game mode operation errors`() {
+        for ((status, code) in listOf(
+            404 to "PLAYER_NOT_CONNECTED", 409 to "GAME_MODE_CHANGE_FAILED", 503 to "WORLD_NOT_LOADED",
+        )) {
+            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+                override fun setPlayerGameMode(
+                    username: String,
+                    request: SetPlayerGameModeRequest,
+                ): CompletableFuture<PlayerGameMode> =
+                    CompletableFuture.failedFuture(ApiException(status, code, "Cannot change mode"))
+            }
+            withServer(authToken = null, minecraft = minecraft) { server, _ ->
+                val response = post(server, "/v1/players/Steve/gamemode", """{"mode":"survival"}""")
+                assertEquals(status, response.statusCode())
+                assertContains(response.body(), code)
+            }
+        }
+    }
+
+    @Test
+    fun `cancels a timed out game mode operation`() {
+        val pending = CompletableFuture<PlayerGameMode>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun setPlayerGameMode(
+                username: String,
+                request: SetPlayerGameModeRequest,
+            ): CompletableFuture<PlayerGameMode> = pending
+        }
+        withServer(authToken = null, minecraft = minecraft, requestTimeout = Duration.ofMillis(100)) { server, _ ->
+            val response = post(server, "/v1/players/Steve/gamemode", """{"mode":"creative"}""")
+            assertEquals(504, response.statusCode())
+            assertContains(response.body(), "TIMEOUT")
+            assertTrue(pending.isCancelled)
+        }
+    }
+
+    @Test
     fun `reads a world clock with default or explicit clock and 64 bit ticks`() {
         val requests = mutableListOf<GetTimeRequest>()
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
@@ -1105,10 +1219,12 @@ class BoxloomHttpServerTest {
         server: BoxloomHttpServer,
         path: String,
         body: String,
+        authToken: String? = null,
     ): HttpResponse<String> {
         val request = HttpRequest.newBuilder()
             .uri(URI("http://127.0.0.1:${server.boundPort}$path"))
             .header("Content-Type", "application/json")
+            .apply { authToken?.let { header("Authorization", "Bearer $it") } }
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build()
 
@@ -1157,6 +1273,12 @@ class BoxloomHttpServerTest {
         override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")
 
+        override fun setPlayerGameMode(
+            username: String,
+            request: SetPlayerGameModeRequest,
+        ): CompletableFuture<PlayerGameMode> =
+            throw AssertionError("Unexpected game-mode request")
+
         override fun teleportPlayer(
             username: String,
             request: TeleportPlayerRequest,
@@ -1203,6 +1325,12 @@ class BoxloomHttpServerTest {
 
         override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")
+
+        override fun setPlayerGameMode(
+            username: String,
+            request: SetPlayerGameModeRequest,
+        ): CompletableFuture<PlayerGameMode> =
+            throw AssertionError("Unexpected game-mode request")
 
         override fun teleportPlayer(
             username: String,

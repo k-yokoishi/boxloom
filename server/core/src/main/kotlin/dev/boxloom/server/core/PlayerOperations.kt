@@ -11,11 +11,29 @@ interface PlayerOperations {
         username: String,
         request: TeleportPlayerRequest,
     ): CompletableFuture<PlayerPosition>
+
+    fun setPlayerGameMode(
+        username: String,
+        request: SetPlayerGameModeRequest,
+    ): CompletableFuture<PlayerGameMode>
 }
 
 data class Player(
     val username: String,
     val uuid: String,
+)
+
+enum class GameMode(val value: String) {
+    CREATIVE("creative"),
+    SURVIVAL("survival"),
+}
+
+data class SetPlayerGameModeRequest(val mode: GameMode)
+
+data class PlayerGameMode(
+    val username: String,
+    val uuid: String,
+    val mode: GameMode,
 )
 
 data class PlayerPosition(

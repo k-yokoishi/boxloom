@@ -1,9 +1,11 @@
 package dev.boxloom.server.core.api.players
 
 import com.sun.net.httpserver.HttpExchange
+import dev.boxloom.server.core.GameMode
 import dev.boxloom.server.core.JsonSupport
 import dev.boxloom.server.core.PlayerOperations
 import dev.boxloom.server.core.PlayerPosition
+import dev.boxloom.server.core.SetPlayerGameModeRequest
 import dev.boxloom.server.core.TeleportPlayerRequest
 import dev.boxloom.server.core.http.HttpExchangeSupport
 import dev.boxloom.server.core.http.MinecraftOperationRunner
@@ -22,6 +24,7 @@ internal class PlayerRoutes(
         router.get("/players") { exchange, _ -> list(exchange) }
         router.get("/players/{username}/position", ::position)
         router.post("/players/{username}/teleport", ::teleport)
+        router.post("/players/{username}/gamemode", ::setGameMode)
     }
 
     private fun list(exchange: HttpExchange) {
@@ -72,6 +75,24 @@ internal class PlayerRoutes(
             )
         }
         return username
+    }
+
+    private fun setGameMode(exchange: HttpExchange, parameters: RouteParameters) {
+        val username = requireUsername(parameters)
+        HttpExchangeSupport.requireJsonContentType(exchange)
+        val objectValue = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
+        JsonSupport.requireOnlyFields(objectValue, setOf("mode"))
+        val modeValue = JsonSupport.requireString(objectValue, "mode")
+        val mode = GameMode.entries.firstOrNull { it.value == modeValue }
+            ?: throw JsonSupport.invalid("Field 'mode' must be 'creative' or 'survival'")
+
+        val result = operations.await(minecraft.setPlayerGameMode(username, SetPlayerGameModeRequest(mode)))
+        val response = buildJsonObject {
+            put("username", result.username)
+            put("uuid", result.uuid)
+            put("mode", result.mode.value)
+        }.toString()
+        HttpExchangeSupport.sendJson(exchange, 200, response)
     }
 
     private fun sendPlayerPosition(exchange: HttpExchange, position: PlayerPosition) {

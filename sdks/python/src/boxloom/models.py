@@ -27,6 +27,18 @@ class Player:
     uuid: str
 
 
+GameMode = Literal["creative", "survival"]
+
+
+@dataclass(frozen=True)
+class PlayerGameMode:
+    """A connected player's game mode immediately after setting it."""
+
+    username: str
+    uuid: str
+    mode: GameMode
+
+
 @dataclass(frozen=True)
 class ChatEvent:
     """A player chat message received from the live event stream."""

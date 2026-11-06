@@ -32,8 +32,10 @@ from .models import (
     Entity,
     FillResult,
     GetBlockResult,
+    GameMode,
     KillResult,
     Player,
+    PlayerGameMode,
     PlayerPosition,
     SayResult,
     SetBlockResult,
@@ -58,8 +60,10 @@ __all__ = [
     "EventType",
     "FillResult",
     "GetBlockResult",
+    "GameMode",
     "KillResult",
     "Player",
+    "PlayerGameMode",
     "PlayerDeathEvent",
     "PlayerSwingEvent",
     "BlockAttackEvent",
@@ -85,6 +89,7 @@ __all__ = [
     "kill_entity",
     "say",
     "set_block",
+    "set_player_gamemode",
     "set_time",
     "summon",
     "subscribe_event",
@@ -145,6 +150,12 @@ def get_players() -> List[Player]:
     """List players currently connected to the Minecraft server."""
 
     return _default_client().get_players()
+
+
+def set_player_gamemode(username: str, mode: GameMode) -> PlayerGameMode:
+    """Set a connected player's mode to creative or survival."""
+
+    return _default_client().set_player_gamemode(username, mode)
 
 
 def teleport_player(

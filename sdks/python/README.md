@@ -39,6 +39,24 @@ result = fill(0, 100, 0, 4, 100, 4, blocks.GOLD_BLOCK)
 print(result.changed_blocks)
 ```
 
+Switch a connected player between Creative and Survival:
+
+```python
+from boxloom import set_player_gamemode
+
+set_player_gamemode("Steve", "creative")
+result = set_player_gamemode("Steve", "survival")
+print(result.username, result.mode)
+```
+
+`set_player_gamemode(username, mode)` also exists on `BoxloomClient`. `mode` is
+exactly `"creative"` or `"survival"` (the exported `GameMode` literal type), and the
+result is a frozen `PlayerGameMode` with `username`, `uuid`, and `mode`. Repeating
+the current mode succeeds. The player must be connected but does not need OP;
+the operation uses the same API authentication as other calls. Invalid inputs
+raise `ValueError` before making a request. A disconnected player raises
+`ApiError` with status `404` and code `PLAYER_NOT_CONNECTED`.
+
 ### Block and entity constants
 
 Import `blocks` and `entities`, then type `blocks.` or `entities.` to browse IDs

@@ -188,6 +188,53 @@ curl --fail-with-body \
 
 </Operation>
 
+## `set_player_gamemode`
+
+<Operation id="set_player_gamemode">
+
+<ApiEndpoint method="POST" path="/v1/players/{username}/gamemode" />
+
+**Path parameters**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `username` | string | 3–16 characters from `A-Z`, `a-z`, `0-9`, and `_`. |
+
+**Request body** — any other field is rejected.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `mode` | string | yes | Exactly `"creative"` or `"survival"`. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `username` | string | The player's name. |
+| `uuid` | string (uuid) | The player's UUID. |
+| `mode` | string | `"creative"` or `"survival"`, immediately after setting it. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"mode":"survival"}' \
+  "$BOXLOOM_BASE_URL/v1/players/Steve/gamemode"
+```
+
+```json
+{
+  "username": "Steve",
+  "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+  "mode": "survival"
+}
+```
+
+</Operation>
+
 ## `get_block`
 
 <Operation id="get_block">

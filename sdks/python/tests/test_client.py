@@ -234,6 +234,65 @@ class ClientTest(unittest.TestCase):
         self.assertEqual("INVALID_ENTITY", raised.exception.code)
         self.assertEqual(400, raised.exception.status)
 
+    def test_set_player_gamemode_posts_both_modes_with_authentication(self):
+        for mode in ("creative", "survival"):
+            with self.subTest(mode=mode):
+                _ApiHandler.response_body = {
+                    "username": "Steve",
+                    "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+                    "mode": mode,
+                }
+                result = boxloom.set_player_gamemode("steve", mode)
+                self.assertEqual(
+                    boxloom.PlayerGameMode("Steve", "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af", mode), result,
+                )
+                path, headers, body = _ApiHandler.requests[-1]
+                self.assertEqual("/v1/players/steve/gamemode", path)
+                self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
+                self.assertEqual("application/json", headers["Content-Type"])
+                self.assertEqual({"mode": mode}, body)
+
+    def test_explicit_client_sets_player_gamemode(self):
+        _ApiHandler.response_body = {"username": "Steve", "uuid": "test-uuid", "mode": "survival"}
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        self.assertEqual("survival", client.set_player_gamemode("Steve", "survival").mode)
+        self.assertNotIn("Authorization", _ApiHandler.requests[0][1])
+
+    def test_set_player_gamemode_rejects_invalid_inputs_before_request(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        for operation in (boxloom.set_player_gamemode, client.set_player_gamemode):
+            for username in (None, 123, "", "ab", "a" * 17, "@a", "Steve/kill", "has-dash"):
+                with self.subTest(username=username), self.assertRaises(ValueError):
+                    operation(username, "creative")
+            for mode in (None, 1, True, [], {}, "", "CREATIVE", " survival", "adventure", "spectator"):
+                with self.subTest(mode=mode), self.assertRaises(ValueError):
+                    operation("Steve", mode)
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_set_player_gamemode_rejects_malformed_or_mismatched_response(self):
+        valid = {"username": "Steve", "uuid": "test-uuid", "mode": "creative"}
+        for field in valid:
+            for value in (None, 1, True, [], ""):
+                with self.subTest(field=field, value=value), self.assertRaises(boxloom.ProtocolError):
+                    _ApiHandler.response_body = {**valid, field: value}
+                    boxloom.set_player_gamemode("Steve", "creative")
+            with self.subTest(missing=field), self.assertRaises(boxloom.ProtocolError):
+                _ApiHandler.response_body = {key: value for key, value in valid.items() if key != field}
+                boxloom.set_player_gamemode("Steve", "creative")
+        for mode in ("survival", "spectator", "CREATIVE"):
+            with self.subTest(mode=mode), self.assertRaises(boxloom.ProtocolError):
+                _ApiHandler.response_body = {**valid, "mode": mode}
+                boxloom.set_player_gamemode("Steve", "creative")
+
+    def test_set_player_gamemode_preserves_api_errors(self):
+        for status, code in ((404, "PLAYER_NOT_CONNECTED"), (409, "GAME_MODE_CHANGE_FAILED")):
+            _ApiHandler.response_status = status
+            _ApiHandler.response_body = {"error": {"code": code, "message": "Cannot change mode"}}
+            with self.subTest(code=code), self.assertRaises(boxloom.ApiError) as raised:
+                boxloom.set_player_gamemode("Steve", "survival")
+            self.assertEqual(status, raised.exception.status)
+            self.assertEqual(code, raised.exception.code)
+
     def test_teleport_player_posts_required_coordinates(self):
         _ApiHandler.response_body = {
             "username": "Player_123",
