@@ -13,8 +13,10 @@ services:
         https://maven.fabricmc.net/net/fabricmc/fabric-language-kotlin/1.14.1%2Bkotlin.2.4.20/fabric-language-kotlin-1.14.1%2Bkotlin.2.4.20.jar
       ONLINE_MODE: "TRUE"
       ENFORCE_SECURE_PROFILE: "TRUE"
+      OPS: "${MINECRAFT_OPS:-}"
+      OP_PERMISSION_LEVEL: "4"
       MODE: "creative"
-      DIFFICULTY: "peaceful"
+      DIFFICULTY: "normal"
       SPAWN_PROTECTION: "0"
       MEMORY: "2G"
       BOXLOOM_BIND_HOST: "0.0.0.0"

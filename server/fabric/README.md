@@ -110,6 +110,12 @@ docker compose logs -f minecraft
 
 The included Compose configuration exposes the game at `localhost:25566` and the API at `127.0.0.1:28886`. It uses `boxloom-local-poc-token` only for local testing. The API port remains bound to host loopback even though the process listens on the container network.
 
+The server uses Creative mode and Normal difficulty, allowing zombies and other
+hostile mobs to be summoned. Set `MINECRAFT_OPS=YourJavaName` in `server/fabric/.env`
+before starting it to grant your Minecraft Java profile OP level 4 and access to all
+commands. Multiple names or UUIDs can be separated by commas. Run
+`docker compose up -d` again after changing the setting.
+
 Stop the server while preserving its world volume with:
 
 ```bash
