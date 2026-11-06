@@ -8,7 +8,8 @@ The mod exposes Minecraft operations and a live player event stream:
 - List connected players
 - Read a connected player's position and look direction
 - Read the block under a player's server-side crosshair, within interaction reach
-- Perform one native block attack or miss, including a swing sent to the player and observers
+- Perform one native block or entity attack or miss, including a swing sent to the player and observers
+- Start and stop continuous held mining with native speed, drops and durability
 - Teleport a connected player to absolute coordinates
 - Set a connected player's game mode to Creative or Survival
 - Get one block from a loaded dimension
@@ -28,12 +29,26 @@ distance. Entities occlude blocks and fluids are ignored. Targeting uses the
 server's latest received view, so it can lag behind the client's crosshair.
 
 `POST /v1/players/{username}/attack` accepts an empty JSON body, `{}`, and returns
-`swung`, `target`, and `broken`. It recalculates the target, invokes native block
-attack processing, and ends mining before returning. Creative and instant-mine
-blocks can break; other survival blocks need sustained mining. Native game-mode,
-tool, protection and Fabric callback rules apply. Entity and piercing-weapon
-attacks return `409 UNSUPPORTED_ATTACK_TARGET`; dead, spectator or busy players
-return `409 PLAYER_CANNOT_ATTACK`.
+`swung`, `target`, and `broken`, plus `entity` after an entity attack attempt. It
+recalculates the target, cancels API mining, and invokes native block or entity
+attack processing. Native entity reach, damage cooldowns, PvP and Fabric callbacks
+apply. Entity snapshots do not guarantee damage. Creative and instant-mine blocks
+can break; other survival blocks need sustained mining. Piercing weapons return
+`409 UNSUPPORTED_ATTACK_TARGET`; dead, spectator or busy players return
+`409 PLAYER_CANNOT_ATTACK`.
+
+`POST /v1/players/{username}/mining/start` and `/mining/stop` accept `{}` and return
+`active`, `target`, and `broken`. Start returns immediately and the server advances
+native mining like holding the mining button. It waits without a target and
+continues to the next block after a five-tick break delay. Repeated start preserves
+progress. Target, block-state, tool or slot changes reset progress; item use pauses
+mining. Protected or unbreakable targets wait for the aim, block or tool to change.
+The mode ends on stop, attack, death, disconnect, world or game-mode changes, or
+a competing native mining action. Stop is idempotent and cancels pending native
+delayed breaks. `active` remains true while waiting and after an instant break;
+`target` can be null. This mode does not attack entities. The controlled player
+receives cracks and swings as well as observers. Native protection events, tool
+durability and drops apply.
 
 ## Fixed compatibility versions
 

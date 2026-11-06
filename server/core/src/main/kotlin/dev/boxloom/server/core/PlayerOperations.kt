@@ -11,6 +11,10 @@ interface PlayerOperations {
 
     fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult>
 
+    fun startMining(username: String): CompletableFuture<PlayerMiningResult>
+
+    fun stopMining(username: String): CompletableFuture<PlayerMiningResult>
+
     fun teleportPlayer(
         username: String,
         request: TeleportPlayerRequest,
@@ -39,6 +43,13 @@ data class TargetedBlock(
 
 data class PlayerAttackResult(
     val swung: Boolean,
+    val target: TargetedBlock?,
+    val broken: Boolean,
+    val entity: EntitySnapshot? = null,
+)
+
+data class PlayerMiningResult(
+    val active: Boolean,
     val target: TargetedBlock?,
     val broken: Boolean,
 )

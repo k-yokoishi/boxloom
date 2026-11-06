@@ -16,6 +16,7 @@ from boxloom import (
     GetBlockResult,
     KillResult,
     Player,
+    PlayerMiningResult,
     GameMode,
     PlayerGameMode,
     PlayerPosition,
@@ -81,6 +82,9 @@ assert files("boxloom").joinpath("py.typed").is_file()
 assert FillResult.__name__ == "FillResult"
 assert Block.__name__ == "Block"
 assert GetBlockResult is Block
+assert PlayerMiningResult(True, None, False).active
+assert callable(Player.start_mining)
+assert callable(Player.stop_mining)
 assert boxloom.ChatEventStream is ChatEventStream
 assert issubclass(EventCursorExpiredError, boxloom.ApiError)
 

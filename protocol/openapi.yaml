@@ -258,16 +258,16 @@ paths:
   /v1/players/{username}/attack:
     post:
       operationId: attackPlayer
-      summary: Attack the targeted block once, or swing at empty space
+      summary: Attack the targeted block or entity once, or swing at empty space
       description: >-
-        Uses the server's latest eye position and view within the player's block
-        interaction reach. Entities occlude blocks and fluids are ignored.
-        Performs one native block attack and immediately ends mining. Instant-mine
-        and creative blocks may break; other blocks require sustained mining, which
-        this API does not perform. Native protections and Fabric callbacks apply.
-        Sends the arm swing to the player and observers. Entity and piercing-weapon
-        attacks return UNSUPPORTED_ATTACK_TARGET. Dead, spectator or busy players
-        return PLAYER_CANNOT_ATTACK. A target is not a guarantee that a block broke.
+        Uses the server's latest eye position and view with native block or entity reach. Entities occlude blocks and fluids are ignored.
+        Cancels API mining and performs one native block or entity attack. Instant-mine
+        and creative blocks may break; other blocks require the separate mining API.
+        Native protections, attack range, damage cooldowns, PvP rules and Fabric
+        callbacks apply. Entity reach is independent of block reach. Sends the arm
+        swing to the player and observers. Piercing weapons return UNSUPPORTED_ATTACK_TARGET.
+        Dead, spectator or busy players return PLAYER_CANNOT_ATTACK. An entity snapshot
+        is included after an entity attack attempt; damage is not guaranteed.
       parameters:
         - name: username
           in: path
@@ -307,6 +307,154 @@ paths:
           $ref: '#/components/responses/MethodNotAllowed'
         '409':
           description: PLAYER_CANNOT_ATTACK or UNSUPPORTED_ATTACK_TARGET
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Content-Type must be application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
+  /v1/players/{username}/mining/start:
+    post:
+      operationId: startPlayerMining
+      summary: Enable continuous held mining
+      description: >-
+        Returns immediately with active true, like holding the mining button. Waits
+        with target null when no block is targeted, and continues to the next block
+        after each break with a five-tick delay. Uses native tool speed, drops,
+        durability and protection callbacks. Repeating start does not reset progress.
+        Target, block-state, tool or selected-slot changes reset block progress;
+        item use pauses mining. Protected and unbreakable targets remain intact and
+        wait until the aim, block or tool changes. The mode ends on stop_mining,
+        attack, death, disconnect, world or game-mode changes, or a competing native
+        mining action. The response is a snapshot; broken is true only for an
+        immediate creative or instant break and does not turn active off. Later
+        breaks are visible through block reads. The player and observers receive
+        animation and cracks. This mode only mines blocks; it does not attack entities.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_]{3,16}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              maxProperties: 0
+            example: {}
+      responses:
+        '200':
+          description: The server-thread result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerMiningResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The player is not connected or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '409':
+          description: PLAYER_CANNOT_ATTACK or UNSUPPORTED_ATTACK_TARGET
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Content-Type must be application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
+  /v1/players/{username}/mining/stop:
+    post:
+      operationId: stopPlayerMining
+      summary: Cancel this player's API mining session
+      description: >-
+        Idempotent: an inactive session returns active false, target null, broken false.
+        An active session is cancelled, including pending native delayed completion,
+        and its crack animation is cleared. Target contains the current block's
+        snapshot, or null while waiting without a target. This action never breaks a block.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_]{3,16}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              maxProperties: 0
+            example: {}
+      responses:
+        '200':
+          description: The server-thread result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerMiningResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The player is not connected or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '409':
+          description: Minecraft could not cancel the mining session
           content:
             application/json:
               schema:
@@ -1190,6 +1338,25 @@ components:
         broken:
           type: boolean
           description: Whether the targeted block's type changed during the native attack.
+        entity:
+          $ref: '#/components/schemas/Entity'
+          description: Optional entity snapshot after an entity attack attempt; omitted for block attacks and misses.
+    PlayerMiningResult:
+      type: object
+      additionalProperties: false
+      required: [active, target, broken]
+      properties:
+        active:
+          type: boolean
+          description: Whether held mining is enabled, including while waiting with no target. Remains true after a break until stopped.
+        target:
+          description: Current block snapshot, or the block immediately broken by start; null while waiting without a target.
+          oneOf:
+            - $ref: '#/components/schemas/TargetedBlock'
+            - type: 'null'
+        broken:
+          type: boolean
+          description: True only if starting mining immediately broke the block; stop never breaks a block.
     Player:
       type: object
       additionalProperties: false

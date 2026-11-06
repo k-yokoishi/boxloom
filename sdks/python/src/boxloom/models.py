@@ -36,9 +36,19 @@ class Player:
         return self._require_client().get_player_targeted_block(self.username)
 
     def attack(self) -> "PlayerAttackResult":
-        """Attack the targeted block once, or swing if no target is present."""
+        """Attack the targeted block or entity once, or swing at empty space."""
 
         return self._require_client().attack_player(self.username)
+
+    def start_mining(self) -> "PlayerMiningResult":
+        """Hold mining until stopped; wait without a target and continue after each break."""
+
+        return self._require_client().start_player_mining(self.username)
+
+    def stop_mining(self) -> "PlayerMiningResult":
+        """Cancel this player's API mining session; safe to call when inactive."""
+
+        return self._require_client().stop_player_mining(self.username)
 
     def _require_client(self) -> "BoxloomClient":
         if self._client is None:
@@ -72,9 +82,19 @@ class TargetedBlock(Block):
 
 @dataclass(frozen=True)
 class PlayerAttackResult:
-    """A single block attack; targeting a block does not imply it was broken."""
+    """A single attack; targeting does not guarantee block destruction or entity damage."""
 
     swung: bool
+    target: Optional[TargetedBlock]
+    broken: bool
+    entity: Optional["Entity"] = None
+
+
+@dataclass(frozen=True)
+class PlayerMiningResult:
+    """Mining state immediately after a start or stop request."""
+
+    active: bool
     target: Optional[TargetedBlock]
     broken: bool
 

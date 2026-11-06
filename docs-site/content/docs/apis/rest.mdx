@@ -157,15 +157,73 @@ The username has the same constraints as `get_targeted_block`.
 }
 ```
 
-`target` is a snapshot before the action and is `null` for empty space. `swung`
+`target` is a block snapshot before the action and is `null` for entities and empty space. `swung`
 reports whether a new arm swing started; an existing swing may prevent another.
 `broken` reports whether the target's block type changed during the native action.
-The target is recalculated when this request executes.
+The target is recalculated when this request executes. An entity attack also returns
+`entity` with an [entity snapshot](#get_entities) after the attempt. Damage is not
+guaranteed: native damage cooldowns, PvP rules and Fabric callbacks apply. This
+field is omitted for block attacks and misses.
 
 One survival click does not mine a hard block to completion. Creative and
 instant-mine blocks can break. Native protections, tools, and Fabric callbacks
-apply. Entity and piercing-weapon attacks return `409 UNSUPPORTED_ATTACK_TARGET`.
+apply. Entities use their own native attack reach, with intervening walls blocking
+damage. Piercing-weapon attacks return `409 UNSUPPORTED_ATTACK_TARGET`.
+Any active API mining session is cancelled before attacking.
 Avoid blindly retrying a timed-out mutation: it may already have taken effect.
+
+</Operation>
+
+## `start_mining`
+
+<Operation id="start_mining">
+
+<ApiEndpoint method="POST" path="/v1/players/{username}/mining/start" />
+
+**Request body** — `{}`. No query parameters are accepted. `username` uses the
+same name constraints as other player operations.
+
+**Response** — `200 application/json`
+
+```json
+{
+  "active": true,
+  "target": {
+    "dimension": "minecraft:overworld", "x": 10, "y": 64, "z": 20,
+    "block": "minecraft:stone", "face": "north", "distance": 2.5
+  },
+  "broken": false
+}
+```
+
+The response is immediate and `active` is true, like holding the mining button.
+With no target it returns `target: null` and waits. After a break it continues to
+the next block with a five-tick delay. Native tool speed, drops, durability and
+protection callbacks apply. `broken` is true only if this request immediately broke
+the block (creative or instant mining); `active` remains true. Repeating start
+preserves progress.
+
+Target, block-state, held-stack or slot changes reset block progress. Item use
+pauses mining. Protected and unbreakable targets remain intact, waiting for the
+aim, block or tool to change. This mode only mines blocks and does not attack
+entities. It ends on `stop_mining`, `attack`, death, disconnect, world or game-mode
+changes, or another native mining action. Read blocks to observe later breaks.
+The controlled player and observers receive swings and crack progress.
+
+</Operation>
+
+## `stop_mining`
+
+<Operation id="stop_mining">
+
+<ApiEndpoint method="POST" path="/v1/players/{username}/mining/stop" />
+
+**Request body** — `{}`. No query parameters are accepted.
+
+Returns `PlayerMiningResult` with `active: false` and `broken: false`. `target`
+contains the current block snapshot, or `null` while waiting without a target or
+already inactive. Pending native delayed completion is cancelled, so stopping
+will not leave the block queued to break later.
 
 </Operation>
 

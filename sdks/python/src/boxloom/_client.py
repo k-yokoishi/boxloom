@@ -37,6 +37,7 @@ from .models import (
     ItemUseEvent,
     PlayerPosition,
     PlayerAttackResult,
+    PlayerMiningResult,
     TargetedBlock,
     BlockFace,
     SayResult,
@@ -118,7 +119,7 @@ class BoxloomClient:
         return _targeted_block(payload)
 
     def attack_player(self, username: str) -> PlayerAttackResult:
-        """Perform one block attack or a miss; never leave mining active."""
+        """Perform one block/entity attack or a miss; cancel API mining first."""
 
         if not isinstance(username, str) or not _USERNAME.fullmatch(username):
             raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
@@ -129,7 +130,35 @@ class BoxloomClient:
         target = _targeted_block(payload)
         if broken and target is None:
             raise ProtocolError("a broken block must have a target")
-        return PlayerAttackResult(swung, target, broken)
+        entity_value = payload.get("entity")
+        entity = None if entity_value is None else _entity_snapshot(entity_value)
+        if target is not None and entity is not None:
+            raise ProtocolError("an attack cannot target both a block and an entity")
+        return PlayerAttackResult(swung, target, broken, entity)
+
+    def start_player_mining(self, username: str) -> PlayerMiningResult:
+        """Enable held mining, including when no block is currently targeted."""
+
+        return self._player_mining(username, "start")
+
+    def stop_player_mining(self, username: str) -> PlayerMiningResult:
+        """Stop API mining, including an already inactive session."""
+
+        return self._player_mining(username, "stop")
+
+    def _player_mining(self, username: str, action: str) -> PlayerMiningResult:
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+        payload = self._post(f"/v1/players/{quote(username, safe='')}/mining/{action}", {})
+        active, broken = payload.get("active"), payload.get("broken")
+        if not isinstance(active, bool) or not isinstance(broken, bool):
+            raise ProtocolError("response fields 'active' and 'broken' must be booleans")
+        target = _targeted_block(payload)
+        if broken and target is None:
+            raise ProtocolError("a broken block must have a target")
+        if action == "stop" and (active or broken):
+            raise ProtocolError("stopping mining must return active=false and broken=false")
+        return PlayerMiningResult(active, target, broken)
 
     def set_player_gamemode(self, username: str, mode: GameMode) -> PlayerGameMode:
         """Set a connected player's mode to creative or survival, including a no-op."""
@@ -716,20 +745,7 @@ class BoxloomClient:
         for index, value in enumerate(values):
             if not isinstance(value, dict):
                 raise ProtocolError(f"response field 'entities[{index}]' must be an object")
-            if "health" not in value:
-                raise ProtocolError("response field 'health' must be a number or null")
-            entities.append(Entity(
-                uuid=_require_string(value, "uuid"),
-                entity=_require_string(value, "entity"),
-                dimension=_require_string(value, "dimension"),
-                x=_require_number(value, "x"),
-                y=_require_number(value, "y"),
-                z=_require_number(value, "z"),
-                yaw=_require_number(value, "yaw"),
-                pitch=_require_number(value, "pitch"),
-                name=_require_string(value, "name"),
-                health=None if value["health"] is None else _require_number(value, "health"),
-            ))
+            entities.append(_entity_snapshot(value))
         return entities
 
     def kill_entity(
@@ -920,4 +936,19 @@ def _targeted_block(payload: Mapping[str, Any]) -> Optional[TargetedBlock]:
         block=_require_string(value, "block"),
         face=cast(BlockFace, face),
         distance=distance,
+    )
+
+
+def _entity_snapshot(value: Any) -> Entity:
+    if not isinstance(value, dict):
+        raise ProtocolError("response entity must be an object")
+    if "health" not in value:
+        raise ProtocolError("response field 'health' must be a number or null")
+    return Entity(
+        uuid=_require_string(value, "uuid"), entity=_require_string(value, "entity"),
+        dimension=_require_string(value, "dimension"),
+        x=_require_number(value, "x"), y=_require_number(value, "y"), z=_require_number(value, "z"),
+        yaw=_require_number(value, "yaw"), pitch=_require_number(value, "pitch"),
+        name=_require_string(value, "name"),
+        health=None if value["health"] is None else _require_number(value, "health"),
     )

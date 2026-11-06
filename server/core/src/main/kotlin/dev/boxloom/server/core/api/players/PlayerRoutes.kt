@@ -2,6 +2,7 @@ package dev.boxloom.server.core.api.players
 
 import com.sun.net.httpserver.HttpExchange
 import dev.boxloom.server.core.GameMode
+import dev.boxloom.server.core.EntitySnapshot
 import dev.boxloom.server.core.JsonSupport
 import dev.boxloom.server.core.PlayerOperations
 import dev.boxloom.server.core.PlayerPosition
@@ -17,6 +18,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.util.regex.Pattern
 
 internal class PlayerRoutes(
@@ -28,6 +30,8 @@ internal class PlayerRoutes(
         router.get("/players/{username}/position", ::position)
         router.get("/players/{username}/targeted-block", ::targetedBlock)
         router.post("/players/{username}/attack", ::attack)
+        router.post("/players/{username}/mining/start") { exchange, parameters -> mining(exchange, parameters, true) }
+        router.post("/players/{username}/mining/stop") { exchange, parameters -> mining(exchange, parameters, false) }
         router.post("/players/{username}/teleport", ::teleport)
         router.post("/players/{username}/gamemode", ::setGameMode)
     }
@@ -65,16 +69,45 @@ internal class PlayerRoutes(
 
     private fun attack(exchange: HttpExchange, parameters: RouteParameters) {
         val username = requireUsername(parameters)
-        HttpExchangeSupport.requireOnlyQueryParameters(HttpExchangeSupport.queryParameters(exchange), emptySet())
-        HttpExchangeSupport.requireJsonContentType(exchange)
-        val body = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
-        JsonSupport.requireOnlyFields(body, emptySet())
+        requireEmptyAction(exchange)
         val result = operations.await(minecraft.attackPlayer(username))
         HttpExchangeSupport.sendJson(exchange, 200, buildJsonObject {
             put("swung", result.swung)
             put("target", result.target?.toJson() ?: JsonNull)
             put("broken", result.broken)
+            result.entity?.let { put("entity", it.toJson()) }
         }.toString())
+    }
+
+    private fun mining(exchange: HttpExchange, parameters: RouteParameters, start: Boolean) {
+        val username = requireUsername(parameters)
+        requireEmptyAction(exchange)
+        val result = operations.await(if (start) minecraft.startMining(username) else minecraft.stopMining(username))
+        HttpExchangeSupport.sendJson(exchange, 200, buildJsonObject {
+            put("active", result.active)
+            put("target", result.target?.toJson() ?: JsonNull)
+            put("broken", result.broken)
+        }.toString())
+    }
+
+    private fun requireEmptyAction(exchange: HttpExchange) {
+        HttpExchangeSupport.requireOnlyQueryParameters(HttpExchangeSupport.queryParameters(exchange), emptySet())
+        HttpExchangeSupport.requireJsonContentType(exchange)
+        val body = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
+        JsonSupport.requireOnlyFields(body, emptySet())
+    }
+
+    private fun EntitySnapshot.toJson(): JsonObject = buildJsonObject {
+        put("uuid", uuid)
+        put("entity", entity)
+        put("dimension", dimension)
+        put("x", x)
+        put("y", y)
+        put("z", z)
+        put("yaw", yaw)
+        put("pitch", pitch)
+        put("name", name)
+        put("health", health?.let { JsonPrimitive(it) } ?: JsonNull)
     }
 
     private fun TargetedBlock.toJson(): JsonObject = buildJsonObject {

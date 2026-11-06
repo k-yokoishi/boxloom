@@ -207,15 +207,80 @@ Also available as `BoxloomClient.attack_player(username)`.
 | Attribute | Type | Description |
 | --- | --- | --- |
 | `swung` | `bool` | Whether a new arm swing started. An existing swing may prevent another. |
-| `target` | `Optional[TargetedBlock]` | Target snapshot captured before the attack; `None` for a miss. |
+| `target` | `Optional[TargetedBlock]` | Block snapshot captured before the attack; `None` for entity attacks and misses. |
 | `broken` | `bool` | Whether the targeted block's type changed during the attack. |
+| `entity` | `Optional[Entity]` | Entity snapshot after an entity attack attempt; `None` for block attacks and misses. Damage is not guaranteed. |
 
 This is a single click: survival blocks that require sustained mining remain in
 place. Creative and instant-mine blocks can break. A targeted block may remain
 because of protection rules, the held tool, or cancellation by another mod.
-Entity attacks and piercing-weapon attacks are currently rejected with
-`UNSUPPORTED_ATTACK_TARGET`. This operation is not retried automatically; a
+An entity within native attack reach can be attacked, with normal damage cooldowns,
+PvP rules and Fabric cancellation. Blocks and entities use their own reach values;
+a wall blocks attacks on entities behind it. Piercing weapons are rejected with
+`UNSUPPORTED_ATTACK_TARGET`. Calling `attack()` cancels any API mining session.
+This operation is not retried automatically; a
 timeout can occur after the action has already taken effect.
+
+</Operation>
+
+### `Player.start_mining`
+
+<Operation id="start_mining">
+
+```python
+player.start_mining() -> PlayerMiningResult
+```
+
+Also available as `BoxloomClient.start_player_mining(username)`.
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `active` | `bool` | Whether held mining is enabled, including while waiting without a target. |
+| `target` | `Optional[TargetedBlock]` | Current block snapshot, or the block immediately broken by this request; `None` while waiting without a target. |
+| `broken` | `bool` | Whether this request immediately broke the block, as in creative or instant mining. |
+
+This acts like holding the mining button. It returns immediately with `active=True`,
+even when no block is targeted. The server waits for a block under the crosshair,
+mines it and continues to the next block after a five-tick break delay. An immediate
+creative or instant break returns both `active=True` and `broken=True`.
+
+Looking away cancels that block's progress and waits for a target. A new target,
+block state, held stack or selected slot starts fresh progress. Item use pauses
+mining. Protected and unbreakable targets stay intact; mining waits for the aim,
+block or tool to change. This operation only mines blocks and does not attack
+entities. The player receives arm swings and crack progress as well as observers.
+
+Call `stop_mining()` to release the hold. `attack()`, death, disconnect, world or
+game-mode changes, and a competing native mining action also end the mode.
+
+```python
+import time
+from boxloom import get_player
+
+player = get_player("Steve")
+player.start_mining()  # No targeted block is required.
+try:
+    time.sleep(10)  # Aim at blocks during this time to mine them continuously.
+finally:
+    player.stop_mining()
+```
+
+The tool and block determine the required time. `active` and `broken` are snapshots
+at request time; read blocks to observe later breaks.
+
+</Operation>
+
+### `Player.stop_mining`
+
+<Operation id="stop_mining">
+
+```python
+player.stop_mining() -> PlayerMiningResult
+```
+
+Also available as `BoxloomClient.stop_player_mining(username)`. Returns `active=False`
+and `broken=False`. `target` is the current block snapshot, or `None` while waiting
+without a target or already inactive. It is safe to call from `finally`.
 
 </Operation>
 

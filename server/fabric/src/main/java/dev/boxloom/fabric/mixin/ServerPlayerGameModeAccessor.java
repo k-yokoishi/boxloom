@@ -12,4 +12,19 @@ public interface ServerPlayerGameModeAccessor {
 
     @Accessor("destroyPos")
     BlockPos boxloom$destroyPos();
+
+    @Accessor("gameTicks")
+    int boxloom$gameTicks();
+
+    @Accessor("destroyProgressStart")
+    int boxloom$destroyProgressStart();
+
+    @Accessor("hasDelayedDestroy")
+    boolean boxloom$hasDelayedDestroy();
+
+    @Accessor("hasDelayedDestroy")
+    void boxloom$setHasDelayedDestroy(boolean value);
+
+    @Accessor("delayedDestroyPos")
+    BlockPos boxloom$delayedDestroyPos();
 }

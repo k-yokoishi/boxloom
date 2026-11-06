@@ -94,7 +94,7 @@ class ClientTest(unittest.TestCase):
 
     def test_snapshot_players_require_an_explicit_client_binding(self):
         player = boxloom.Player("Steve", "test-uuid")
-        for operation in (player.get_targeted_block, player.attack):
+        for operation in (player.get_targeted_block, player.attack, player.start_mining, player.stop_mining):
             with self.assertRaises(boxloom.ConfigurationError):
                 operation()
         self.assertEqual([], _ApiHandler.requests)
@@ -120,6 +120,63 @@ class ClientTest(unittest.TestCase):
             _ApiHandler.response_body = body
             with self.assertRaises(boxloom.ProtocolError):
                 player.attack()
+
+    def test_entity_attack_returns_post_attack_snapshot(self):
+        player = self._player()
+        entity = {
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af", "entity": "minecraft:zombie",
+            "dimension": "minecraft:overworld", "x": 1, "y": 64, "z": 3,
+            "yaw": 0, "pitch": 0, "name": "Zombie", "health": 19,
+        }
+        _ApiHandler.response_body = {"swung": True, "target": None, "broken": False, "entity": entity}
+        self.assertEqual(boxloom.Entity(**entity), player.attack().entity)
+        _ApiHandler.response_body["target"] = self._target()
+        with self.assertRaises(boxloom.ProtocolError):
+            player.attack()
+        _ApiHandler.response_body["target"] = None
+        _ApiHandler.response_body["entity"] = "not-an-entity"
+        with self.assertRaises(boxloom.ProtocolError):
+            player.attack()
+
+    def test_player_mining_start_and_stop_use_bound_client(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="mining-secret")
+        player = self._player(client)
+        boxloom.init(base_url="http://127.0.0.1:1")
+        _ApiHandler.response_body = {"active": True, "target": self._target(), "broken": False}
+        self.assertEqual(boxloom.PlayerMiningResult(True, boxloom.TargetedBlock(**self._target()), False), player.start_mining())
+        self.assertEqual("/v1/players/Steve/mining/start", _ApiHandler.requests[-1][0])
+        self.assertEqual("Bearer mining-secret", _ApiHandler.requests[-1][1]["Authorization"])
+        self.assertEqual({}, _ApiHandler.requests[-1][2])
+        _ApiHandler.response_body = {"active": False, "target": None, "broken": False}
+        self.assertEqual(boxloom.PlayerMiningResult(False, None, False), player.stop_mining())
+        self.assertEqual("/v1/players/Steve/mining/stop", _ApiHandler.requests[-1][0])
+        _ApiHandler.response_body = {"active": True, "target": None, "broken": False}
+        self.assertEqual(boxloom.PlayerMiningResult(True, None, False), player.start_mining())
+        _ApiHandler.response_body = {"active": True, "target": self._target(), "broken": True}
+        self.assertTrue(player.start_mining().broken)
+        self.assertTrue(player.start_mining().active)
+
+    def test_mining_validates_arguments_results_and_server_rejection(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        for action in (client.start_player_mining, client.stop_player_mining):
+            with self.assertRaises(ValueError):
+                action("ab")
+        self.assertEqual([], _ApiHandler.requests)
+        player = self._player()
+        for body in ({}, {"active": 1, "target": None, "broken": False},
+                     {"active": True, "target": None, "broken": True},
+                     {"active": True, "target": self._target(), "broken": 1}):
+            _ApiHandler.response_body = body
+            with self.assertRaises(boxloom.ProtocolError):
+                player.start_mining()
+        _ApiHandler.response_body = {"active": True, "target": None, "broken": False}
+        with self.assertRaises(boxloom.ProtocolError):
+            player.stop_mining()
+        _ApiHandler.response_status = 409
+        _ApiHandler.response_body = {"error": {"code": "PLAYER_CANNOT_ATTACK", "message": "spectator"}}
+        with self.assertRaises(boxloom.ApiError) as rejected:
+            player.start_mining()
+        self.assertEqual("PLAYER_CANNOT_ATTACK", rejected.exception.code)
 
     def test_player_actions_propagate_api_errors(self):
         player = self._player()
