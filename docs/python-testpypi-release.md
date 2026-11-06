@@ -24,10 +24,11 @@ The workflow can publish only from `main`. It uses the Python version in `sdks/p
 
 TestPyPI does not allow a published distribution file to be replaced. Increment the package version before publishing another build.
 
-Python SDK `0.1.0a6` adds `blocks` and `entities` string constants generated from
-Minecraft 26.3 for editor completion, including `blocks.DIAMOND_BLOCK` and
-`entities.ZOMBIE`. It also supports loaded entity queries, typed player death event
-streams, world clock operations, and entity killing. Loopback
+Python SDK `0.1.0a7` adds typed background event callbacks through
+`subscribe_event()`, with synchronous readiness, serial delivery, cooperative
+shutdown, and error propagation. It also includes Minecraft 26.3 `blocks` and
+`entities` constants for editor completion, loaded entity queries, typed player
+death event streams, world clock operations, and entity killing. Loopback
 connections may omit the authentication token; a Fabric mod bound to a
 non-loopback address requires a non-empty token.
 
@@ -36,13 +37,13 @@ non-loopback address requires a non-empty token.
 The current SDK has no third-party runtime dependencies, so it can be installed directly from TestPyPI in a clean environment:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a6
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a7
 ```
 
 Then verify the installed package:
 
 ```bash
-env -u BOXLOOM_AUTH_TOKEN python -c "import boxloom; boxloom.init(); print(boxloom.__version__); print(boxloom.blocks.DIAMOND_BLOCK, boxloom.entities.ZOMBIE)"
+env -u BOXLOOM_AUTH_TOKEN python -c "import boxloom; boxloom.init(); print(boxloom.__version__); print(callable(boxloom.subscribe_event)); print(boxloom.blocks.DIAMOND_BLOCK, boxloom.entities.ZOMBIE)"
 ```
 
 ## Optional local publishing

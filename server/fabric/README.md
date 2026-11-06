@@ -88,7 +88,7 @@ cd server
 ./gradlew :fabric:clean :fabric:build
 ```
 
-The mod JAR is written to `fabric/build/libs/boxloom-0.1.0-alpha.6.jar`.
+The mod JAR is written to `fabric/build/libs/boxloom-0.1.0-alpha.7.jar`.
 
 ## Docker PoC
 
