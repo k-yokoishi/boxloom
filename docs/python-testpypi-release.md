@@ -24,11 +24,12 @@ The workflow can publish only from `main`. It uses the Python version in `sdks/p
 
 TestPyPI does not allow a published distribution file to be replaced. Increment the package version before publishing another build.
 
-Python SDK `0.1.0a7` adds typed background event callbacks through
-`subscribe_event()`, with synchronous readiness, serial delivery, cooperative
-shutdown, and error propagation. It also includes Minecraft 26.3 `blocks` and
-`entities` constants for editor completion, loaded entity queries, typed player
-death event streams, world clock operations, and entity killing. Loopback
+Python SDK `0.1.0a8` adds typed player swing, block attack, block use, and item
+use events through `watch_event()` and `subscribe_event()`, plus player game mode
+changes through `set_player_gamemode()`. It also includes background callbacks,
+Minecraft 26.3 `blocks` and `entities` constants for editor completion, loaded
+entity queries, typed player death events, world clock operations, and entity
+killing. Loopback
 connections may omit the authentication token; a Fabric mod bound to a
 non-loopback address requires a non-empty token.
 
@@ -37,7 +38,7 @@ non-loopback address requires a non-empty token.
 The current SDK has no third-party runtime dependencies, so it can be installed directly from TestPyPI in a clean environment:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a7
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a8
 ```
 
 Then verify the installed package:

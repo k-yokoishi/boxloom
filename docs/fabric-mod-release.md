@@ -1,6 +1,6 @@
 # Publishing the boxloom Fabric mod
 
-This checklist covers publishing the `0.1.0-alpha.7` release to GitHub Releases and Modrinth.
+This checklist covers publishing the `0.1.0-alpha.8` release to GitHub Releases and Modrinth.
 
 ## Build and verify
 
@@ -11,7 +11,7 @@ mise run fabric-build
 mise run python-test
 ```
 
-Upload `server/fabric/build/libs/boxloom-0.1.0-alpha.7.jar` as the primary mod file. The `-sources.jar` file is optional supplementary source code, not the installable mod.
+Upload `server/fabric/build/libs/boxloom-0.1.0-alpha.8.jar` as the primary mod file. The `-sources.jar` file is optional supplementary source code, not the installable mod.
 
 Before publishing, repeat the clean-profile smoke test with the new JAR and no `BOXLOOM_AUTH_TOKEN`. Confirm that Minecraft starts, `config/boxloom.json` is created, the unauthenticated warning appears, and the HTTP server listens on `127.0.0.1:28886`.
 
@@ -42,7 +42,8 @@ The current alpha supports:
 - Listing connected players
 - Reading a connected player's position and look direction
 - Teleporting connected players to absolute coordinates with optional dimension and rotation
-- Streaming player chat messages and deaths through a resumable Server-Sent Events API
+- Changing a connected player's game mode
+- Streaming player chat messages, deaths, arm swings, block attacks, block use, and item use through a resumable Server-Sent Events API
 - Setting one block in a loaded dimension
 - Reading the block ID at one position in a loaded dimension
 - Filling an inclusive region containing up to 32,768 blocks
@@ -72,7 +73,7 @@ Upload the primary JAR and set:
 
 | Field | Value |
 | --- | --- |
-| Version number | `0.1.0-alpha.7` |
+| Version number | `0.1.0-alpha.8` |
 | Version type | Alpha |
 | Loader | Fabric |
 | Game version | 26.3 |
@@ -81,7 +82,7 @@ Upload the primary JAR and set:
 | Required dependency | Fabric API |
 | Required dependency | Fabric Language Kotlin |
 
-Paste the matching section from `server/fabric/CHANGELOG.md` into the version changelog. Add `boxloom-0.1.0-alpha.7-sources.jar` only as a supplementary Sources JAR if desired.
+Paste the matching section from `server/fabric/CHANGELOG.md` into the version changelog. Add `boxloom-0.1.0-alpha.8-sources.jar` only as a supplementary Sources JAR if desired.
 
 ## GitHub Release
 
@@ -92,8 +93,8 @@ matching heading in `server/fabric/CHANGELOG.md` use the same version.
 Create and push an annotated tag from the release commit:
 
 ```bash
-git tag -a fabric-v0.1.0-alpha.7 -m "boxloom Fabric Mod 0.1.0-alpha.7"
-git push origin fabric-v0.1.0-alpha.7
+git tag -a fabric-v0.1.0-alpha.8 -m "boxloom Fabric Mod 0.1.0-alpha.8"
+git push origin fabric-v0.1.0-alpha.8
 ```
 
 The `.github/workflows/fabric-release.yml` workflow then:
@@ -101,7 +102,7 @@ The `.github/workflows/fabric-release.yml` workflow then:
 - checks that the tag and configured version match
 - builds and tests the Fabric server modules with Java 25
 - copies the matching section from `server/fabric/CHANGELOG.md`
-- publishes a GitHub prerelease with `boxloom-0.1.0-alpha.7.jar` attached
+- publishes a GitHub prerelease with `boxloom-0.1.0-alpha.8.jar` attached
 
 No additional GitHub secret is required; the workflow uses the repository's
 short-lived `GITHUB_TOKEN`. After it succeeds, add the release link to the

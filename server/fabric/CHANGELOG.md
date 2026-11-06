@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-alpha.8
+
+- Stream player arm swings, block attacks, block use, and item use through REST
+  and Python SDK `0.1.0a8`, including typed event streams and background callbacks
+- Change a connected player's game mode between creative and survival through
+  REST and Python
+- Enable commands in the Compose examples and use normal difficulty so hostile
+  mobs can be summoned
+
 ## 0.1.0-alpha.7
 
 - Receive typed Python event callbacks in the background with `subscribe_event()`
