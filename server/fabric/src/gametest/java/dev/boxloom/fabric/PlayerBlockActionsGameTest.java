@@ -47,7 +47,26 @@ public class PlayerBlockActionsGameTest {
         test.assertValueEqual(target.getFace(), "north", "hit face");
         test.assertValueEqual(target.getZ(), test.absolutePos(new BlockPos(1, 3, 3)).getZ(), "absolute z");
         test.assertTrue(Math.abs(target.getDistance() - 1.5) < 0.001,
-            "Distance to hit surface: " + target.getDistance() + ", eye=" + player.getEyePosition());
+            "Distance to hit surface: " + target.getDistance() + ", eye=" + player.getEyePosition()
+                + ", view=" + player.getViewVector(1.0f));
+        test.succeed();
+    }
+
+    @GameTest
+    public void targetsUsingHeadRotation(GameTestHelper test) {
+        var player = player(test, GameType.SURVIVAL);
+        test.setBlock(1, 3, 3, Blocks.DIRT);
+        // snapTo changes body yaw, but native picking reads the independent head yaw.
+        player.setYHeadRot(30.0f);
+        var turned = PlayerBlockActions.INSTANCE.targetedBlock(player);
+        var original = test.absolutePos(new BlockPos(1, 3, 3));
+        test.assertTrue(turned == null || turned.getX() != original.getX()
+                || turned.getY() != original.getY() || turned.getZ() != original.getZ(),
+            "Turning the head must move the crosshair away from the original block");
+        player.setYHeadRot(0.0f);
+        var target = PlayerBlockActions.INSTANCE.targetedBlock(player);
+        test.assertTrue(target != null && Math.abs(target.getDistance() - 1.5) < 0.001,
+            "Aligning head yaw restores the straight 1.5-block ray");
         test.succeed();
     }
 
@@ -157,6 +176,8 @@ public class PlayerBlockActionsGameTest {
         player.setGameMode(mode);
         BlockPos position = test.absolutePos(new BlockPos(1, 2, 1));
         player.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5, 0.0f, 0.0f);
+        // Native picking uses head yaw, which otherwise retains the randomized spawn angle.
+        player.setYHeadRot(0.0f);
         return player;
     }
 }
