@@ -161,8 +161,8 @@ def get_players() -> List[Player]:
     return _default_client().get_players()
 
 
-def get_player(username: str) -> Player:
-    """Resolve a connected player whose methods retain the current client."""
+def get_player(username: str) -> Optional[Player]:
+    """Resolve a connected player bound to the current client, or None if not connected."""
 
     return _default_client().get_player(username)
 

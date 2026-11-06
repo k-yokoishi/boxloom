@@ -28,12 +28,19 @@ Read the block a player is aiming at and attack it once:
 from boxloom import get_player
 
 player = get_player("Steve")
+if player is None:
+    raise RuntimeError("Steve is not connected")
 target = player.get_targeted_block()
 if target is not None:
     print(target.block, target.x, target.y, target.z, target.face, target.distance)
 result = player.attack()
 print(result.swung, result.broken, result.entity)
 ```
+
+`get_player(username)` returns `Optional[Player]`: a player bound to its client
+when connected, or `None` when that player is not connected. The same applies to
+`BoxloomClient.get_player(username)`. Invalid names raise `ValueError`; connection,
+authentication and other API errors raise their usual exceptions.
 
 Players from `get_players()` also expose these methods and retain their original
 client connection. Targeting uses the server's latest view and block interaction
