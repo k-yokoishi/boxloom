@@ -26,8 +26,10 @@ from .models import (
     Event,
     FillResult,
     GetBlockResult,
+    GameMode,
     KillResult,
     Player,
+    PlayerGameMode,
     PlayerDeathEvent,
     PlayerSwingEvent,
     BlockAttackEvent,
@@ -96,6 +98,33 @@ class BoxloomClient:
             z=_require_number(payload, "z"),
             yaw=_require_number(payload, "yaw"),
             pitch=_require_number(payload, "pitch"),
+        )
+
+    def set_player_gamemode(self, username: str, mode: GameMode) -> PlayerGameMode:
+        """Set a connected player's mode to creative or survival, including a no-op."""
+
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+        if mode not in ("creative", "survival"):
+            raise ValueError("mode must be 'creative' or 'survival'")
+
+        payload = self._post(
+            f"/v1/players/{quote(username, safe='')}/gamemode",
+            {"mode": mode},
+        )
+        returned_mode = _require_string(payload, "mode")
+        if returned_mode not in ("creative", "survival"):
+            raise ProtocolError("response field 'mode' must be 'creative' or 'survival'")
+        if returned_mode != mode:
+            raise ProtocolError("response field 'mode' does not match the requested mode")
+        returned_username = _require_string(payload, "username")
+        returned_uuid = _require_string(payload, "uuid")
+        if not returned_username.strip() or not returned_uuid.strip():
+            raise ProtocolError("response fields 'username' and 'uuid' must be non-empty")
+        return PlayerGameMode(
+            username=returned_username,
+            uuid=returned_uuid,
+            mode=mode,
         )
 
     def teleport_player(

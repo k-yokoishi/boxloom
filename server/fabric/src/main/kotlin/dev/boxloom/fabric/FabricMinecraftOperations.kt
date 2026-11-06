@@ -4,6 +4,7 @@ import dev.boxloom.server.core.AddTimeRequest
 import dev.boxloom.server.core.ApiException
 import dev.boxloom.server.core.EntitySnapshot
 import dev.boxloom.server.core.GetEntitiesRequest
+import dev.boxloom.server.core.GameMode
 import dev.boxloom.server.core.FillRequest
 import dev.boxloom.server.core.FillResult
 import dev.boxloom.server.core.GetBlockRequest
@@ -15,11 +16,13 @@ import dev.boxloom.server.core.KillResult
 import dev.boxloom.server.core.MinecraftOperations
 import dev.boxloom.server.core.NbtValue
 import dev.boxloom.server.core.Player
+import dev.boxloom.server.core.PlayerGameMode
 import dev.boxloom.server.core.PlayerPosition
 import dev.boxloom.server.core.SayRequest
 import dev.boxloom.server.core.SayResult
 import dev.boxloom.server.core.SetBlockRequest
 import dev.boxloom.server.core.SetBlockResult
+import dev.boxloom.server.core.SetPlayerGameModeRequest
 import dev.boxloom.server.core.SetTimeRequest
 import dev.boxloom.server.core.SummonRequest
 import dev.boxloom.server.core.SummonResult
@@ -57,6 +60,7 @@ import net.minecraft.world.entity.Mob
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.Relative
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.GameType
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.state.BlockState
 import java.util.Locale
@@ -173,6 +177,33 @@ internal class FabricMinecraftOperations(
                 player.yRot,
                 player.xRot,
             )
+        }
+
+    override fun setPlayerGameMode(
+        username: String,
+        request: SetPlayerGameModeRequest,
+    ): CompletableFuture<PlayerGameMode> =
+        onServerThread { server ->
+            val player = server.playerList.getPlayerByName(username)
+                ?: throw ApiException(
+                    404,
+                    "PLAYER_NOT_CONNECTED",
+                    "Player '$username' is not connected",
+                )
+            val targetMode = when (request.mode) {
+                GameMode.CREATIVE -> GameType.CREATIVE
+                GameMode.SURVIVAL -> GameType.SURVIVAL
+            }
+            // Minecraft returns false when the player is already in the requested mode.
+            player.setGameMode(targetMode)
+            if (player.gameMode() != targetMode) {
+                throw ApiException(
+                    409,
+                    "GAME_MODE_CHANGE_FAILED",
+                    "Player '$username' could not change game mode",
+                )
+            }
+            PlayerGameMode(player.name.string, player.uuid.toString(), request.mode)
         }
 
     override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =

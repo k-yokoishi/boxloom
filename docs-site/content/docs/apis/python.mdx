@@ -206,6 +206,45 @@ print(position)
 
 </Operation>
 
+## `set_player_gamemode`
+
+<Operation id="set_player_gamemode">
+
+```python
+set_player_gamemode(username: str, mode: GameMode) -> PlayerGameMode
+```
+
+Also available as `BoxloomClient.set_player_gamemode(username, mode)`.
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `username` | `str` | required | 3–16 characters from `A-Z`, `a-z`, `0-9`, and `_`. |
+| `mode` | `GameMode` | required | Exactly `"creative"` or `"survival"`. `GameMode` is a `Literal` type exported by `boxloom`. |
+
+Invalid inputs raise `ValueError` before sending a request.
+
+**Returns** — `PlayerGameMode`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `username` | `str` | The player's name. |
+| `uuid` | `str` | The player's UUID. |
+| `mode` | `GameMode` | The player's mode immediately after setting it. |
+
+**Example**
+
+```python
+from boxloom import set_player_gamemode
+
+set_player_gamemode("Steve", "creative")
+result = set_player_gamemode("Steve", "survival")
+print(result.username, result.mode)
+```
+
+</Operation>
+
 ## `get_block`
 
 <Operation id="get_block">

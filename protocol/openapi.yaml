@@ -274,6 +274,74 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/players/{username}/gamemode:
+    post:
+      operationId: setPlayerGameMode
+      summary: Set a connected player's game mode to creative or survival
+      description: >-
+        Sets only the named player's mode on the Minecraft server thread and
+        returns their mode immediately afterward. Setting the current mode is
+        a successful no-op. The player must be connected; player operator
+        permissions are not required. Uses the same API authentication as other
+        operations. Does not change the world's default game mode.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_]{3,16}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPlayerGameModeRequest'
+      responses:
+        '200':
+          description: The player's game mode after the operation, including a no-op
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerGameMode'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The player is not connected, or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '409':
+          description: Minecraft could not apply the requested game mode (GAME_MODE_CHANGE_FAILED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/world/blocks:
     get:
       operationId: getBlock
@@ -977,6 +1045,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Player'
+    GameMode:
+      type: string
+      enum: [creative, survival]
+    SetPlayerGameModeRequest:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode:
+          $ref: '#/components/schemas/GameMode'
+    PlayerGameMode:
+      type: object
+      additionalProperties: false
+      required: [username, uuid, mode]
+      properties:
+        username:
+          type: string
+        uuid:
+          type: string
+          format: uuid
+        mode:
+          $ref: '#/components/schemas/GameMode'
     PlayerPosition:
       type: object
       additionalProperties: false

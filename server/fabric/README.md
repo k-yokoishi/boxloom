@@ -8,6 +8,7 @@ The mod exposes Minecraft operations and a live player event stream:
 - List connected players
 - Read a connected player's position and look direction
 - Teleport a connected player to absolute coordinates
+- Set a connected player's game mode to Creative or Survival
 - Get one block from a loaded dimension
 - Set one block
 - Fill an inclusive block region
@@ -163,6 +164,24 @@ curl --fail-with-body \
 ```
 
 The optional `dimension`, `yaw`, and `pitch` fields replace the corresponding current player values. Coordinates are always absolute.
+
+Set a connected player's game mode:
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H 'Authorization: Bearer boxloom-local-poc-token' \
+  -H 'Content-Type: application/json' \
+  --data '{"mode":"survival"}' \
+  http://127.0.0.1:28886/v1/players/example/gamemode
+```
+
+`mode` must be exactly `creative` or `survival`. The response contains `username`,
+`uuid`, and the resulting `mode`. Repeating the current mode is a successful
+no-op. The change runs on the server thread and does not require player OP
+permissions or a server restart. It uses the existing API authentication and
+does not change the world's default game mode. A disconnected player returns
+`404 PLAYER_NOT_CONNECTED`.
 
 Stream new player chat messages without polling:
 

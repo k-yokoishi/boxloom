@@ -179,6 +179,25 @@ export const apiOperations = {
       },
     ],
   },
+  set_player_gamemode: {
+    description: (
+      <p>
+        Set a connected player&apos;s game mode to <code>creative</code> or{' '}
+        <code>survival</code>. Setting the current mode succeeds too. The result
+        reports the mode immediately after the operation. Uses the same API
+        authentication as other operations; the player does not need operator
+        permissions. The world&apos;s default game mode is preserved.
+      </p>
+    ),
+    errors: [
+      playerNotConnected,
+      {
+        status: 409,
+        code: 'GAME_MODE_CHANGE_FAILED',
+        meaning: 'Minecraft could not apply the requested game mode.',
+      },
+    ],
+  },
   get_block: {
     description: (
       <p>
