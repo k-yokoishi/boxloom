@@ -33,6 +33,23 @@ docker compose down
 
 Ports, memory, and the local API token can be changed by copying [`.env.example`](.env.example) to `.env` and editing it.
 
+The server uses Creative mode and Normal difficulty, so hostile mobs such as zombies
+can be summoned. To use commands in Minecraft, set `MINECRAFT_OPS` in `.env` to your
+Minecraft Java profile name (or a comma-separated list of names):
+
+```dotenv
+MINECRAFT_OPS=YourJavaName
+```
+
+Run `docker compose up -d` to apply changes to an existing server. Listed players
+receive OP level 4, which grants access to all commands, including
+`/summon minecraft:zombie ~ ~ ~`. Operator permissions are saved in the world volume.
+To grant another player access while the server is running, use:
+
+```bash
+docker compose exec --user 1000 minecraft mc-send-to-console op YourJavaName
+```
+
 ## Install the Python SDK
 
 The current alpha is published on TestPyPI:

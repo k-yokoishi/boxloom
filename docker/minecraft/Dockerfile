@@ -4,6 +4,7 @@ FROM eclipse-temurin:25-jdk-noble AS mod-builder
 
 WORKDIR /workspace/server
 COPY server/ ./
+COPY data/minecraft/registries.json /workspace/data/minecraft/registries.json
 
 RUN --mount=type=cache,target=/root/.gradle \
     ./gradlew --no-daemon :fabric:build \
