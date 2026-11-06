@@ -25,6 +25,7 @@ from boxloom import (
     fill,
     get_block,
     get_entities,
+    get_player,
     get_player_position,
     get_players,
     init,
@@ -96,8 +97,10 @@ class _ApiHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.__class__.path = self.path
         self.__class__.authorization = self.headers.get("Authorization")
-        encoded = json.dumps({"players": []}).encode("utf-8")
-        self.send_response(200)
+        missing = self.path.endswith("/position")
+        payload = {"error": {"code": "PLAYER_NOT_CONNECTED", "message": "offline"}} if missing else {"players": []}
+        encoded = json.dumps(payload).encode("utf-8")
+        self.send_response(404 if missing else 200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
@@ -116,6 +119,8 @@ try:
     assert get_players() == []
     assert _ApiHandler.path == "/v1/players"
     assert _ApiHandler.authorization is None
+    assert get_player("Missing") is None
+    assert _ApiHandler.path == "/v1/players/Missing/position"
 finally:
     server.shutdown()
     server.server_close()

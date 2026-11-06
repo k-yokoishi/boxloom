@@ -8,6 +8,7 @@ from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 from .errors import (
+    ApiError,
     ConfigurationError,
     ProtocolError,
 )
@@ -104,10 +105,15 @@ class BoxloomClient:
             pitch=_require_number(payload, "pitch"),
         )
 
-    def get_player(self, username: str) -> Player:
-        """Resolve a connected player and bind its operations to this client."""
+    def get_player(self, username: str) -> Optional[Player]:
+        """Resolve a connected player bound to this client, or None if not connected."""
 
-        position = self.get_player_position(username)
+        try:
+            position = self.get_player_position(username)
+        except ApiError as error:
+            if error.status == 404 and error.code == "PLAYER_NOT_CONNECTED":
+                return None
+            raise
         return Player(position.username, position.uuid, self)
 
     def get_player_targeted_block(self, username: str) -> Optional[TargetedBlock]:

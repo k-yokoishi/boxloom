@@ -5,6 +5,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
+from urllib.error import URLError
 
 import boxloom
 
@@ -66,6 +67,45 @@ class ClientTest(unittest.TestCase):
             "dimension": "minecraft:overworld", "x": -1, "y": 64, "z": 3,
             "block": "minecraft:stone", "face": "north", "distance": 2.5,
         }
+
+    def test_get_player_returns_none_when_player_is_not_connected(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="lookup-secret")
+        _ApiHandler.response_status = 404
+        _ApiHandler.response_body = {"error": {"code": "PLAYER_NOT_CONNECTED", "message": "offline"}}
+        for lookup in (client.get_player, boxloom.get_player):
+            self.assertIsNone(lookup("Steve"))
+            self.assertEqual("/v1/players/Steve/position", _ApiHandler.requests[-1][0])
+        self.assertEqual("Bearer lookup-secret", _ApiHandler.requests[0][1]["Authorization"])
+
+    def test_get_player_propagates_other_api_errors(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        for status, code in ((401, "UNAUTHORIZED"), (403, "FORBIDDEN"), (404, "NOT_FOUND"),
+                             (500, "PLAYER_NOT_CONNECTED"), (500, "INTERNAL_ERROR")):
+            _ApiHandler.response_status = status
+            _ApiHandler.response_body = {"error": {"code": code, "message": "lookup failed"}}
+            for lookup in (client.get_player, boxloom.get_player):
+                with self.subTest(status=status, code=code, lookup=lookup):
+                    with self.assertRaises(boxloom.ApiError) as raised:
+                        lookup("Steve")
+                    self.assertEqual((status, code), (raised.exception.status, raised.exception.code))
+
+    def test_get_player_rejects_invalid_usernames_without_requesting(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        for lookup in (client.get_player, boxloom.get_player):
+            for username in ("", "ab", "not/a/player", None, 123):
+                with self.subTest(username=username, lookup=lookup):
+                    with self.assertRaises(ValueError):
+                        lookup(username)
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_get_player_propagates_protocol_and_connection_errors(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        for lookup in (client.get_player, boxloom.get_player):
+            with self.assertRaises(boxloom.ProtocolError):
+                lookup("Steve")
+            with patch("boxloom._client.urlopen", side_effect=URLError("offline")):
+                with self.assertRaises(boxloom.ConnectionError):
+                    lookup("Steve")
 
     def test_player_methods_keep_their_originating_client_after_reinit(self):
         client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="origin-secret")
