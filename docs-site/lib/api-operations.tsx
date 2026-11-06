@@ -153,6 +153,56 @@ export const apiOperations = {
     ),
     errors: [playerNotConnected],
   },
+  get_targeted_block: {
+    description: (
+      <p>
+        Read the first block under the server-side crosshair within the player&apos;s
+        block interaction reach. Entities occlude blocks, and fluids are ignored.
+        No target is a successful null result.
+      </p>
+    ),
+    errors: [playerNotConnected],
+  },
+  attack: {
+    description: (
+      <p>
+        Attack the targeted block or entity once, or swing at empty space. Native
+        game-mode, tool, attack reach, damage cooldown and protection rules apply.
+        Any API mining session ends before attacking.
+        The arm swing is sent to the player and observers.
+      </p>
+    ),
+    errors: [
+      playerNotConnected,
+      { status: 409, code: 'PLAYER_CANNOT_ATTACK', meaning: 'The player is dead, spectating, using an item, or unable to attack with their held item.' },
+      { status: 409, code: 'UNSUPPORTED_ATTACK_TARGET', meaning: 'The held item is a piercing weapon, which uses a separate native attack path.' },
+    ],
+  },
+  start_mining: {
+    description: (
+      <p>
+        Enable held mining and return immediately. Wait without a target, mine the
+        aimed block and continue after each break until stopped. Native tool speed,
+        drops, durability and protection callbacks apply. Repeating start preserves
+        progress.
+      </p>
+    ),
+    errors: [
+      playerNotConnected,
+      { status: 409, code: 'PLAYER_CANNOT_ATTACK', meaning: 'The player cannot start attacking in their current state.' },
+      { status: 409, code: 'UNSUPPORTED_ATTACK_TARGET', meaning: 'The held item is a piercing weapon.' },
+    ],
+  },
+  stop_mining: {
+    description: (
+      <p>
+        Cancel the player&apos;s API mining session and clear its crack animation.
+        Pending native delayed completion is cancelled too. An inactive session is
+        a successful no-op.
+      </p>
+    ),
+    errors: [playerNotConnected],
+  },
   teleport_player: {
     description: (
       <p>

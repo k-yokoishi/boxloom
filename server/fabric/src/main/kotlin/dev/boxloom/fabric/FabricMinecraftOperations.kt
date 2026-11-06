@@ -18,6 +18,9 @@ import dev.boxloom.server.core.NbtValue
 import dev.boxloom.server.core.Player
 import dev.boxloom.server.core.PlayerGameMode
 import dev.boxloom.server.core.PlayerPosition
+import dev.boxloom.server.core.TargetedBlock
+import dev.boxloom.server.core.PlayerAttackResult
+import dev.boxloom.server.core.PlayerMiningResult
 import dev.boxloom.server.core.SayRequest
 import dev.boxloom.server.core.SayResult
 import dev.boxloom.server.core.SetBlockRequest
@@ -47,6 +50,7 @@ import net.minecraft.resources.Identifier
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
+import net.minecraft.server.level.ServerPlayer
 import net.minecraft.util.Mth
 import net.minecraft.world.Difficulty
 import net.minecraft.world.clock.ClockTimeMarkers
@@ -108,6 +112,22 @@ internal class FabricMinecraftOperations(
                 player.xRot,
             )
         }
+
+    override fun targetedBlock(username: String): CompletableFuture<TargetedBlock?> =
+        onServerThread { server -> PlayerBlockActions.targetedBlock(connectedPlayer(server, username)) }
+
+    override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
+        onServerThread { server -> PlayerBlockActions.attack(connectedPlayer(server, username)) }
+
+    override fun startMining(username: String): CompletableFuture<PlayerMiningResult> =
+        onServerThread { server -> PlayerMiningActions.start(connectedPlayer(server, username)) }
+
+    override fun stopMining(username: String): CompletableFuture<PlayerMiningResult> =
+        onServerThread { server -> PlayerMiningActions.stop(connectedPlayer(server, username)) }
+
+    private fun connectedPlayer(server: MinecraftServer, username: String): ServerPlayer =
+        server.playerList.getPlayerByName(username)
+            ?: throw ApiException(404, "PLAYER_NOT_CONNECTED", "Player '$username' is not connected")
 
     override fun teleportPlayer(
         username: String,

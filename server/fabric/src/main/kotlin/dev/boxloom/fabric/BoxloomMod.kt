@@ -6,6 +6,8 @@ import dev.boxloom.server.core.BoxloomHttpServer
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
 import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.server.MinecraftServer
@@ -26,6 +28,9 @@ object BoxloomMod : ModInitializer {
     override fun onInitialize() {
         logger.info("Initializing boxloom")
         playerActions.register()
+        ServerTickEvents.START_SERVER_TICK.register { server -> PlayerMiningActions.tick(server) }
+        ServerPlayConnectionEvents.DISCONNECT.register { handler, _ -> PlayerMiningActions.stop(handler.player) }
+        ServerLifecycleEvents.SERVER_STOPPING.register { PlayerMiningActions.clear() }
 
         ServerLifecycleEvents.SERVER_STARTED.register { server ->
             currentServer.set(server)

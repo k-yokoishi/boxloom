@@ -22,6 +22,118 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class BoxloomHttpServerTest {
     @Test
+    fun `starts and stops asynchronous mining and serializes entity attacks`() {
+        val target = TargetedBlock("minecraft:overworld", 1, 64, 3, "minecraft:dirt", "north", 2.5)
+        var miningResult = PlayerMiningResult(true, target, false)
+        val calls = mutableListOf<String>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun startMining(username: String): CompletableFuture<PlayerMiningResult> {
+                calls.add("start:$username")
+                return CompletableFuture.completedFuture(miningResult)
+            }
+            override fun stopMining(username: String): CompletableFuture<PlayerMiningResult> {
+                calls.add("stop:$username")
+                return CompletableFuture.completedFuture(PlayerMiningResult(false, null, false))
+            }
+            override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
+                CompletableFuture.completedFuture(PlayerAttackResult(true, null, false, EntitySnapshot(
+                    TEST_UUID, "minecraft:zombie", "minecraft:overworld", 1.5, 64.0, 3.0, 0f, 0f, "Zombie", 19f,
+                )))
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val start = post(server, "/v1/players/Steve/mining/start", "{}")
+            assertEquals(200, start.statusCode())
+            assertContains(start.body(), "\"active\":true")
+            assertContains(start.body(), "minecraft:dirt")
+            miningResult = PlayerMiningResult(true, null, false)
+            assertEquals("{\"active\":true,\"target\":null,\"broken\":false}",
+                post(server, "/v1/players/Steve/mining/start", "{}").body())
+            miningResult = PlayerMiningResult(true, target, true)
+            val instant = post(server, "/v1/players/Steve/mining/start", "{}")
+            assertContains(instant.body(), "\"active\":true")
+            assertContains(instant.body(), "\"broken\":true")
+            val stop = post(server, "/v1/players/Steve/mining/stop", "{}")
+            assertEquals(200, stop.statusCode())
+            assertEquals("{\"active\":false,\"target\":null,\"broken\":false}", stop.body())
+            val attack = post(server, "/v1/players/Steve/attack", "{}")
+            assertEquals(200, attack.statusCode())
+            val entity = Json.parseToJsonElement(attack.body()).jsonObject["entity"]!!.jsonObject
+            assertEquals("minecraft:zombie", entity["entity"]!!.jsonPrimitive.content)
+            assertEquals("19.0", entity["health"]!!.jsonPrimitive.content)
+        }
+        assertEquals(listOf("start:Steve", "start:Steve", "start:Steve", "stop:Steve"), calls)
+    }
+
+    @Test
+    fun `reads a targeted block or null and performs one attack`() {
+        val target = TargetedBlock("minecraft:overworld", -1, 64, 3, "minecraft:stone", "north", 2.5)
+        var selected: TargetedBlock? = target
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun targetedBlock(username: String): CompletableFuture<TargetedBlock?> {
+                assertEquals("Steve", username)
+                return CompletableFuture.completedFuture(selected)
+            }
+            override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> {
+                assertEquals("Steve", username)
+                return CompletableFuture.completedFuture(PlayerAttackResult(true, selected, false))
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val read = get(server, "/v1/players/Steve/targeted-block")
+            assertEquals(200, read.statusCode())
+            val json = Json.parseToJsonElement(read.body()).jsonObject["target"]!!.jsonObject
+            assertEquals("north", json["face"]!!.jsonPrimitive.content)
+            assertEquals("-1", json["x"]!!.jsonPrimitive.content)
+            assertEquals("2.5", json["distance"]!!.jsonPrimitive.content)
+            val attack = post(server, "/v1/players/Steve/attack", "{}")
+            assertEquals(200, attack.statusCode())
+            assertContains(attack.body(), "\"swung\":true")
+            assertContains(attack.body(), "\"broken\":false")
+            selected = null
+            assertEquals("{\"target\":null}", get(server, "/v1/players/Steve/targeted-block").body())
+            assertEquals("{\"swung\":true,\"target\":null,\"broken\":false}",
+                post(server, "/v1/players/Steve/attack", "{}").body())
+        }
+    }
+
+    @Test
+    fun `validates attack requests before invoking Minecraft`() {
+        withServer(authToken = null) { server, _ ->
+            for (path in listOf("/targeted-block", "/attack", "/mining/start", "/mining/stop")) {
+                val response = if (path == "/targeted-block") get(server, "/v1/players/ab$path")
+                    else post(server, "/v1/players/ab$path", "{}")
+                assertEquals(400, response.statusCode())
+            }
+            for (path in listOf("attack", "mining/start", "mining/stop")) {
+                for (body in listOf("{\"x\":0}", "null", "[]", "")) {
+                    assertEquals(400, post(server, "/v1/players/Steve/$path", body).statusCode())
+                }
+                assertEquals(400, post(server, "/v1/players/Steve/$path?x=1", "{}").statusCode())
+            }
+            assertEquals(400, get(server, "/v1/players/Steve/targeted-block?distance=100").statusCode())
+            assertEquals(400, post(server, "/v1/players/Steve/attack?x=1", "{}").statusCode())
+        }
+    }
+
+    @Test
+    fun `propagates player lookup and attack state failures`() {
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun targetedBlock(username: String): CompletableFuture<TargetedBlock?> =
+                CompletableFuture.failedFuture(ApiException(404, "PLAYER_NOT_CONNECTED", "offline"))
+            override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
+                CompletableFuture.failedFuture(ApiException(409, "PLAYER_CANNOT_ATTACK", "spectator"))
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val missing = get(server, "/v1/players/Steve/targeted-block")
+            assertEquals(404, missing.statusCode())
+            assertContains(missing.body(), "PLAYER_NOT_CONNECTED")
+            val invalid = post(server, "/v1/players/Steve/attack", "{}")
+            assertEquals(409, invalid.statusCode())
+            assertContains(invalid.body(), "PLAYER_CANNOT_ATTACK")
+        }
+    }
+
+    @Test
     fun `accepts a loopback request when authentication is disabled`() {
         withServer(authToken = null) { server, _ ->
             val response = request(server)
@@ -1270,6 +1382,18 @@ class BoxloomHttpServerTest {
         override fun say(request: SayRequest): CompletableFuture<SayResult> =
             throw AssertionError("Unexpected say request")
 
+        override fun targetedBlock(username: String): CompletableFuture<TargetedBlock?> =
+            throw AssertionError("Unexpected targeted-block request")
+
+        override fun startMining(username: String): CompletableFuture<PlayerMiningResult> =
+            throw AssertionError("Unexpected start-mining request")
+
+        override fun stopMining(username: String): CompletableFuture<PlayerMiningResult> =
+            throw AssertionError("Unexpected stop-mining request")
+
+        override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
+            throw AssertionError("Unexpected attack request")
+
         override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")
 
@@ -1322,6 +1446,18 @@ class BoxloomHttpServerTest {
 
         override fun players(): CompletableFuture<List<Player>> =
             throw AssertionError("Unexpected players request")
+
+        override fun targetedBlock(username: String): CompletableFuture<TargetedBlock?> =
+            throw AssertionError("Unexpected targeted-block request")
+
+        override fun startMining(username: String): CompletableFuture<PlayerMiningResult> =
+            throw AssertionError("Unexpected start-mining request")
+
+        override fun stopMining(username: String): CompletableFuture<PlayerMiningResult> =
+            throw AssertionError("Unexpected stop-mining request")
+
+        override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
+            throw AssertionError("Unexpected attack request")
 
         override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")

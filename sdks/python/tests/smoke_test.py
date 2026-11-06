@@ -12,9 +12,11 @@ from boxloom import (
     EventCursorExpiredError,
     Entity,
     FillResult,
+    Block,
     GetBlockResult,
     KillResult,
     Player,
+    PlayerMiningResult,
     GameMode,
     PlayerGameMode,
     PlayerPosition,
@@ -78,7 +80,11 @@ for event_name, cls in (
     assert getattr(boxloom.events, cls.__name__) is cls
 assert files("boxloom").joinpath("py.typed").is_file()
 assert FillResult.__name__ == "FillResult"
-assert GetBlockResult.__name__ == "GetBlockResult"
+assert Block.__name__ == "Block"
+assert GetBlockResult is Block
+assert PlayerMiningResult(True, None, False).active
+assert callable(Player.start_mining)
+assert callable(Player.stop_mining)
 assert boxloom.ChatEventStream is ChatEventStream
 assert issubclass(EventCursorExpiredError, boxloom.ApiError)
 

@@ -46,6 +46,26 @@ java {
     targetCompatibility = JavaVersion.VERSION_25
 }
 
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = "boxloom-gametest"
+        enableGameTests = true
+        enableClientGameTests = false
+        eula = true
+    }
+}
+
+tasks.named("runGameTest") {
+    environment "BOXLOOM_BIND_HOST", "127.0.0.1"
+    doFirst {
+        // Keep the isolated test server away from a developer's running API.
+        new java.net.ServerSocket(0, 0, java.net.InetAddress.getLoopbackAddress()).withCloseable { socket ->
+            environment "BOXLOOM_PORT", socket.localPort.toString()
+        }
+    }
+}
+
 // Development-only code: the exporter is never included in the mod JAR.
 sourceSets {
     registryGenerator {

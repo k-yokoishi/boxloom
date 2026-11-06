@@ -1,6 +1,9 @@
 from dataclasses import dataclass, field
 from math import floor
-from typing import Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+    from ._client import BoxloomClient
 
 
 @dataclass(frozen=True)
@@ -21,10 +24,79 @@ class SayResult:
 
 @dataclass(frozen=True)
 class Player:
-    """A player currently connected to the Minecraft server."""
+    """A player identity, bound to its originating client when fetched by that client."""
 
     username: str
     uuid: str
+    _client: Optional["BoxloomClient"] = field(default=None, repr=False, compare=False)
+
+    def get_targeted_block(self) -> Optional["TargetedBlock"]:
+        """Read the block under the server-side crosshair, within interaction reach."""
+
+        return self._require_client().get_player_targeted_block(self.username)
+
+    def attack(self) -> "PlayerAttackResult":
+        """Attack the targeted block or entity once, or swing at empty space."""
+
+        return self._require_client().attack_player(self.username)
+
+    def start_mining(self) -> "PlayerMiningResult":
+        """Hold mining until stopped; wait without a target and continue after each break."""
+
+        return self._require_client().start_player_mining(self.username)
+
+    def stop_mining(self) -> "PlayerMiningResult":
+        """Cancel this player's API mining session; safe to call when inactive."""
+
+        return self._require_client().stop_player_mining(self.username)
+
+    def _require_client(self) -> "BoxloomClient":
+        if self._client is None:
+            from .errors import ConfigurationError
+
+            raise ConfigurationError("Use get_player() or get_players() to obtain an actionable Player")
+        return self._client
+
+
+BlockFace = Literal["down", "up", "north", "south", "west", "east"]
+
+
+@dataclass(frozen=True)
+class Block:
+    """An immutable snapshot of a block's dimension, coordinates and namespaced ID."""
+
+    dimension: str
+    x: int
+    y: int
+    z: int
+    block: str
+
+
+@dataclass(frozen=True)
+class TargetedBlock(Block):
+    """A block hit by a ray from the player's eyes, with the hit face and distance."""
+
+    face: BlockFace
+    distance: float
+
+
+@dataclass(frozen=True)
+class PlayerAttackResult:
+    """A single attack; targeting does not guarantee block destruction or entity damage."""
+
+    swung: bool
+    target: Optional[TargetedBlock]
+    broken: bool
+    entity: Optional["Entity"] = None
+
+
+@dataclass(frozen=True)
+class PlayerMiningResult:
+    """Mining state immediately after a start or stop request."""
+
+    active: bool
+    target: Optional[TargetedBlock]
+    broken: bool
 
 
 GameMode = Literal["creative", "survival"]
@@ -149,15 +221,8 @@ class PlayerPosition:
         return floor(self.x), floor(self.y), floor(self.z)
 
 
-@dataclass(frozen=True)
-class GetBlockResult:
-    """Result returned after reading a block in a loaded dimension."""
-
-    dimension: str
-    x: int
-    y: int
-    z: int
-    block: str
+# Compatibility name for callers of earlier SDK releases; block reads return Block.
+GetBlockResult = Block
 
 
 @dataclass(frozen=True)

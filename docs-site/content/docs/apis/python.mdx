@@ -41,6 +41,26 @@ Block coordinates are `int` and must fit in 32 bits. Player and entity coordinat
 
 Every operation runs on the Minecraft server thread, so a stalled server surfaces as a timeout rather than a hang.
 
+`get_block()` returns the immutable `Block` class. It holds `dimension`, `x`, `y`,
+`z`, and the namespaced block ID in `block`. `TargetedBlock` inherits from `Block`,
+so functions that need this common information can accept either result:
+
+```python
+from boxloom import Block, get_block, get_player
+
+def describe(block: Block) -> str:
+    return f"{block.block} at ({block.x}, {block.y}, {block.z})"
+
+print(describe(get_block(0, 64, 0)))
+target = get_player("Steve").get_targeted_block()
+if target is not None:
+    print(describe(target))
+```
+
+`TargetedBlock` additionally carries the hit `face` and `distance`.
+`GetBlockResult` remains an alias for `Block` for compatibility with earlier SDK
+releases; its constructor arguments and the wire format are preserved.
+
 ## Errors
 
 Every failure raises a subclass of `boxloom.BoxloomError`.
@@ -124,6 +144,143 @@ from boxloom import get_players
 for player in get_players():
     print(player.username, player.uuid)
 ```
+
+</Operation>
+
+## `Player` methods
+
+Resolve a connected player with `get_player(username)`, also available as
+`BoxloomClient.get_player(username)`. This reads the existing position endpoint
+to resolve the player's identity. Players returned by `get_players()` are also
+actionable. Each retains its originating client, including after `boxloom.init()`
+changes the process-wide configuration.
+
+```python
+from boxloom import get_player
+
+player = get_player("Steve")
+target = player.get_targeted_block()
+if target is not None:
+    print(target.block, target.x, target.y, target.z, target.face)
+result = player.attack()
+print(result.swung, result.broken)
+```
+
+Manually constructed `Player` values and event `player` snapshots are identity
+data without a client binding. Calling their methods raises `ConfigurationError`;
+resolve them with the appropriate client's `get_player(event.player.username)`.
+
+### `Player.get_targeted_block`
+
+<Operation id="get_targeted_block">
+
+```python
+player.get_targeted_block() -> Optional[TargetedBlock]
+```
+
+Also available as `BoxloomClient.get_player_targeted_block(username)`.
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `dimension` | `str` | The player's dimension. |
+| `x`, `y`, `z` | `int` | Absolute block coordinates. |
+| `block` | `str` | Namespaced block ID. |
+| `face` | `str` | `down`, `up`, `north`, `south`, `west`, or `east`. |
+| `distance` | `float` | Distance from the eye to the hit surface, in blocks. |
+
+The server uses its latest received position and view, which can lag behind the
+client's screen. The range follows the player's block interaction reach. A later
+`attack()` recalculates its target; it does not lock the earlier snapshot.
+
+</Operation>
+
+### `Player.attack`
+
+<Operation id="attack">
+
+```python
+player.attack() -> PlayerAttackResult
+```
+
+Also available as `BoxloomClient.attack_player(username)`.
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `swung` | `bool` | Whether a new arm swing started. An existing swing may prevent another. |
+| `target` | `Optional[TargetedBlock]` | Block snapshot captured before the attack; `None` for entity attacks and misses. |
+| `broken` | `bool` | Whether the targeted block's type changed during the attack. |
+| `entity` | `Optional[Entity]` | Entity snapshot after an entity attack attempt; `None` for block attacks and misses. Damage is not guaranteed. |
+
+This is a single click: survival blocks that require sustained mining remain in
+place. Creative and instant-mine blocks can break. A targeted block may remain
+because of protection rules, the held tool, or cancellation by another mod.
+An entity within native attack reach can be attacked, with normal damage cooldowns,
+PvP rules and Fabric cancellation. Blocks and entities use their own reach values;
+a wall blocks attacks on entities behind it. Piercing weapons are rejected with
+`UNSUPPORTED_ATTACK_TARGET`. Calling `attack()` cancels any API mining session.
+This operation is not retried automatically; a
+timeout can occur after the action has already taken effect.
+
+</Operation>
+
+### `Player.start_mining`
+
+<Operation id="start_mining">
+
+```python
+player.start_mining() -> PlayerMiningResult
+```
+
+Also available as `BoxloomClient.start_player_mining(username)`.
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `active` | `bool` | Whether held mining is enabled, including while waiting without a target. |
+| `target` | `Optional[TargetedBlock]` | Current block snapshot, or the block immediately broken by this request; `None` while waiting without a target. |
+| `broken` | `bool` | Whether this request immediately broke the block, as in creative or instant mining. |
+
+This acts like holding the mining button. It returns immediately with `active=True`,
+even when no block is targeted. The server waits for a block under the crosshair,
+mines it and continues to the next block after a five-tick break delay. An immediate
+creative or instant break returns both `active=True` and `broken=True`.
+
+Looking away cancels that block's progress and waits for a target. A new target,
+block state, held stack or selected slot starts fresh progress. Item use pauses
+mining. Protected and unbreakable targets stay intact; mining waits for the aim,
+block or tool to change. This operation only mines blocks and does not attack
+entities. The player receives arm swings and crack progress as well as observers.
+
+Call `stop_mining()` to release the hold. `attack()`, death, disconnect, world or
+game-mode changes, and a competing native mining action also end the mode.
+
+```python
+import time
+from boxloom import get_player
+
+player = get_player("Steve")
+player.start_mining()  # No targeted block is required.
+try:
+    time.sleep(10)  # Aim at blocks during this time to mine them continuously.
+finally:
+    player.stop_mining()
+```
+
+The tool and block determine the required time. `active` and `broken` are snapshots
+at request time; read blocks to observe later breaks.
+
+</Operation>
+
+### `Player.stop_mining`
+
+<Operation id="stop_mining">
+
+```python
+player.stop_mining() -> PlayerMiningResult
+```
+
+Also available as `BoxloomClient.stop_player_mining(username)`. Returns `active=False`
+and `broken=False`. `target` is the current block snapshot, or `None` while waiting
+without a target or already inactive. It is safe to call from `finally`.
 
 </Operation>
 
@@ -256,7 +413,7 @@ get_block(
     z: int,
     *,
     dimension: str = "minecraft:overworld",
-) -> GetBlockResult
+) -> Block
 ```
 
 **Parameters**
@@ -266,7 +423,7 @@ get_block(
 | `x`, `y`, `z` | `int` | required | Block coordinates, within the 32-bit integer range. |
 | `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
 
-**Returns** — `GetBlockResult`
+**Returns** — `Block`
 
 | Attribute | Type | Description |
 | --- | --- | --- |

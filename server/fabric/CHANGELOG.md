@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Extend Python `Player.attack()` to entities with native reach, damage cooldowns,
+  PvP and Fabric cancellation; include the entity snapshot after the attempt
+- Add asynchronous `Player.start_mining()` and `stop_mining()` for held mining
+  that waits without a target and continues after breaks, with normal speed,
+  drops, durability and owner crack animation
+
+- Return Python block reads as `Block`, with `TargetedBlock` inheriting the common
+  block fields and `GetBlockResult` retained as a compatibility alias
+
+- Read targeted blocks and perform a single native block attack through REST and
+  client-bound Python `Player` methods; include arm swings, reach checks, native
+  protections, and immediate cancellation of sustained mining
+- Verify block targeting and attacks with headless Fabric server game tests
+
 ## 0.1.0-alpha.8
 
 - Stream player arm swings, block attacks, block use, and item use through REST

@@ -29,6 +29,7 @@ from .events import (
     ItemUseEvent,
 )
 from .models import (
+    Block,
     Entity,
     FillResult,
     GetBlockResult,
@@ -37,6 +38,9 @@ from .models import (
     Player,
     PlayerGameMode,
     PlayerPosition,
+    PlayerAttackResult,
+    PlayerMiningResult,
+    TargetedBlock,
     SayResult,
     SetBlockResult,
     SummonResult,
@@ -45,6 +49,7 @@ from .models import (
 
 __all__ = [
     "ApiError",
+    "Block",
     "BoxloomClient",
     "BoxloomError",
     "ChatEvent",
@@ -70,6 +75,9 @@ __all__ = [
     "BlockUseEvent",
     "ItemUseEvent",
     "PlayerPosition",
+    "PlayerAttackResult",
+    "PlayerMiningResult",
+    "TargetedBlock",
     "ProtocolError",
     "SayResult",
     "SetBlockResult",
@@ -82,6 +90,7 @@ __all__ = [
     "get_block",
     "get_entities",
     "get_player_position",
+    "get_player",
     "get_players",
     "get_time",
     "init",
@@ -150,6 +159,12 @@ def get_players() -> List[Player]:
     """List players currently connected to the Minecraft server."""
 
     return _default_client().get_players()
+
+
+def get_player(username: str) -> Player:
+    """Resolve a connected player whose methods retain the current client."""
+
+    return _default_client().get_player(username)
 
 
 def set_player_gamemode(username: str, mode: GameMode) -> PlayerGameMode:
@@ -409,7 +424,7 @@ def get_block(
     z: int,
     *,
     dimension: str = "minecraft:overworld",
-) -> GetBlockResult:
+) -> Block:
     """Return information about a block in a loaded Minecraft dimension."""
 
     return _default_client().get_block(x, y, z, dimension=dimension)

@@ -22,6 +22,64 @@ export BOXLOOM_AUTH_TOKEN=replace-me
 
 ## Samples
 
+Read the block a player is aiming at and attack it once:
+
+```python
+from boxloom import get_player
+
+player = get_player("Steve")
+target = player.get_targeted_block()
+if target is not None:
+    print(target.block, target.x, target.y, target.z, target.face, target.distance)
+result = player.attack()
+print(result.swung, result.broken, result.entity)
+```
+
+Players from `get_players()` also expose these methods and retain their original
+client connection. Targeting uses the server's latest view and block interaction
+reach, ignores fluids, and stops at intervening entities. `None` means no block
+is targeted. `attack()` recalculates the target and performs one block or entity
+attack or a miss, with the arm swing sent to the player and observers. Entity
+attacks return an `entity` snapshot after the attempt and respect native attack
+reach, damage cooldowns, PvP and Fabric cancellation. Walls occlude enemies.
+Native protections and tools apply; survival blocks requiring sustained mining
+do not break from one click. Piercing weapons are unsupported. An existing
+swing can prevent a new swing. Event player snapshots and manually constructed
+`Player` values are not bound; resolve them with the appropriate client's
+`get_player()` before calling methods.
+
+To hold mining, use `start_mining()` and release it with `stop_mining()`:
+
+```python
+import time
+
+player.start_mining()  # Returns immediately, even with no targeted block.
+try:
+    time.sleep(10)  # Aim at blocks to mine them continuously for ten seconds.
+finally:
+    player.stop_mining()
+```
+
+Mining waits when no block is targeted and continues after each break, with a
+five-tick delay. Looking away resets block progress; changing the target, block
+state, tool or slot starts fresh progress. Item use pauses mining. Protected or
+unbreakable blocks stay intact until the aim, block or tool changes. The mode
+only mines blocks and does not attack entities. It ends on `stop_mining()`,
+`attack()`, death, disconnect, world or game-mode changes, or a competing native
+mining action. Repeating start preserves progress. `active` means the hold is
+enabled, including while `target` is `None`. `broken` is true only for an immediate
+creative or instant break; `active` remains true. Read blocks to observe later
+breaks. Native drops, tool durability and protection callbacks apply, and the
+player receives crack progress as well as observers. Client methods are
+`start_player_mining(username)` and `stop_player_mining(username)`;
+`PlayerMiningResult` is returned by both.
+
+`get_block()` returns an immutable `Block` snapshot with `dimension`, `x`, `y`,
+`z`, and the namespaced ID in `block`. `TargetedBlock` inherits from `Block` and
+adds `face` and `distance`, so code can accept `Block` from either API.
+`GetBlockResult` remains an alias for `Block` for compatibility; existing
+constructor arguments and response formats are preserved.
+
 Place a block:
 
 ```python
