@@ -48,14 +48,14 @@ internal object PlayerMiningActions {
         val session = Session(player, player.level(), player.gameMode())
         sessions[player.uuid] = session
         try {
-            return beginBlock(session, PlayerBlockActions.blockHit(player))
+            return tryStartMiningBlock(session, PlayerBlockActions.findTargetedBlockHit(player))
         } catch (error: Exception) {
             stop(player)
             throw error
         }
     }
 
-    private fun beginBlock(session: Session, hit: BlockHitResult?): PlayerMiningResult {
+    private fun tryStartMiningBlock(session: Session, hit: BlockHitResult?): PlayerMiningResult {
         if (hit == null) return PlayerMiningResult(true, null, false)
         val player = session.player
         val state = player.level().getBlockState(hit.blockPos)
@@ -114,7 +114,7 @@ internal object PlayerMiningActions {
                 session.delay--
                 continue
             }
-            val hit = PlayerBlockActions.blockHit(player)
+            val hit = PlayerBlockActions.findTargetedBlockHit(player)
             val block = session.block
             val mining = player.gameMode as ServerPlayerGameModeAccessor
             if (block?.accepted == true && mining.`boxloom$isDestroyingBlock`() &&
@@ -128,7 +128,7 @@ internal object PlayerMiningActions {
                 player.inventory.selectedSlot != block.slot || !ItemStack.matches(player.mainHandItem, block.tool)
             ) {
                 cancelBlock(session)
-                beginBlock(session, hit)
+                tryStartMiningBlock(session, hit)
                 continue
             }
             // A rejected/unbreakable target waits until the aim, block or tool changes.
