@@ -91,7 +91,7 @@ internal object PlayerMiningActions {
     fun stop(player: ServerPlayer): PlayerMiningResult {
         val session = sessions.remove(player.uuid) ?: return PlayerMiningResult(false, null, false)
         val target = session.block?.target
-        cancelBlock(session)
+        cancelCurrentBlockMining(session)
         return PlayerMiningResult(false, target, false)
     }
 
@@ -107,7 +107,7 @@ internal object PlayerMiningActions {
                 player.cannotAttackWithItem(player.mainHandItem, 0) ||
                 player.mainHandItem.has(DataComponents.PIERCING_WEAPON)
             ) {
-                cancelBlock(session)
+                cancelCurrentBlockMining(session)
                 continue
             }
             if (session.delay > 0) {
@@ -127,7 +127,7 @@ internal object PlayerMiningActions {
                 player.level().getBlockState(block.hit.blockPos) != block.state ||
                 player.inventory.selectedSlot != block.slot || !ItemStack.matches(player.mainHandItem, block.tool)
             ) {
-                cancelBlock(session)
+                cancelCurrentBlockMining(session)
                 tryStartMiningBlock(session, hit)
                 continue
             }
@@ -140,7 +140,7 @@ internal object PlayerMiningActions {
             val elapsed = mining.`boxloom$gameTicks`() - mining.`boxloom$destroyProgressStart`() + 1
             val progress = block.state.getDestroyProgress(player, player.level(), block.hit.blockPos) * elapsed
             if (!progress.isFinite() || progress <= 0) {
-                cancelBlock(session)
+                cancelCurrentBlockMining(session)
                 continue
             }
             if (progress >= 1.0f) {
@@ -148,7 +148,7 @@ internal object PlayerMiningActions {
                     // Wait for full native progress, rather than the server's lenient 70% packet threshold.
                     PlayerBlockActions.blockAction(player, block.hit, Action.STOP_DESTROY_BLOCK)
                 } finally {
-                    cancelBlock(session)
+                    cancelCurrentBlockMining(session)
                     session.delay = 5
                 }
             } else {
@@ -168,7 +168,7 @@ internal object PlayerMiningActions {
             player.gameMode() == session.mode && player.level() === session.level
     }
 
-    private fun cancelBlock(session: Session) {
+    private fun cancelCurrentBlockMining(session: Session) {
         val block = session.block ?: return
         session.block = null
         PlayerBlockActions.abortMining(session.player, block.hit.blockPos)
