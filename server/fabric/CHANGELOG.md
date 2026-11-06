@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.7
 
 - Receive typed Python event callbacks in the background with `subscribe_event()`
-  and explicit readiness, cooperative shutdown, and error propagation
+  in SDK `0.1.0a7`, with explicit readiness, cooperative shutdown, and error
+  propagation
 
 ## 0.1.0-alpha.6
 
