@@ -21,9 +21,11 @@ object BoxloomMod : ModInitializer {
     private val currentServer = AtomicReference<MinecraftServer?>(null)
     private val httpServer = AtomicReference<BoxloomHttpServer?>(null)
     private val events = BoxloomEventBroker()
+    private val playerActions = PlayerActionEvents(events)
 
     override fun onInitialize() {
         logger.info("Initializing boxloom")
+        playerActions.register()
 
         ServerLifecycleEvents.SERVER_STARTED.register { server ->
             currentServer.set(server)
@@ -90,5 +92,10 @@ object BoxloomMod : ModInitializer {
 
     private fun stopHttpServer() {
         httpServer.getAndSet(null)?.close()
+    }
+
+    @JvmStatic
+    fun publishPlayerSwing(player: ServerPlayer) {
+        playerActions.swing(player)
     }
 }

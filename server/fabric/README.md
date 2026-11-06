@@ -15,7 +15,7 @@ The mod exposes Minecraft operations and a live player event stream:
 - List loaded entities with type and sphere filters, distance sorting, and a result limit
 - Kill entities by UUID or by type and optional sphere
 - Read, set, and add ticks to a world clock, including `/time set day` markers
-- Stream player chat messages and deaths as resumable Server-Sent Events
+- Stream player chat, death, attack swing, block attack, block use, and item use events as resumable Server-Sent Events
 
 Arbitrary command execution is intentionally outside this PoC.
 
@@ -43,7 +43,13 @@ The mod uses a common `main` entrypoint and does not reference `net.minecraft.cl
 
 Fabric's `ServerMessageEvents.CHAT_MESSAGE` callback publishes signed player chat
 content, and `ServerLivingEntityEvents.AFTER_DEATH` publishes confirmed player
-deaths with a death message and location. They share an in-memory history of the
+deaths with a death message and location. `AttackBlockCallback`, `UseBlockCallback`,
+and `UseItemCallback` publish action attempts without cancelling vanilla behavior.
+A common server mixin observes `ServerGamePacketListenerImpl.handlePunch` after
+server-thread dispatch to include attack swings that miss. All action snapshots
+are captured on the server thread and exclude spectators. No client mod is needed.
+See [`../../protocol/events.md`](../../protocol/events.md) for fields and semantics.
+All six application events share an in-memory history of the
 most recent 1,024 events. `GET /v1/events` holds an HTTP response open and emits
 SSE frames as events arrive. Event IDs combine a per-server-session identity and
 a monotonic sequence. Clients reconnect with `Last-Event-ID`; retained events

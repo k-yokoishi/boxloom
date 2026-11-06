@@ -15,6 +15,10 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class BoxloomHttpServerTest {
     @Test
@@ -856,6 +860,62 @@ class BoxloomHttpServerTest {
                     """{"type":"player.death","id":"${publishedDeath.id}","timestamp":"${publishedDeath.timestamp}","message":"Steve fell from a high place","player":{"username":"Steve","uuid":"$TEST_UUID"},"dimension":"minecraft:the_nether","x":1.5,"y":64.0,"z":-2.25}""",
                     death["data"],
                 )
+            }
+        }
+    }
+
+    @Test
+    fun `streams and replays player actions with item and target snapshots`() {
+        val events = BoxloomEventBroker()
+        val acknowledged = events.publishChatMessage("before actions", "Steve", TEST_UUID)
+        val context = PlayerActionContext(
+            "Steve", TEST_UUID, "minecraft:overworld", 1.5, 64.0, -2.25,
+            "main_hand", "minecraft:diamond_sword",
+        )
+        val target = BlockTarget("minecraft:stone", -2, 63, 4, "up")
+        val replayed = listOf(
+            events.publishPlayerSwing(context),
+            events.publishBlockAttack(context, target),
+            events.publishBlockUse(context.copy(hand = "off_hand", item = null), target),
+            events.publishItemUse(context.copy(hand = "off_hand", item = "minecraft:apple")),
+        )
+        withServer(authToken = null, events = events) { server, _ ->
+            val response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder()
+                    .uri(URI("http://127.0.0.1:${server.boundPort}/v1/events"))
+                    .header("Last-Event-ID", acknowledged.id)
+                    .GET().build(),
+                HttpResponse.BodyHandlers.ofInputStream(),
+            )
+            response.body().use { body ->
+                val reader = BufferedReader(InputStreamReader(body, StandardCharsets.UTF_8))
+                assertEquals("stream.ready", readSseEvent(reader)["event"])
+                // The final action is live, following the four retained events.
+                val live = events.publishPlayerSwing(context.copy(item = null))
+                for (expected in replayed + live) {
+                    val frame = readSseEvent(reader)
+                    assertEquals(expected.type, frame["event"])
+                    assertEquals(expected.id, frame["id"])
+                    val payload = Json.parseToJsonElement(frame.getValue("data")).jsonObject
+                    assertEquals(expected.type, payload.getValue("type").jsonPrimitive.content)
+                    assertEquals(expected.id, payload.getValue("id").jsonPrimitive.content)
+                    assertEquals("Steve", payload.getValue("player").jsonObject.getValue("username").jsonPrimitive.content)
+                    assertEquals("1.5", payload.getValue("x").jsonPrimitive.content)
+                    assertEquals(expected.context.hand, payload.getValue("hand").jsonPrimitive.content)
+                    if (expected.context.item == null) {
+                        assertEquals(JsonNull, payload["item"])
+                    } else {
+                        assertEquals(expected.context.item, payload.getValue("item").jsonPrimitive.content)
+                    }
+                    if (expected is BlockActionEvent) {
+                        assertEquals("minecraft:stone", payload.getValue("block").jsonPrimitive.content)
+                        assertEquals("-2", payload.getValue("block_x").jsonPrimitive.content)
+                        assertEquals("63", payload.getValue("block_y").jsonPrimitive.content)
+                        assertEquals("4", payload.getValue("block_z").jsonPrimitive.content)
+                        assertEquals("up", payload.getValue("face").jsonPrimitive.content)
+                    }
+                    assertTrue("message" !in payload)
+                }
             }
         }
     }

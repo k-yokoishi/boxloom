@@ -40,6 +40,18 @@ class BoxloomEventBroker(
         PlayerDeathEvent(cursor, timestamp, message, username, uuid, dimension, x, y, z)
     }
 
+    fun publishPlayerSwing(context: PlayerActionContext): PlayerSwingEvent =
+        publish { cursor, timestamp -> PlayerSwingEvent(cursor, timestamp, context) }
+
+    fun publishBlockAttack(context: PlayerActionContext, target: BlockTarget): BlockAttackEvent =
+        publish { cursor, timestamp -> BlockAttackEvent(cursor, timestamp, context, target) }
+
+    fun publishBlockUse(context: PlayerActionContext, target: BlockTarget): BlockUseEvent =
+        publish { cursor, timestamp -> BlockUseEvent(cursor, timestamp, context, target) }
+
+    fun publishItemUse(context: PlayerActionContext): ItemUseEvent =
+        publish { cursor, timestamp -> ItemUseEvent(cursor, timestamp, context) }
+
     private fun <T : BoxloomEvent> publish(create: (EventCursor, Instant) -> T): T =
         lock.withLock {
             check(!closed) { "The event broker is closed" }
@@ -160,7 +172,6 @@ class EventCursor internal constructor(
 sealed class BoxloomEvent(
     val cursor: EventCursor,
     val timestamp: Instant,
-    val message: String,
     val username: String,
     val uuid: String,
 ) {
@@ -173,25 +184,86 @@ sealed class BoxloomEvent(
 class ChatMessageEvent internal constructor(
     cursor: EventCursor,
     timestamp: Instant,
-    message: String,
+    val message: String,
     username: String,
     uuid: String,
-) : BoxloomEvent(cursor, timestamp, message, username, uuid) {
+) : BoxloomEvent(cursor, timestamp, username, uuid) {
     override val type: String = "chat.message"
 }
 
 class PlayerDeathEvent internal constructor(
     cursor: EventCursor,
     timestamp: Instant,
-    message: String,
+    val message: String,
     username: String,
     uuid: String,
     val dimension: String,
     val x: Double,
     val y: Double,
     val z: Double,
-) : BoxloomEvent(cursor, timestamp, message, username, uuid) {
+) : BoxloomEvent(cursor, timestamp, username, uuid) {
     override val type: String = "player.death"
+}
+
+/** Immutable values captured on the Minecraft server thread, before an item is consumed. */
+data class PlayerActionContext(
+    val username: String,
+    val uuid: String,
+    val dimension: String,
+    val x: Double,
+    val y: Double,
+    val z: Double,
+    val hand: String,
+    val item: String?,
+)
+
+data class BlockTarget(val block: String, val x: Int, val y: Int, val z: Int, val face: String)
+
+sealed class PlayerActionEvent(
+    cursor: EventCursor,
+    timestamp: Instant,
+    val context: PlayerActionContext,
+) : BoxloomEvent(cursor, timestamp, context.username, context.uuid)
+
+class PlayerSwingEvent internal constructor(
+    cursor: EventCursor,
+    timestamp: Instant,
+    context: PlayerActionContext,
+) : PlayerActionEvent(cursor, timestamp, context) {
+    override val type: String = "player.swing"
+}
+
+sealed class BlockActionEvent(
+    cursor: EventCursor,
+    timestamp: Instant,
+    context: PlayerActionContext,
+    val target: BlockTarget,
+) : PlayerActionEvent(cursor, timestamp, context)
+
+class BlockAttackEvent internal constructor(
+    cursor: EventCursor,
+    timestamp: Instant,
+    context: PlayerActionContext,
+    target: BlockTarget,
+) : BlockActionEvent(cursor, timestamp, context, target) {
+    override val type: String = "block.attack"
+}
+
+class BlockUseEvent internal constructor(
+    cursor: EventCursor,
+    timestamp: Instant,
+    context: PlayerActionContext,
+    target: BlockTarget,
+) : BlockActionEvent(cursor, timestamp, context, target) {
+    override val type: String = "block.use"
+}
+
+class ItemUseEvent internal constructor(
+    cursor: EventCursor,
+    timestamp: Instant,
+    context: PlayerActionContext,
+) : PlayerActionEvent(cursor, timestamp, context) {
+    override val type: String = "item.use"
 }
 
 class InvalidEventCursorException(message: String) : IllegalArgumentException(message)

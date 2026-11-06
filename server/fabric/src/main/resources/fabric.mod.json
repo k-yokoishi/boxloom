@@ -15,6 +15,7 @@
   },
   "license": "MIT",
   "environment": "*",
+  "mixins": ["boxloom.mixins.json"],
   "entrypoints": {
     "main": [
       {

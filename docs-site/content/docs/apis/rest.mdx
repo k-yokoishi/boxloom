@@ -682,12 +682,30 @@ The stream opens with `retry: 1000`, sends comment heartbeats while idle, and em
 | `stream.ready` | `type`, `cursor` | The stream is open at the given cursor. |
 | `chat.message` | `type`, `id`, `timestamp`, `message`, `player.username`, `player.uuid` | A player chat message. Its `id` equals the SSE `id`. |
 | `player.death` | `type`, `id`, `timestamp`, `message`, `player.username`, `player.uuid`, `dimension`, `x`, `y`, `z` | A confirmed player death, including its Minecraft death message and location. Its `id` equals the SSE `id`. |
+| `player.swing` | Common action fields below | An attack arm swing, including misses. |
+| `block.attack` | Common action fields plus block target fields below | A request to start attacking a block. |
+| `block.use` | Common action fields plus block target fields below | A request to use a block. |
+| `item.use` | Common action fields below | A request to use a non-empty held item. |
 | `stream.reset` | `type`, `code`, `message` | The cursor became unusable; the response ends after this event. |
 | `error` | `type`, `code`, `message` | An unrecoverable stream failure; the response ends. |
 
+Common action fields are `type`, `id`, `timestamp`, `player.username`,
+`player.uuid`, `dimension`, player position `x`, `y`, `z`, `hand` (`main_hand` or
+`off_hand`), and `item` (namespaced item ID or `null` for an empty hand).
+Block target fields are `block`, integer `block_x`, `block_y`, `block_z`, and
+`face` (`down`, `up`, `north`, `south`, `west`, or `east`). Values are captured on
+the server thread before consumption or other changes. Actions have no `message`.
+
+Action events describe attempts, not successful results, and exclude spectators.
+Swings include misses and hits; they do not identify their target. One block
+attack can also emit a swing. Holding a button can repeat actions. Item use on a
+block, including placement, is covered by `block.use`; `item.use` observes the
+separate item-use path. In Minecraft 26.3 swings use the main hand. No client mod
+is required.
+
 Event IDs are opaque and must not be parsed. Use them for deduplication when your processing and cursor persistence are not atomic.
 
-Both application event types share one ordered history of 1,024 events. JSON
+All application event types share one ordered history of 1,024 events. JSON
 `type` equals the SSE event name. All event types are sent on this endpoint; the
 Python SDK's optional `event_type` filter operates on the client. Only player
 deaths are emitted, independently of whether death messages are shown in chat.

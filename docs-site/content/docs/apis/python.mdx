@@ -652,8 +652,12 @@ ticks and empty clock or marker strings raise `ValueError` before any HTTP reque
 <Operation id="watch_event">
 
 ```python
-EventType = Literal["chat.message", "player.death"]
-Event = Union[ChatEvent, PlayerDeathEvent]
+EventType = Literal[
+    "chat.message", "player.death", "player.swing", "block.attack", "block.use", "item.use",
+]
+Event = Union[
+    ChatEvent, PlayerDeathEvent, PlayerSwingEvent, BlockAttackEvent, BlockUseEvent, ItemUseEvent,
+]
 
 watch_event(
     event_type: Optional[EventType] = None,
@@ -667,28 +671,61 @@ watch_event(
 
 | Name | Type | Default | Description |
 | --- | --- | --- | --- |
-| `event_type` | `Optional[EventType]` | `None` | Receive all supported event types, or filter to `"chat.message"` or `"player.death"`. Unknown values raise `ValueError`. |
+| `event_type` | `Optional[EventType]` | `None` | Receive all supported event types, or filter to one `EventType`. Unknown values raise `ValueError`. |
 | `last_event_id` | `Optional[str]` | `None` | Resume strictly after this event ID. `None` starts at the live position when iteration first opens the connection. |
 | `reconnect` | `bool` | `True` | Reconnect automatically using the last received cursor after a connection drops. |
 
 **Returns** — `EventStream[Event]`, an iterator and context manager with `last_event_id` and `close()`.
 
-The stream yields `ChatEvent` and `PlayerDeathEvent`. Both carry:
+The stream yields the six event classes listed above. All carry:
 
 | Attribute | Type | Description |
 | --- | --- | --- |
-| `type` | `EventType` | Fixed discriminator: `"chat.message"` or `"player.death"`. |
+| `type` | `EventType` | Fixed event discriminator matching the selected `EventType`. |
 | `id` | `str` | Opaque event ID, usable as `last_event_id`. |
 | `timestamp` | `str` | UTC ISO-8601 instant. |
 | `player` | `Player` | The player, with `username` and `uuid`. |
-| `message` | `str` | The chat text or Minecraft's plain-text death message. |
 
-`PlayerDeathEvent` also carries:
+`ChatEvent` and `PlayerDeathEvent` also carry `message` (`str`), the chat text
+or Minecraft's plain-text death message. `PlayerDeathEvent` also carries:
 
 | Attribute | Type | Description |
 | --- | --- | --- |
 | `dimension` | `str` | Namespaced dimension ID at death. |
 | `x`, `y`, `z` | `float` | Player position captured at death. |
+
+**Player action events**
+
+| Filter | Yielded class | Meaning |
+| --- | --- | --- |
+| `"player.swing"` | `PlayerSwingEvent` | An attack arm swing, including misses. |
+| `"block.attack"` | `BlockAttackEvent` | A request to start attacking a block. |
+| `"block.use"` | `BlockUseEvent` | A request to use a block. |
+| `"item.use"` | `ItemUseEvent` | A request to use a non-empty held item. |
+
+All four carry `dimension` (`str`), player position `x`, `y`, `z` (`float`),
+`hand` (`Literal["main_hand", "off_hand"]`), and `item` (`Optional[str]`,
+a namespaced item ID or `None` for an empty hand). Block events additionally
+carry `block` (`str`), `block_x`, `block_y`, `block_z` (`int`, target coordinates),
+and `face` (`"down"`, `"up"`, `"north"`, `"south"`, `"west"`, or `"east"`).
+Values are captured on the server thread before consumption or other changes.
+Action events have no `message` field.
+
+These are attempts, not confirmations of success. Swings include attacks that
+hit, miss, or target blocks, and do not identify their target. One operation can
+emit both `player.swing` and `block.attack`. Holding a button can repeat events.
+In Minecraft 26.3 swings use the main hand. Item use on a block (such as placement)
+is observed as `block.use`; `item.use` observes the separate item-use path.
+Spectator actions are excluded. No client mod is required.
+
+```python
+from boxloom import watch_event
+
+with watch_event("player.swing") as swings:
+    for event in swings:  # Inferred as PlayerSwingEvent.
+        if event.item == "minecraft:diamond_sword":
+            print(event.player.username, "swung a diamond sword")
+```
 
 **Example**
 
@@ -711,7 +748,8 @@ with watch_event("player.death") as deaths:
 `EventType` uses `Literal`, so editors can suggest valid strings and type checkers
 reject misspellings such as `"player.deth"`. `event.type` narrows the `Event` union.
 Overloads return `EventStream[ChatEvent]` for `"chat.message"` and
-`EventStream[PlayerDeathEvent]` for `"player.death"`. These types are included in the
+`EventStream[PlayerDeathEvent]` for `"player.death"`, with equivalent overloads for
+each action event. These types are included in the
 installed package through its `py.typed` marker.
 
 This function also exists on `BoxloomClient`. Filtering happens in the SDK over
@@ -743,8 +781,8 @@ subscribe_event(
 
 | Name | Type | Default | Description |
 | --- | --- | --- | --- |
-| `event_type` | `Optional[EventType]` | `None` | All supported types, `"chat.message"`, or `"player.death"`. Filtering happens in the SDK. |
-| `callback` | `Callable[[Event], None]` | required | A synchronous callback. Overloads accept `Callable[[ChatEvent], None]` for `"chat.message"` and `Callable[[PlayerDeathEvent], None]` for `"player.death"`. |
+| `event_type` | `Optional[EventType]` | `None` | All supported types, or one `EventType`. Filtering happens in the SDK. |
+| `callback` | `Callable[[Event], None]` | required | A synchronous callback. Overloads select the corresponding event class, e.g. `Callable[[PlayerSwingEvent], None]` for `"player.swing"`. |
 | `on_error` | `Optional[Callable[[Exception], None]]` | `None` | Called once when background reception or a callback fails. Without it, the failure is logged. |
 | `last_event_id` | `Optional[str]` | `None` | Resume strictly after this cursor; otherwise start at the live position. |
 | `reconnect` | `bool` | `True` | Retry transient receive failures using the current cursor. Use `False` to treat a dropped connection as a game-ending error. |

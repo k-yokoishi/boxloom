@@ -53,8 +53,69 @@ class PlayerDeathEvent:
     type: Literal["player.death"] = field(default="player.death", init=False)
 
 
-Event = Union[ChatEvent, PlayerDeathEvent]
-EventType = Literal["chat.message", "player.death"]
+@dataclass(frozen=True)
+class _PlayerActionEvent:
+    """Server-side snapshot captured when a player action is received."""
+
+    id: str
+    timestamp: str
+    player: Player
+    dimension: str
+    x: float
+    y: float
+    z: float
+    hand: Literal["main_hand", "off_hand"]
+    item: Optional[str]
+
+
+@dataclass(frozen=True)
+class PlayerSwingEvent(_PlayerActionEvent):
+    """An attack arm swing, including misses; not a confirmation of a hit."""
+
+    type: Literal["player.swing"] = field(default="player.swing", init=False)
+
+
+@dataclass(frozen=True)
+class _BlockActionEvent(_PlayerActionEvent):
+    block: str
+    block_x: int
+    block_y: int
+    block_z: int
+    face: Literal["down", "up", "north", "south", "west", "east"]
+
+
+@dataclass(frozen=True)
+class BlockAttackEvent(_BlockActionEvent):
+    """A request to start attacking a block, before destruction succeeds."""
+
+    type: Literal["block.attack"] = field(default="block.attack", init=False)
+
+
+@dataclass(frozen=True)
+class BlockUseEvent(_BlockActionEvent):
+    """A request to use a block, before the interaction succeeds."""
+
+    type: Literal["block.use"] = field(default="block.use", init=False)
+
+
+@dataclass(frozen=True)
+class ItemUseEvent(_PlayerActionEvent):
+    """A request to use a held item, before it is consumed or changed."""
+
+    type: Literal["item.use"] = field(default="item.use", init=False)
+
+
+Event = Union[
+    ChatEvent, PlayerDeathEvent, PlayerSwingEvent, BlockAttackEvent, BlockUseEvent, ItemUseEvent,
+]
+EventType = Literal[
+    "chat.message", "player.death", "player.swing", "block.attack", "block.use", "item.use",
+]
+
+_EVENT_CLASSES = (
+    ChatEvent, PlayerDeathEvent, PlayerSwingEvent, BlockAttackEvent, BlockUseEvent, ItemUseEvent,
+)
+_EVENT_TYPES = tuple(event.type for event in _EVENT_CLASSES)
 
 
 @dataclass(frozen=True)

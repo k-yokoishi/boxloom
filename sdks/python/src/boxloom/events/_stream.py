@@ -10,6 +10,7 @@ from .._transport import (
     _api_error,
     _connection_error,
     _decode_object,
+    _require_integer,
     _require_number,
     _require_string,
 )
@@ -21,7 +22,19 @@ from ..errors import (
     EventStreamError,
     ProtocolError,
 )
-from ..models import ChatEvent, Event, EventType, Player, PlayerDeathEvent
+from ..models import (
+    BlockAttackEvent,
+    BlockUseEvent,
+    ChatEvent,
+    Event,
+    EventType,
+    ItemUseEvent,
+    Player,
+    PlayerDeathEvent,
+    PlayerSwingEvent,
+    _EVENT_CLASSES,
+    _EVENT_TYPES,
+)
 
 
 @dataclass(frozen=True)
@@ -63,8 +76,7 @@ class _ErrorEvent:
 
 _BoxloomEvent = Union[
     _StreamReadyEvent,
-    ChatEvent,
-    PlayerDeathEvent,
+    Event,
     _StreamResetEvent,
     _ErrorEvent,
 ]
@@ -86,8 +98,8 @@ class EventStream(Iterator[_EventT]):
         reconnect: bool,
         event_type: Optional[EventType] = None,
     ) -> None:
-        if event_type is not None and event_type not in ("chat.message", "player.death"):
-            raise ValueError("event_type must be 'chat.message', 'player.death', or None")
+        if event_type is not None and event_type not in _EVENT_TYPES:
+            raise ValueError(f"event_type must be one of {_EVENT_TYPES!r}, or None")
         if last_event_id is not None and (
             not isinstance(last_event_id, str)
             or not last_event_id.strip()
@@ -128,7 +140,7 @@ class EventStream(Iterator[_EventT]):
     def __next__(self) -> _EventT:
         while True:
             event = self._next_event()
-            if isinstance(event, (ChatEvent, PlayerDeathEvent)) and self._accepts(event):
+            if isinstance(event, _EVENT_CLASSES) and self._accepts(event):
                 # watch_event overloads tie the filter to the yielded type.
                 return cast(_EventT, event)
 
@@ -147,7 +159,7 @@ class EventStream(Iterator[_EventT]):
                 event = self._receive()
                 if isinstance(event, _StreamReadyEvent):
                     return event.cursor
-                if isinstance(event, (ChatEvent, PlayerDeathEvent)):
+                if isinstance(event, _EVENT_CLASSES):
                     raise ProtocolError("event stream must send stream.ready before events")
             raise ConnectionError("boxloom event stream closed before it was ready")
         except (URLError, socket.timeout, TimeoutError, OSError) as error:
@@ -331,6 +343,10 @@ def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
         "stream.ready",
         "chat.message",
         "player.death",
+        "player.swing",
+        "block.attack",
+        "block.use",
+        "item.use",
         "stream.reset",
         "error",
     }:
@@ -350,6 +366,9 @@ def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
         return _decode_chat_event(payload, frame.event_id)
     if frame.event_name == "player.death":
         return _decode_player_death_event(payload, frame.event_id)
+
+    if frame.event_name in {"player.swing", "block.attack", "block.use", "item.use"}:
+        return _decode_player_action_event(payload, frame.event_id, frame.event_name)
 
     code = _require_string(payload, "code")
     message = _require_string(payload, "message")
@@ -404,3 +423,57 @@ def _decode_player_death_event(
         y=_require_number(payload, "y"),
         z=_require_number(payload, "z"),
     )
+
+
+_ActionEvent = Union[PlayerSwingEvent, BlockAttackEvent, BlockUseEvent, ItemUseEvent]
+
+
+def _decode_player_action_event(
+    payload: Mapping[str, Any],
+    event_id: Optional[str],
+    event_name: str,
+) -> _ActionEvent:
+    payload_id = _require_string(payload, "id")
+    if event_id is None or event_id != payload_id:
+        raise ProtocolError("player action payload id must match the SSE event id")
+    player_value = payload.get("player")
+    if not isinstance(player_value, dict):
+        raise ProtocolError("response field 'player' must be an object")
+    hand = _require_string(payload, "hand")
+    if hand not in ("main_hand", "off_hand"):
+        raise ProtocolError("response field 'hand' must be 'main_hand' or 'off_hand'")
+    if "item" not in payload:
+        raise ProtocolError("response field 'item' is required")
+    item = None if payload["item"] is None else _require_string(payload, "item")
+    common = (
+        payload_id,
+        _require_string(payload, "timestamp"),
+        Player(
+            username=_require_string(player_value, "username"),
+            uuid=_require_string(player_value, "uuid"),
+        ),
+        _require_string(payload, "dimension"),
+        _require_number(payload, "x"),
+        _require_number(payload, "y"),
+        _require_number(payload, "z"),
+        cast(Literal["main_hand", "off_hand"], hand),
+        item,
+    )
+    if event_name == "player.swing":
+        return PlayerSwingEvent(*common)
+    if event_name == "item.use":
+        return ItemUseEvent(*common)
+
+    face = _require_string(payload, "face")
+    if face not in ("down", "up", "north", "south", "west", "east"):
+        raise ProtocolError("response field 'face' must be a block face direction")
+    block = (
+        _require_string(payload, "block"),
+        _require_integer(payload, "block_x"),
+        _require_integer(payload, "block_y"),
+        _require_integer(payload, "block_z"),
+        cast(Literal["down", "up", "north", "south", "west", "east"], face),
+    )
+    if event_name == "block.attack":
+        return BlockAttackEvent(*common, *block)
+    return BlockUseEvent(*common, *block)
