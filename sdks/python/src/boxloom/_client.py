@@ -2,7 +2,7 @@ import json
 import re
 import socket
 from math import isfinite
-from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Union, overload
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Union, cast, overload
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -36,6 +36,9 @@ from .models import (
     BlockUseEvent,
     ItemUseEvent,
     PlayerPosition,
+    PlayerAttackResult,
+    TargetedBlock,
+    BlockFace,
     SayResult,
     SetBlockResult,
     SummonResult,
@@ -99,6 +102,34 @@ class BoxloomClient:
             yaw=_require_number(payload, "yaw"),
             pitch=_require_number(payload, "pitch"),
         )
+
+    def get_player(self, username: str) -> Player:
+        """Resolve a connected player and bind its operations to this client."""
+
+        position = self.get_player_position(username)
+        return Player(position.username, position.uuid, self)
+
+    def get_player_targeted_block(self, username: str) -> Optional[TargetedBlock]:
+        """Read a block within interaction reach using the server's latest view."""
+
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+        payload = self._get(f"/v1/players/{quote(username, safe='')}/targeted-block")
+        return _targeted_block(payload)
+
+    def attack_player(self, username: str) -> PlayerAttackResult:
+        """Perform one block attack or a miss; never leave mining active."""
+
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+        payload = self._post(f"/v1/players/{quote(username, safe='')}/attack", {})
+        swung, broken = payload.get("swung"), payload.get("broken")
+        if not isinstance(swung, bool) or not isinstance(broken, bool):
+            raise ProtocolError("response fields 'swung' and 'broken' must be booleans")
+        target = _targeted_block(payload)
+        if broken and target is None:
+            raise ProtocolError("a broken block must have a target")
+        return PlayerAttackResult(swung, target, broken)
 
     def set_player_gamemode(self, username: str, mode: GameMode) -> PlayerGameMode:
         """Set a connected player's mode to creative or survival, including a no-op."""
@@ -194,6 +225,7 @@ class BoxloomClient:
                 Player(
                     username=_require_string(player_value, "username"),
                     uuid=_require_string(player_value, "uuid"),
+                    _client=self,
                 )
             )
         return players
@@ -865,4 +897,27 @@ def _validate_nbt_value(value: Any, path: str, depth: int) -> None:
         return
     raise TypeError(
         f"{path} must contain only dict, list, string, boolean, integer, or float values"
+    )
+
+
+def _targeted_block(payload: Mapping[str, Any]) -> Optional[TargetedBlock]:
+    if "target" not in payload:
+        raise ProtocolError("response field 'target' must be an object or null")
+    value = payload["target"]
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ProtocolError("response field 'target' must be an object or null")
+    face = _require_string(value, "face")
+    if face not in ("down", "up", "north", "south", "west", "east"):
+        raise ProtocolError("response field 'face' is not a block face")
+    distance = _require_number(value, "distance")
+    if not isfinite(distance) or distance < 0:
+        raise ProtocolError("response field 'distance' must be finite and non-negative")
+    return TargetedBlock(
+        dimension=_require_string(value, "dimension"),
+        x=_require_integer(value, "x"), y=_require_integer(value, "y"), z=_require_integer(value, "z"),
+        block=_require_string(value, "block"),
+        face=cast(BlockFace, face),
+        distance=distance,
     )

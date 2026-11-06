@@ -127,6 +127,78 @@ for player in get_players():
 
 </Operation>
 
+## `Player` methods
+
+Resolve a connected player with `get_player(username)`, also available as
+`BoxloomClient.get_player(username)`. This reads the existing position endpoint
+to resolve the player's identity. Players returned by `get_players()` are also
+actionable. Each retains its originating client, including after `boxloom.init()`
+changes the process-wide configuration.
+
+```python
+from boxloom import get_player
+
+player = get_player("Steve")
+target = player.get_targeted_block()
+if target is not None:
+    print(target.block, target.x, target.y, target.z, target.face)
+result = player.attack()
+print(result.swung, result.broken)
+```
+
+Manually constructed `Player` values and event `player` snapshots are identity
+data without a client binding. Calling their methods raises `ConfigurationError`;
+resolve them with the appropriate client's `get_player(event.player.username)`.
+
+### `Player.get_targeted_block`
+
+<Operation id="get_targeted_block">
+
+```python
+player.get_targeted_block() -> Optional[TargetedBlock]
+```
+
+Also available as `BoxloomClient.get_player_targeted_block(username)`.
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `dimension` | `str` | The player's dimension. |
+| `x`, `y`, `z` | `int` | Absolute block coordinates. |
+| `block` | `str` | Namespaced block ID. |
+| `face` | `str` | `down`, `up`, `north`, `south`, `west`, or `east`. |
+| `distance` | `float` | Distance from the eye to the hit surface, in blocks. |
+
+The server uses its latest received position and view, which can lag behind the
+client's screen. The range follows the player's block interaction reach. A later
+`attack()` recalculates its target; it does not lock the earlier snapshot.
+
+</Operation>
+
+### `Player.attack`
+
+<Operation id="attack">
+
+```python
+player.attack() -> PlayerAttackResult
+```
+
+Also available as `BoxloomClient.attack_player(username)`.
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `swung` | `bool` | Whether a new arm swing started. An existing swing may prevent another. |
+| `target` | `Optional[TargetedBlock]` | Target snapshot captured before the attack; `None` for a miss. |
+| `broken` | `bool` | Whether the targeted block's type changed during the attack. |
+
+This is a single click: survival blocks that require sustained mining remain in
+place. Creative and instant-mine blocks can break. A targeted block may remain
+because of protection rules, the held tool, or cancellation by another mod.
+Entity attacks and piercing-weapon attacks are currently rejected with
+`UNSUPPORTED_ATTACK_TARGET`. This operation is not retried automatically; a
+timeout can occur after the action has already taken effect.
+
+</Operation>
+
 ## `get_player_position`
 
 <Operation id="get_player_position">

@@ -22,6 +22,30 @@ export BOXLOOM_AUTH_TOKEN=replace-me
 
 ## Samples
 
+Read the block a player is aiming at and attack it once:
+
+```python
+from boxloom import get_player
+
+player = get_player("Steve")
+target = player.get_targeted_block()
+if target is not None:
+    print(target.block, target.x, target.y, target.z, target.face, target.distance)
+result = player.attack()
+print(result.swung, result.broken)
+```
+
+Players from `get_players()` also expose these methods and retain their original
+client connection. Targeting uses the server's latest view and block interaction
+reach, ignores fluids, and stops at intervening entities. `None` means no block
+is targeted. `attack()` recalculates the target and performs one block click or
+miss, with the arm swing sent to the player and observers. Native protections and
+tools apply; survival blocks requiring sustained mining do not break from one
+click. Entity and piercing-weapon attacks are currently unsupported. An existing
+swing can prevent a new swing. Event player snapshots and manually constructed
+`Player` values are not bound; resolve them with the appropriate client's
+`get_player()` before calling methods.
+
 Place a block:
 
 ```python

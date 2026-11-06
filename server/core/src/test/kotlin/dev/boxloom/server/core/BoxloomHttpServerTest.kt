@@ -22,6 +22,72 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class BoxloomHttpServerTest {
     @Test
+    fun `reads a targeted block or null and performs one attack`() {
+        val target = TargetedBlock("minecraft:overworld", -1, 64, 3, "minecraft:stone", "north", 2.5)
+        var selected: TargetedBlock? = target
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun targetedBlock(username: String): CompletableFuture<TargetedBlock?> {
+                assertEquals("Steve", username)
+                return CompletableFuture.completedFuture(selected)
+            }
+            override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> {
+                assertEquals("Steve", username)
+                return CompletableFuture.completedFuture(PlayerAttackResult(true, selected, false))
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val read = get(server, "/v1/players/Steve/targeted-block")
+            assertEquals(200, read.statusCode())
+            val json = Json.parseToJsonElement(read.body()).jsonObject["target"]!!.jsonObject
+            assertEquals("north", json["face"]!!.jsonPrimitive.content)
+            assertEquals("-1", json["x"]!!.jsonPrimitive.content)
+            assertEquals("2.5", json["distance"]!!.jsonPrimitive.content)
+            val attack = post(server, "/v1/players/Steve/attack", "{}")
+            assertEquals(200, attack.statusCode())
+            assertContains(attack.body(), "\"swung\":true")
+            assertContains(attack.body(), "\"broken\":false")
+            selected = null
+            assertEquals("{\"target\":null}", get(server, "/v1/players/Steve/targeted-block").body())
+            assertEquals("{\"swung\":true,\"target\":null,\"broken\":false}",
+                post(server, "/v1/players/Steve/attack", "{}").body())
+        }
+    }
+
+    @Test
+    fun `validates attack requests before invoking Minecraft`() {
+        withServer(authToken = null) { server, _ ->
+            for (path in listOf("/targeted-block", "/attack")) {
+                val response = if (path == "/attack") post(server, "/v1/players/ab$path", "{}")
+                    else get(server, "/v1/players/ab$path")
+                assertEquals(400, response.statusCode())
+            }
+            for (body in listOf("{\"x\":0}", "null", "[]", "")) {
+                assertEquals(400, post(server, "/v1/players/Steve/attack", body).statusCode())
+            }
+            assertEquals(400, get(server, "/v1/players/Steve/targeted-block?distance=100").statusCode())
+            assertEquals(400, post(server, "/v1/players/Steve/attack?x=1", "{}").statusCode())
+        }
+    }
+
+    @Test
+    fun `propagates player lookup and attack state failures`() {
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun targetedBlock(username: String): CompletableFuture<TargetedBlock?> =
+                CompletableFuture.failedFuture(ApiException(404, "PLAYER_NOT_CONNECTED", "offline"))
+            override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
+                CompletableFuture.failedFuture(ApiException(409, "PLAYER_CANNOT_ATTACK", "spectator"))
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val missing = get(server, "/v1/players/Steve/targeted-block")
+            assertEquals(404, missing.statusCode())
+            assertContains(missing.body(), "PLAYER_NOT_CONNECTED")
+            val invalid = post(server, "/v1/players/Steve/attack", "{}")
+            assertEquals(409, invalid.statusCode())
+            assertContains(invalid.body(), "PLAYER_CANNOT_ATTACK")
+        }
+    }
+
+    @Test
     fun `accepts a loopback request when authentication is disabled`() {
         withServer(authToken = null) { server, _ ->
             val response = request(server)
@@ -1270,6 +1336,12 @@ class BoxloomHttpServerTest {
         override fun say(request: SayRequest): CompletableFuture<SayResult> =
             throw AssertionError("Unexpected say request")
 
+        override fun targetedBlock(username: String): CompletableFuture<TargetedBlock?> =
+            throw AssertionError("Unexpected targeted-block request")
+
+        override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
+            throw AssertionError("Unexpected attack request")
+
         override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")
 
@@ -1322,6 +1394,12 @@ class BoxloomHttpServerTest {
 
         override fun players(): CompletableFuture<List<Player>> =
             throw AssertionError("Unexpected players request")
+
+        override fun targetedBlock(username: String): CompletableFuture<TargetedBlock?> =
+            throw AssertionError("Unexpected targeted-block request")
+
+        override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
+            throw AssertionError("Unexpected attack request")
 
         override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
             throw AssertionError("Unexpected position request")

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Read targeted blocks and perform a single native block attack through REST and
+  client-bound Python `Player` methods; include arm swings, reach checks, native
+  protections, and immediate cancellation of sustained mining
+- Verify block targeting and attacks with headless Fabric server game tests
+
 ## 0.1.0-alpha.8
 
 - Stream player arm swings, block attacks, block use, and item use through REST

@@ -153,6 +153,30 @@ export const apiOperations = {
     ),
     errors: [playerNotConnected],
   },
+  get_targeted_block: {
+    description: (
+      <p>
+        Read the first block under the server-side crosshair within the player&apos;s
+        block interaction reach. Entities occlude blocks, and fluids are ignored.
+        No target is a successful null result.
+      </p>
+    ),
+    errors: [playerNotConnected],
+  },
+  attack: {
+    description: (
+      <p>
+        Attack the targeted block once, or swing at empty space. Native game-mode,
+        tool and protection rules apply. Mining ends before the request returns.
+        The arm swing is sent to the player and observers.
+      </p>
+    ),
+    errors: [
+      playerNotConnected,
+      { status: 409, code: 'PLAYER_CANNOT_ATTACK', meaning: 'The player is dead, spectating, using an item, or unable to attack with their held item.' },
+      { status: 409, code: 'UNSUPPORTED_ATTACK_TARGET', meaning: 'An entity is under the crosshair, or the held item is a piercing weapon. This API currently supports block attacks and misses.' },
+    ],
+  },
   teleport_player: {
     description: (
       <p>

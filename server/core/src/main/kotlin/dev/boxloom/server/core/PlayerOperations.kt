@@ -7,6 +7,10 @@ interface PlayerOperations {
 
     fun playerPosition(username: String): CompletableFuture<PlayerPosition>
 
+    fun targetedBlock(username: String): CompletableFuture<TargetedBlock?>
+
+    fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult>
+
     fun teleportPlayer(
         username: String,
         request: TeleportPlayerRequest,
@@ -21,6 +25,22 @@ interface PlayerOperations {
 data class Player(
     val username: String,
     val uuid: String,
+)
+
+data class TargetedBlock(
+    val dimension: String,
+    val x: Int,
+    val y: Int,
+    val z: Int,
+    val block: String,
+    val face: String,
+    val distance: Double,
+)
+
+data class PlayerAttackResult(
+    val swung: Boolean,
+    val target: TargetedBlock?,
+    val broken: Boolean,
 )
 
 enum class GameMode(val value: String) {

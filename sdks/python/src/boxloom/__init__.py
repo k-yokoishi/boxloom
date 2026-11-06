@@ -37,6 +37,8 @@ from .models import (
     Player,
     PlayerGameMode,
     PlayerPosition,
+    PlayerAttackResult,
+    TargetedBlock,
     SayResult,
     SetBlockResult,
     SummonResult,
@@ -70,6 +72,8 @@ __all__ = [
     "BlockUseEvent",
     "ItemUseEvent",
     "PlayerPosition",
+    "PlayerAttackResult",
+    "TargetedBlock",
     "ProtocolError",
     "SayResult",
     "SetBlockResult",
@@ -82,6 +86,7 @@ __all__ = [
     "get_block",
     "get_entities",
     "get_player_position",
+    "get_player",
     "get_players",
     "get_time",
     "init",
@@ -150,6 +155,12 @@ def get_players() -> List[Player]:
     """List players currently connected to the Minecraft server."""
 
     return _default_client().get_players()
+
+
+def get_player(username: str) -> Player:
+    """Resolve a connected player whose methods retain the current client."""
+
+    return _default_client().get_player(username)
 
 
 def set_player_gamemode(username: str, mode: GameMode) -> PlayerGameMode:

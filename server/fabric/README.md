@@ -7,6 +7,8 @@ The mod exposes Minecraft operations and a live player event stream:
 - Broadcast a system message to connected players
 - List connected players
 - Read a connected player's position and look direction
+- Read the block under a player's server-side crosshair, within interaction reach
+- Perform one native block attack or miss, including a swing sent to the player and observers
 - Teleport a connected player to absolute coordinates
 - Set a connected player's game mode to Creative or Survival
 - Get one block from a loaded dimension
@@ -19,6 +21,19 @@ The mod exposes Minecraft operations and a live player event stream:
 - Stream player chat, death, attack swing, block attack, block use, and item use events as resumable Server-Sent Events
 
 Arbitrary command execution is intentionally outside this PoC.
+
+`GET /v1/players/{username}/targeted-block` returns `{ "target": null }` or a
+snapshot with dimension, block coordinates, block ID, face and eye-to-surface
+distance. Entities occlude blocks and fluids are ignored. Targeting uses the
+server's latest received view, so it can lag behind the client's crosshair.
+
+`POST /v1/players/{username}/attack` accepts an empty JSON body, `{}`, and returns
+`swung`, `target`, and `broken`. It recalculates the target, invokes native block
+attack processing, and ends mining before returning. Creative and instant-mine
+blocks can break; other survival blocks need sustained mining. Native game-mode,
+tool, protection and Fabric callback rules apply. Entity and piercing-weapon
+attacks return `409 UNSUPPORTED_ATTACK_TARGET`; dead, spectator or busy players
+return `409 PLAYER_CANNOT_ATTACK`.
 
 ## Fixed compatibility versions
 

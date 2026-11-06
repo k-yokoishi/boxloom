@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "boxloom-gametest",
+  "version": "1.0.0",
+  "environment": "server",
+  "entrypoints": {
+    "fabric-gametest": ["dev.boxloom.fabric.PlayerBlockActionsGameTest"]
+  }
+}

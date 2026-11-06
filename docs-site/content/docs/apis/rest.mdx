@@ -106,6 +106,69 @@ curl --fail-with-body \
 
 </Operation>
 
+## `get_targeted_block`
+
+<Operation id="get_targeted_block">
+
+<ApiEndpoint method="GET" path="/v1/players/{username}/targeted-block" />
+
+`username` is a connected player's name (3–16 letters, digits, or underscores).
+No query parameters are accepted. Uses the latest view received by the server;
+the screen's crosshair may differ because of network latency.
+
+**Response** — `200 application/json`
+
+```json
+{
+  "target": {
+    "dimension": "minecraft:overworld",
+    "x": 10, "y": 64, "z": 20,
+    "block": "minecraft:stone", "face": "north", "distance": 2.5
+  }
+}
+```
+
+The coordinates identify the block, `face` is one of the six lowercase directions,
+and `distance` measures from the eye to the hit surface. A miss or an intervening
+entity returns `{"target": null}`.
+
+</Operation>
+
+## `attack`
+
+<Operation id="attack">
+
+<ApiEndpoint method="POST" path="/v1/players/{username}/attack" />
+
+**Request body** — an empty JSON object, `{}`. No query parameters are accepted.
+The username has the same constraints as `get_targeted_block`.
+
+**Response** — `200 application/json`
+
+```json
+{
+  "swung": true,
+  "target": {
+    "dimension": "minecraft:overworld",
+    "x": 10, "y": 64, "z": 20,
+    "block": "minecraft:stone", "face": "north", "distance": 2.5
+  },
+  "broken": false
+}
+```
+
+`target` is a snapshot before the action and is `null` for empty space. `swung`
+reports whether a new arm swing started; an existing swing may prevent another.
+`broken` reports whether the target's block type changed during the native action.
+The target is recalculated when this request executes.
+
+One survival click does not mine a hard block to completion. Creative and
+instant-mine blocks can break. Native protections, tools, and Fabric callbacks
+apply. Entity and piercing-weapon attacks return `409 UNSUPPORTED_ATTACK_TARGET`.
+Avoid blindly retrying a timed-out mutation: it may already have taken effect.
+
+</Operation>
+
 ## `get_player_position`
 
 <Operation id="get_player_position">
