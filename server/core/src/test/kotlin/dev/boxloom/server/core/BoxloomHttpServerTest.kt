@@ -95,6 +95,59 @@ class BoxloomHttpServerTest {
 
 
     @Test
+    fun `gives an item with an optional count`() {
+        var captured: Pair<String, GiveItemRequest>? = null
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> {
+                captured = username to request
+                return CompletableFuture.completedFuture(GiveItemResult(username, TEST_UUID, "minecraft:stone", request.count))
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            for ((body, count) in listOf("""{"item":"stone"}""" to 1, """{"item":"stone","count":65}""" to 65)) {
+                val response = post(server, "/v1/players/Steve/give", body)
+                assertEquals(200, response.statusCode())
+                assertEquals("Steve" to GiveItemRequest("stone", count), captured)
+                assertEquals("""{"username":"Steve","uuid":"$TEST_UUID","item":"minecraft:stone","count":$count}""", response.body())
+            }
+        }
+    }
+
+    @Test
+    fun `validates give requests before invoking Minecraft`() {
+        withServer(authToken = null) { server, _ ->
+            val invalid = listOf(
+                "{}", "null", "[]", "", """{"item":null}""", """{"item":1}""", """{"item":" "}""",
+                """{"item":"stone","slot":0}""",
+            ) + listOf("0", "-1", "1.5", "true", "null", "\"2\"", "2147483648").map {
+                """{"item":"stone","count":$it}"""
+            }
+            for (body in invalid) {
+                val response = post(server, "/v1/players/Steve/give", body)
+                assertEquals(400, response.statusCode(), body)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+            assertEquals(400, post(server, "/v1/players/ab/give", """{"item":"stone"}""").statusCode())
+            assertEquals(400, post(server, "/v1/players/Steve/give?slot=0", """{"item":"stone"}""").statusCode())
+        }
+    }
+
+    @Test
+    fun `propagates give errors without changing their codes`() {
+        for ((status, code) in listOf(400 to "INVALID_ITEM", 400 to "INVALID_COUNT", 404 to "PLAYER_NOT_CONNECTED")) {
+            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+                override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> =
+                    CompletableFuture.failedFuture(ApiException(status, code, "Cannot give item"))
+            }
+            withServer(authToken = null, minecraft = minecraft) { server, _ ->
+                val response = post(server, "/v1/players/Steve/give", """{"item":"stone"}""")
+                assertEquals(status, response.statusCode())
+                assertContains(response.body(), code)
+            }
+        }
+    }
+
+    @Test
     fun `uses a main hand item and serializes block entity and miss results`() {
         val target = TargetedBlock("minecraft:overworld", 1, 64, 3, "minecraft:wheat", "north", 2.5)
         val entity = EntitySnapshot(TEST_UUID, "minecraft:cow", "minecraft:overworld", 1.5, 64.0, 3.0, 0f, 0f, "Cow", 10f)
@@ -1550,6 +1603,9 @@ class BoxloomHttpServerTest {
     }
 
     private object TestMinecraftOperations : MinecraftOperations {
+        override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> =
+            throw AssertionError("Unexpected give request")
+
         override fun getEntities(request: GetEntitiesRequest): CompletableFuture<List<EntitySnapshot>> =
             throw AssertionError("Unexpected get-entities request")
 
@@ -1624,6 +1680,9 @@ class BoxloomHttpServerTest {
     }
 
     private object SayMinecraftOperations : MinecraftOperations {
+        override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> =
+            throw AssertionError("Unexpected give request")
+
         override fun getEntities(request: GetEntitiesRequest): CompletableFuture<List<EntitySnapshot>> =
             throw AssertionError("Unexpected get-entities request")
 

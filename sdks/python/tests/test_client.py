@@ -54,6 +54,58 @@ class _ApiHandler(BaseHTTPRequestHandler):
 
 
 class ClientTest(unittest.TestCase):
+    def test_give_item_supports_top_level_client_and_bound_player(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="give-secret")
+        player = self._player(client)
+        for give in (lambda item, count=1: boxloom.give_item("Steve", item, count),
+                     lambda item, count=1: client.give_item("Steve", item, count), player.give_item):
+            for item, count in ((boxloom.blocks.STONE, 65), ("diamond_sword", 1)):
+                canonical = item if ":" in item else f"minecraft:{item}"
+                _ApiHandler.response_body = {"username": "Steve", "uuid": "test-uuid", "item": canonical, "count": count}
+                result = give(item) if count == 1 else give(item, count)
+                self.assertEqual(boxloom.GiveItemResult("Steve", "test-uuid", canonical, count), result)
+                self.assertEqual("/v1/players/Steve/give", _ApiHandler.requests[-1][0])
+                self.assertEqual({"item": item, "count": count}, _ApiHandler.requests[-1][2])
+        boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
+        player.give_item("diamond_sword")
+        self.assertEqual("Bearer give-secret", _ApiHandler.requests[-1][1]["Authorization"])
+        with self.assertRaises(boxloom.ConfigurationError):
+            boxloom.Player("Steve", "test-uuid").give_item("stone")
+
+    def test_give_item_rejects_invalid_arguments_before_requesting(self):
+        for username, item, count in (
+            ("ab", "stone", 1), (None, "stone", 1), ("Steve", None, 1), ("Steve", "", 1),
+            ("Steve", "Stone", 1), ("Steve", "stone; say hi", 1), ("Steve", "stone[foo=bar]", 1),
+            ("Steve", "stone", 0), ("Steve", "stone", -1), ("Steve", "stone", True),
+            ("Steve", "stone", 1.5), ("Steve", "stone", "1"), ("Steve", "stone", 2_147_483_648),
+        ):
+            with self.subTest(username=username, item=item, count=count), self.assertRaises(ValueError):
+                boxloom.give_item(username, item, count)
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_give_item_rejects_malformed_results(self):
+        valid = {"username": "Steve", "uuid": "test-uuid", "item": "minecraft:stone", "count": 1}
+        invalid = [{k: v for k, v in valid.items() if k != field} for field in valid]
+        invalid.extend({**valid, key: value} for key, value in (
+            ("count", True), ("count", 0), ("count", 2), ("count", 1.5),
+            ("item", "minecraft:dirt"), ("username", "Alex"), ("uuid", None),
+        ))
+        for body in invalid:
+            with self.subTest(body=body):
+                _ApiHandler.response_body = body
+                with self.assertRaises(boxloom.ProtocolError):
+                    boxloom.give_item("Steve", "stone")
+
+    def test_give_item_preserves_api_errors_without_retrying(self):
+        for status, code in ((400, "INVALID_ITEM"), (400, "INVALID_COUNT"), (404, "PLAYER_NOT_CONNECTED"), (504, "TIMEOUT")):
+            _ApiHandler.response_status = status
+            _ApiHandler.response_body = {"error": {"code": code, "message": "Cannot give"}}
+            before = len(_ApiHandler.requests)
+            with self.assertRaises(boxloom.ApiError) as raised:
+                boxloom.give_item("Steve", "stone")
+            self.assertEqual((status, code), (raised.exception.status, raised.exception.code))
+            self.assertEqual(before + 1, len(_ApiHandler.requests))
+
     def _player(self, client=None):
         _ApiHandler.response_body = {
             "username": "Steve", "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",

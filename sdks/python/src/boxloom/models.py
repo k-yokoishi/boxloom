@@ -61,6 +61,11 @@ class Player:
 
         return self._require_client().stop_using_player_item(self.username)
 
+    def give_item(self, item: str, count: int = 1) -> "GiveItemResult":
+        """Give an item using vanilla /give stacking and overflow rules."""
+
+        return self._require_client().give_item(self.username, item, count)
+
     def stop_mining(self) -> "PlayerMiningResult":
         """Cancel this player's API mining session; safe to call when inactive."""
 
@@ -135,6 +140,16 @@ class PlayerMiningResult:
     active: bool
     target: Optional[TargetedBlock]
     broken: bool
+
+
+@dataclass(frozen=True)
+class GiveItemResult:
+    """Items given by /give rules; count is not the resulting inventory size."""
+
+    username: str
+    uuid: str
+    item: str
+    count: int
 
 
 GameMode = Literal["creative", "survival"]

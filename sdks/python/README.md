@@ -55,6 +55,32 @@ swing can prevent a new swing. Event player snapshots and manually constructed
 `Player` values are not bound; resolve them with the appropriate client's
 `get_player()` before calling methods.
 
+Give blocks or items to a player, as with `/give`:
+
+```python
+from boxloom import blocks, give_item
+
+player.give_item(blocks.STONE, count=64)
+player.give_item("minecraft:diamond_sword")  # count defaults to 1
+result = give_item("Steve", "minecraft:bone_meal", count=16)
+print(result.item, result.count)
+```
+
+Also available as `BoxloomClient.give_item(username, item, count=1)`. All forms
+return `GiveItemResult(username, uuid, item, count)` with a canonical namespaced
+item ID. Blocks with an item form use item IDs too; `blocks.STONE` works, while
+world-only blocks such as water cannot be given. The `minecraft:` prefix may be
+omitted. Registered mod item IDs are accepted. Item components and NBT are not
+accepted by this interface.
+
+The server merges matching stacks and fills empty slots without replacing other
+items or changing the selected hotbar slot. Each call accepts at most 100 stacks
+of the item (6,400 stone, 1,600 snowballs, or 100 swords). Survival overflow drops
+at the player with immediate pickup reserved for them. Creative overflow follows
+vanilla `/give` and can be discarded. `count` reports the amount given, not the
+amount retained in inventory. Invalid IDs raise `INVALID_ITEM`; an item-specific
+limit violation raises `INVALID_COUNT`. Requests are not retried automatically.
+
 Use the main-hand item once on the aimed block or entity, or in the air:
 
 ```python

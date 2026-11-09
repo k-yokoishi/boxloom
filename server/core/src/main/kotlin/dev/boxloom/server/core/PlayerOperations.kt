@@ -17,6 +17,8 @@ interface PlayerOperations {
 
     fun stopUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult>
 
+    fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult>
+
     fun startMining(username: String): CompletableFuture<PlayerMiningResult>
 
     fun stopMining(username: String): CompletableFuture<PlayerMiningResult>
@@ -72,6 +74,15 @@ data class PlayerItemUseResult(
     val active: Boolean,
     val item: String?,
     val remainingTicks: Int,
+)
+
+data class GiveItemRequest(val item: String, val count: Int = 1)
+
+data class GiveItemResult(
+    val username: String,
+    val uuid: String,
+    val item: String,
+    val count: Int,
 )
 
 enum class GameMode(val value: String) {

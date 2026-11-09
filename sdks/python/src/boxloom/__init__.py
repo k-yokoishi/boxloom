@@ -34,6 +34,7 @@ from .models import (
     FillResult,
     GetBlockResult,
     GameMode,
+    GiveItemResult,
     KillResult,
     Player,
     PlayerGameMode,
@@ -68,6 +69,7 @@ __all__ = [
     "FillResult",
     "GetBlockResult",
     "GameMode",
+    "GiveItemResult",
     "KillResult",
     "Player",
     "PlayerGameMode",
@@ -97,6 +99,7 @@ __all__ = [
     "get_player",
     "get_players",
     "get_time",
+    "give_item",
     "init",
     "kill_entities",
     "kill_entity",
@@ -169,6 +172,12 @@ def get_player(username: str) -> Optional[Player]:
     """Resolve a connected player bound to the current client, or None if not connected."""
 
     return _default_client().get_player(username)
+
+
+def give_item(username: str, item: str, count: int = 1) -> GiveItemResult:
+    """Give an item using vanilla /give stacking and overflow rules."""
+
+    return _default_client().give_item(username, item, count)
 
 
 def set_player_gamemode(username: str, mode: GameMode) -> PlayerGameMode:

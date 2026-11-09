@@ -1,6 +1,6 @@
 from typing import Mapping, Optional
 
-from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerUseResult, PlayerItemUseResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players, set_block, SetBlockResult
+from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerUseResult, PlayerItemUseResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players, set_block, SetBlockResult, GiveItemResult, give_item
 from typing_extensions import assert_type
 
 player = get_player("Steve")
@@ -10,6 +10,9 @@ assert_type(player, Player)
 assert_type(player.get_targeted_block(), Optional[TargetedBlock])
 assert_type(player.attack(), PlayerAttackResult)
 assert_type(player.use(), PlayerUseResult)
+assert_type(player.give_item("minecraft:bone_meal", count=3), GiveItemResult)
+assert_type(give_item("Steve", "minecraft:stone", 64), GiveItemResult)
+assert_type(BoxloomClient(base_url="http://localhost:28886").give_item("Steve", "minecraft:diamond_sword"), GiveItemResult)
 assert_type(player.use().entity, Optional[Entity])
 assert_type(BoxloomClient(base_url="http://localhost:28886").use_player_item("Steve"), PlayerUseResult)
 assert_type(player.attack().entity, Optional[Entity])

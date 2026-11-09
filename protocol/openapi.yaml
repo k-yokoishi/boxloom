@@ -825,6 +825,80 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/players/{username}/give:
+    post:
+      operationId: giveItem
+      summary: Give a connected player an item using vanilla give rules
+      description: >-
+        Resolves an item ID (including blocks with an item form) and gives it on
+        the server thread. The minecraft namespace may be omitted. Automatically
+        merges matching stacks and uses free inventory slots without replacing
+        other items or selecting a hotbar slot. Stack sizes and the limit of
+        100 stacks per request match vanilla /give. Survival overflow drops at
+        the player with immediate pickup reserved for that player; creative
+        overflow follows vanilla and may be discarded. Count reports the amount
+        given, not the amount retained in inventory. Accepts registered item IDs
+        only, without command selectors, components, or NBT. No query parameters.
+        Player operator permissions are not required. Requests are not idempotent.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_]{3,16}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GiveItemRequest'
+      responses:
+        '200':
+          description: The player, canonical item ID, and requested count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiveItemResult'
+        '400':
+          description: >-
+            INVALID_REQUEST for malformed fields, INVALID_ITEM for an unknown,
+            disabled, air, or malformed item ID, or INVALID_COUNT for a count
+            exceeding 100 stacks of this item. Validation precedes inventory changes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The player is not connected (PLAYER_NOT_CONNECTED), or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/world/blocks:
     get:
       operationId: getBlock
@@ -1635,6 +1709,38 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Player'
+    GiveItemRequest:
+      type: object
+      additionalProperties: false
+      required: [item]
+      properties:
+        item:
+          type: string
+          description: Registered item ID. The minecraft namespace may be omitted. Air is not giveable.
+          examples: ['minecraft:stone', 'minecraft:diamond_sword', 'bone_meal']
+        count:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          default: 1
+          description: At most 100 times this item's maximum stack size, validated by the server.
+    GiveItemResult:
+      type: object
+      additionalProperties: false
+      required: [username, uuid, item, count]
+      properties:
+        username:
+          type: string
+        uuid:
+          type: string
+          format: uuid
+        item:
+          type: string
+          description: Canonical namespaced item ID.
+        count:
+          type: integer
+          minimum: 1
+          description: Amount given; overflow follows vanilla rules and may not remain in inventory.
     GameMode:
       type: string
       enum: [creative, survival]

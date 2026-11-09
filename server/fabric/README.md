@@ -11,6 +11,7 @@ The mod exposes Minecraft operations and a live player event stream:
 - Perform one native block or entity attack or miss, including a swing sent to the player and observers
 - Use the main hand on the aimed block or entity, or in the air (including bone meal)
 - Start and release continuous main-hand item use for food, drink, bows and shields
+- Give registered items or block items using vanilla `/give` stacking and overflow rules
 - Start and stop continuous held mining with native speed, drops and durability
 - Teleport a connected player to absolute coordinates
 - Set a connected player's game mode to Creative or Survival
@@ -24,6 +25,17 @@ The mod exposes Minecraft operations and a live player event stream:
 - Stream player chat, death, attack swing, block attack, block use, and item use events as resumable Server-Sent Events
 
 Arbitrary command execution is intentionally outside this PoC.
+
+`POST /v1/players/{username}/give` accepts `{ "item": "minecraft:stone", "count": 64 }`.
+`count` defaults to 1 and is limited to 100 stacks of the item. The response
+contains `username`, `uuid`, canonical `item`, and the requested `count`. Registered
+mod items and blocks with an item form are supported; air, unknown IDs, and
+world-only blocks are rejected with `400 INVALID_ITEM`. Excessive counts return
+`400 INVALID_COUNT`. Matching stacks and free inventory slots are used automatically,
+without replacing other items or selecting a hotbar slot. Survival overflow drops
+at the player; creative overflow follows vanilla and may be discarded. The response
+count does not promise that all items remain in inventory. Components and NBT are
+not accepted. No player OP permission is required.
 
 `GET /v1/players/{username}/targeted-block` returns `{ "target": null }` or a
 snapshot with dimension, block coordinates, block ID, face and eye-to-surface

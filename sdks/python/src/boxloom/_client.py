@@ -28,6 +28,7 @@ from .models import (
     FillResult,
     Block,
     GameMode,
+    GiveItemResult,
     KillResult,
     Player,
     PlayerGameMode,
@@ -196,6 +197,33 @@ class BoxloomClient:
         if action == "stop" and active:
             raise ProtocolError("stopping item use must return active=false")
         return PlayerItemUseResult(active, item, remaining)
+
+    def give_item(self, username: str, item: str, count: int = 1) -> GiveItemResult:
+        """Give a registered item, automatically stacking as vanilla /give does.
+
+        Blocks with item forms use their item IDs too. Survival overflow drops
+        at the player; creative overflow follows vanilla and can be discarded.
+        The server limits each request to 100 stacks of the requested item.
+        """
+
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+        if not isinstance(item, str) or not re.fullmatch(r"(?:[a-z0-9_.-]+:)?[a-z0-9_./-]+", item):
+            raise ValueError("item must be an item ID, such as 'minecraft:stone'")
+        if not isinstance(count, int) or isinstance(count, bool) or not 1 <= count <= 2_147_483_647:
+            raise ValueError("count must be a positive 32-bit integer")
+        payload = self._post(
+            f"/v1/players/{quote(username, safe='')}/give", {"item": item, "count": count},
+        )
+        returned_count = _require_integer(payload, "count")
+        returned_item = _require_string(payload, "item")
+        canonical_item = item if ":" in item else f"minecraft:{item}"
+        if returned_count != count or returned_item != canonical_item:
+            raise ProtocolError("give response must report the requested item and count")
+        returned_username = _require_string(payload, "username")
+        if returned_username.lower() != username.lower():
+            raise ProtocolError("give response must report the requested player")
+        return GiveItemResult(returned_username, _require_string(payload, "uuid"), returned_item, returned_count)
 
     def start_player_mining(self, username: str) -> PlayerMiningResult:
         """Enable held mining, including when no block is currently targeted."""
