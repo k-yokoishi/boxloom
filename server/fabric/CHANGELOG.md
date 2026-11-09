@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-alpha.10
+
+- Return every destination slot and its added count from `give_item()`, with a
+  representative hotbar slot for the `give → select → use` lesson flow
+- Select hotbar slots 0–8 through REST and Python SDK `0.1.0a10`, synchronizing
+  the player's client and cancelling mining or main-hand item use on changes
+- Document split stacks, offhand insertion, and overflow; add a runnable bone-meal
+  example and verify wheat growth through the complete give/select/use flow
+
 ## 0.1.0-alpha.9
 
 - Add client-bound Python `Player` methods for block targeting, block and entity

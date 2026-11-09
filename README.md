@@ -55,7 +55,7 @@ docker compose exec --user 1000 minecraft mc-send-to-console op YourJavaName
 The current alpha is published on TestPyPI:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a9
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a10
 ```
 
 Point the SDK at a running boxloom Fabric server:

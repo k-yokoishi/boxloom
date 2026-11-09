@@ -24,22 +24,21 @@ The workflow can publish only from `main`. It uses the Python version in `sdks/p
 
 TestPyPI does not allow a published distribution file to be replaced. Increment the package version before publishing another build.
 
-Python SDK `0.1.0a9` adds client-bound player targeting, attacks, continuous
-mining, main-hand item use, continuous item use with explicit release, and
-`give_item()`. It includes complete block-state snapshots and updates, `None`
-for disconnected player lookups, and Minecraft 26.3 `items` constants such as
-`items.BONE_MEAL` and `items.DIAMOND_SWORD` for editor completion. It retains
-typed player events, background callbacks, game mode changes, world clock
-operations, entity queries, and entity killing. Loopback connections may omit
-the authentication token; a Fabric mod bound to a non-loopback address requires
-a non-empty token.
+Python SDK `0.1.0a10` adds destination slots and added counts to `give_item()`
+results, plus `select_slot()` on bound players, clients, and the top-level API.
+Programs can give bone meal, select the returned hotbar slot, and use it on a
+growing plant. A null slot means no hotbar slot received items; all inventory
+destinations remain available in `slots`. It retains targeting, attacks,
+continuous mining and item use, block-state updates, typed events, and Minecraft
+26.3 item constants. Loopback connections may omit the authentication token; a
+Fabric mod bound to a non-loopback address requires a non-empty token.
 
 ## Verify the published package
 
 The current SDK has no third-party runtime dependencies, so it can be installed directly from TestPyPI in a clean environment:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a9
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a10
 ```
 
 Then verify the installed package:
