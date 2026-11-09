@@ -1,8 +1,9 @@
 import json
 import socket
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Tuple
 from urllib.error import HTTPError
 
+from .coordinates import BlockPos, Vec3
 from .errors import (
     ApiError,
     ConnectionError,
@@ -68,3 +69,28 @@ def _require_number(value: Mapping[str, Any], field: str) -> float:
     if not isinstance(result, (int, float)) or isinstance(result, bool):
         raise ProtocolError(f"response field '{field}' must be a number")
     return float(result)
+
+
+def _require_vec3(value: Mapping[str, Any]) -> Vec3:
+    try:
+        return Vec3(
+            _require_number(value, "x"),
+            _require_number(value, "y"),
+            _require_number(value, "z"),
+        )
+    except (ValueError, OverflowError) as error:
+        raise ProtocolError(f"invalid response position: {error}") from None
+
+
+def _require_block_pos(
+    value: Mapping[str, Any],
+    fields: Tuple[str, str, str] = ("x", "y", "z"),
+) -> BlockPos:
+    try:
+        return BlockPos(
+            _require_integer(value, fields[0]),
+            _require_integer(value, fields[1]),
+            _require_integer(value, fields[2]),
+        )
+    except ValueError as error:
+        raise ProtocolError(f"invalid response block position: {error}") from None

@@ -28,11 +28,11 @@ from .events import (
     BlockUseEvent,
     ItemUseEvent,
 )
+from .coordinates import BlockPos, Vec3
 from .models import (
     Block,
     Entity,
     FillResult,
-    GetBlockResult,
     GameMode,
     GiveItemResult,
     GivenItemSlot,
@@ -55,6 +55,8 @@ from .models import (
 __all__ = [
     "ApiError",
     "Block",
+    "BlockPos",
+    "Vec3",
     "BoxloomClient",
     "BoxloomError",
     "ChatEvent",
@@ -69,7 +71,6 @@ __all__ = [
     "EventSubscription",
     "EventType",
     "FillResult",
-    "GetBlockResult",
     "GameMode",
     "GiveItemResult",
     "GivenItemSlot",
@@ -200,9 +201,7 @@ def set_player_gamemode(username: str, mode: GameMode) -> PlayerGameMode:
 
 def teleport_player(
     username: str,
-    x: float,
-    y: float,
-    z: float,
+    position: Vec3,
     *,
     dimension: Optional[str] = None,
     yaw: Optional[float] = None,
@@ -212,9 +211,7 @@ def teleport_player(
 
     return _default_client().teleport_player(
         username,
-        x,
-        y,
-        z,
+        position,
         dimension=dimension,
         yaw=yaw,
         pitch=pitch,
@@ -431,9 +428,7 @@ def add_time(ticks: int, *, clock: str = "minecraft:overworld") -> TimeResult:
 
 
 def set_block(
-    x: int,
-    y: int,
-    z: int,
+    position: BlockPos,
     block: str,
     *,
     dimension: str = "minecraft:overworld",
@@ -441,28 +436,22 @@ def set_block(
 ) -> SetBlockResult:
     """Set a block from its default state plus optional string properties."""
 
-    return _default_client().set_block(x, y, z, block, dimension=dimension, properties=properties)
+    return _default_client().set_block(position, block, dimension=dimension, properties=properties)
 
 
 def get_block(
-    x: int,
-    y: int,
-    z: int,
+    position: BlockPos,
     *,
     dimension: str = "minecraft:overworld",
 ) -> Block:
     """Return information about a block in a loaded Minecraft dimension."""
 
-    return _default_client().get_block(x, y, z, dimension=dimension)
+    return _default_client().get_block(position, dimension=dimension)
 
 
 def fill(
-    x1: int,
-    y1: int,
-    z1: int,
-    x2: int,
-    y2: int,
-    z2: int,
+    start: BlockPos,
+    end: BlockPos,
     block: str,
     *,
     dimension: str = "minecraft:overworld",
@@ -470,12 +459,8 @@ def fill(
     """Fill an inclusive block region in a loaded Minecraft dimension."""
 
     return _default_client().fill(
-        x1,
-        y1,
-        z1,
-        x2,
-        y2,
-        z2,
+        start,
+        end,
         block,
         dimension=dimension,
     )
@@ -483,9 +468,7 @@ def fill(
 
 def summon(
     entity: str,
-    x: float,
-    y: float,
-    z: float,
+    position: Vec3,
     *,
     nbt: Optional[Dict[str, Any]] = None,
     dimension: str = "minecraft:overworld",
@@ -494,9 +477,7 @@ def summon(
 
     return _default_client().summon(
         entity,
-        x,
-        y,
-        z,
+        position,
         nbt=nbt,
         dimension=dimension,
     )
@@ -505,9 +486,7 @@ def summon(
 def get_entities(
     entity: Optional[str] = None,
     *,
-    x: Optional[float] = None,
-    y: Optional[float] = None,
-    z: Optional[float] = None,
+    center: Optional[Vec3] = None,
     radius: Optional[float] = None,
     dimension: str = "minecraft:overworld",
     sort: Literal["arbitrary", "nearest", "furthest"] = "arbitrary",
@@ -515,11 +494,11 @@ def get_entities(
 ) -> List[Entity]:
     """List loaded, alive entities, optionally filtered, sorted, and limited.
 
-    Supply x, y, and z together for radius filtering or distance sorting.
+    Supply a Vec3 center for radius filtering or distance sorting.
     """
 
     return _default_client().get_entities(
-        entity, x=x, y=y, z=z, radius=radius, dimension=dimension,
+        entity, center=center, radius=radius, dimension=dimension,
         sort=sort, limit=limit,
     )
 
@@ -537,19 +516,17 @@ def kill_entity(
 def kill_entities(
     entity: str,
     *,
-    x: Optional[float] = None,
-    y: Optional[float] = None,
-    z: Optional[float] = None,
+    center: Optional[Vec3] = None,
     radius: Optional[float] = None,
     dimension: str = "minecraft:overworld",
 ) -> KillResult:
     """Kill loaded entities of a type, optionally within an inclusive sphere.
 
-    Supply x, y, z, and radius together, or omit all four for the whole dimension.
+    Supply center and radius together, or omit both for the whole dimension.
     """
 
     return _default_client().kill_entities(
-        entity, x=x, y=y, z=z, radius=radius, dimension=dimension,
+        entity, center=center, radius=radius, dimension=dimension,
     )
 
 

@@ -1,4 +1,5 @@
 from boxloom import (
+    BlockPos,
     blocks,
     fill,
     get_block,
@@ -16,24 +17,19 @@ def main() -> None:
 
     player = players[0]
     position = get_player_position(player.username)
-    x, y, z = position.block_coordinates()
+    origin = position.position.to_block_pos()
+    target = origin + BlockPos(1, -1, 0)
 
     say_result = say(f"Hello, {player.username}! This is boxloom.")
     block_result = set_block(
-        x + 1,
-        y - 1,
-        z,
+        target,
         blocks.DIAMOND_BLOCK,
         dimension=position.dimension,
     )
-    get_block_result = get_block(x + 1, y - 1, z, dimension=position.dimension)
+    get_block_result = get_block(target, dimension=position.dimension)
     fill_result = fill(
-        x + 2,
-        y - 1,
-        z,
-        x + 4,
-        y - 1,
-        z,
+        origin + BlockPos(2, -1, 0),
+        origin + BlockPos(4, -1, 0),
         blocks.EMERALD_BLOCK,
         dimension=position.dimension,
     )

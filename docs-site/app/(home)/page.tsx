@@ -55,12 +55,14 @@ export default function HomePage() {
               <span className="code-keyword">from</span>{' '}
               <span className="code-module">boxloom</span>{' '}
               <span className="code-keyword">import</span>{' '}
+              <span className="code-function">BlockPos</span>,{' '}
               <span className="code-function">set_block</span>
               {'\n\n'}
               <span className="code-function">set_block</span>(
+              <span className="code-function">BlockPos</span>(
               <span className="code-number">0</span>,{' '}
               <span className="code-number">100</span>,{' '}
-              <span className="code-number">0</span>,{'\n'}
+              <span className="code-number">0</span>),{'\n'}
               {'    '}
               <span className="code-string">&quot;minecraft:diamond_block&quot;</span>,
               {'\n'})

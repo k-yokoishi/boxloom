@@ -8,12 +8,13 @@ from importlib.resources import files
 import boxloom
 from boxloom.events import ChatEventStream, EventStream, EventSubscription, EventType, PlayerDeathEvent
 from boxloom import (
+    BlockPos,
+    Vec3,
     ChatEvent,
     EventCursorExpiredError,
     Entity,
     FillResult,
     Block,
-    GetBlockResult,
     KillResult,
     Player,
     PlayerMiningResult,
@@ -90,8 +91,7 @@ for event_name, cls in (
 assert files("boxloom").joinpath("py.typed").is_file()
 assert FillResult.__name__ == "FillResult"
 assert Block.__name__ == "Block"
-assert GetBlockResult is Block
-assert Block("minecraft:overworld", 0, 64, 0, "minecraft:wheat", {"age": "3"}).properties == {"age": "3"}
+assert Block("minecraft:overworld", BlockPos(0, 64, 0), "minecraft:wheat", {"age": "3"}).properties == {"age": "3"}
 assert PlayerMiningResult(True, None, False).active
 assert PlayerUseResult(False, False, None).used is False
 assert callable(Player.use)
@@ -155,17 +155,11 @@ position = PlayerPosition(
     username="Player",
     uuid="00000000-0000-0000-0000-000000000000",
     dimension="minecraft:overworld",
-    x=1.9,
-    y=64.0,
-    z=-0.1,
+    position=Vec3(1.9, 64.0, -0.1),
     yaw=0.0,
     pitch=0.0,
 )
-assert position.block_coordinates() == (
-    1,
-    64,
-    -1,
-)
+assert position.position.to_block_pos() == BlockPos(1, 64, -1)
 event = ChatEvent(
     id="00000000-0000-0000-0000-000000000000:1",
     timestamp="2026-08-14T00:00:00Z",
@@ -180,9 +174,7 @@ death = PlayerDeathEvent(
     message="Player died",
     player=player,
     dimension="minecraft:overworld",
-    x=1.5,
-    y=64.0,
-    z=-2.25,
+    position=Vec3(1.5, 64.0, -2.25),
 )
 assert death.type == "player.death"
 with watch_event("player.death", reconnect=False) as deaths:
@@ -194,8 +186,6 @@ summon_result = boxloom.SummonResult(
     uuid="00000000-0000-0000-0000-000000000001",
     entity="minecraft:pig",
     dimension="minecraft:overworld",
-    x=0.0,
-    y=64.0,
-    z=0.0,
+    position=Vec3(0.0, 64.0, 0.0),
 )
 assert summon_result.entity == "minecraft:pig"

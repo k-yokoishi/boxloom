@@ -465,7 +465,7 @@ export const apiOperations = {
         <p>
           Kill loaded entities with an exact entity type ID. Supply absolute
           coordinates and a radius together to select an inclusive sphere around
-          that position, measured from each entity&apos;s position. Omit all four
+          that position, measured from each entity&apos;s position. Omit the
           range fields to select that type throughout the dimension.
         </p>
         <p>

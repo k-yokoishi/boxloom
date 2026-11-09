@@ -10,7 +10,7 @@ def main() -> None:
                 elif event.type == "player.death":
                     print(
                         f"{event.player.username} died in {event.dimension} "
-                        f"at ({event.x}, {event.y}, {event.z}): {event.message}"
+                        f"at ({event.position.x}, {event.position.y}, {event.position.z}): {event.message}"
                     )
     except EventCursorExpiredError as error:
         print(f"The saved event cursor can no longer be resumed: {error}")
