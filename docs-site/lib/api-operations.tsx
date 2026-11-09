@@ -278,6 +278,8 @@ export const apiOperations = {
         immediate pickup reserved for them; creative overflow may be discarded,
         as in vanilla. The returned count is the amount given, rather than the
         amount retained in inventory. Player operator permissions are not required.
+        The response reports the added count in each destination slot and a
+        selectable hotbar slot when one received items.
       </p>
     ),
     errors: [
@@ -293,6 +295,19 @@ export const apiOperations = {
         meaning: 'The count exceeds 100 stacks of this item.',
       },
     ],
+  },
+  select_slot: {
+    description: (
+      <p>
+        Select a connected player&apos;s hotbar slot, numbered 0–8 from left to
+        right (keyboard keys 1–9), and synchronize the selection to their client.
+        Empty slots may be selected. Items in the main inventory or offhand are
+        not moved. Changing slots stops API mining and main-hand item use
+        without releasing a bow shot; selecting the current slot preserves
+        ongoing actions. Player operator permissions are not required.
+      </p>
+    ),
+    errors: [playerNotConnected],
   },
   set_player_gamemode: {
     description: (

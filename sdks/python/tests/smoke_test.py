@@ -95,6 +95,12 @@ assert Block("minecraft:overworld", 0, 64, 0, "minecraft:wheat", {"age": "3"}).p
 assert PlayerMiningResult(True, None, False).active
 assert PlayerUseResult(False, False, None).used is False
 assert callable(Player.use)
+assert callable(Player.select_slot)
+assert callable(boxloom.select_slot)
+assert callable(boxloom.BoxloomClient.select_slot)
+assert boxloom.SelectSlotResult("Steve", "test-uuid", 0).slot == 0
+assert boxloom.GivenItemSlot(2, 4).count == 4
+assert boxloom.GiveItemResult("Steve", "test-uuid", "minecraft:stone", 1).slots == ()
 assert callable(Player.start_using_item)
 assert callable(Player.stop_using_item)
 assert PlayerItemUseResult(False, None, 0).remaining_ticks == 0

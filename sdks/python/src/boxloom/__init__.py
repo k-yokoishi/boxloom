@@ -35,6 +35,8 @@ from .models import (
     GetBlockResult,
     GameMode,
     GiveItemResult,
+    GivenItemSlot,
+    SelectSlotResult,
     KillResult,
     Player,
     PlayerGameMode,
@@ -70,6 +72,8 @@ __all__ = [
     "GetBlockResult",
     "GameMode",
     "GiveItemResult",
+    "GivenItemSlot",
+    "SelectSlotResult",
     "KillResult",
     "Player",
     "PlayerGameMode",
@@ -105,6 +109,7 @@ __all__ = [
     "kill_entities",
     "kill_entity",
     "say",
+    "select_slot",
     "set_block",
     "set_player_gamemode",
     "set_time",
@@ -179,6 +184,12 @@ def give_item(username: str, item: str, count: int = 1) -> GiveItemResult:
     """Give an item using vanilla /give stacking and overflow rules."""
 
     return _default_client().give_item(username, item, count)
+
+
+def select_slot(username: str, slot: int) -> SelectSlotResult:
+    """Select a connected player's hotbar slot (0 through 8)."""
+
+    return _default_client().select_slot(username, slot)
 
 
 def set_player_gamemode(username: str, mode: GameMode) -> PlayerGameMode:

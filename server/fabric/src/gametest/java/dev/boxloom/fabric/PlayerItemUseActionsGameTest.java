@@ -1,6 +1,7 @@
 package dev.boxloom.fabric;
 
 import dev.boxloom.server.core.ApiException;
+import dev.boxloom.server.core.SelectSlotRequest;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -36,6 +37,32 @@ public class PlayerItemUseActionsGameTest {
                 if (player.isAlive() && !player.hasDisconnected()) player.doTick();
             }
         });
+    }
+
+    @GameTest(maxTicks = 40)
+    public void slotSelectionPreservesNoOpAndCancelsBowWithoutFiring(GameTestHelper test) {
+        var player = bowPlayer(test);
+        PlayerItemUseActions.INSTANCE.start(player);
+        test.runAfterDelay(20, () -> {
+            PlayerInventoryActions.INSTANCE.selectSlot(player, new SelectSlotRequest(0));
+            test.assertTrue(player.isUsingItem() && BoxloomMod.suppressApiItemRelease(player), "Same slot keeps use active");
+            PlayerInventoryActions.INSTANCE.selectSlot(player, new SelectSlotRequest(8));
+            test.assertTrue(!player.isUsingItem() && !BoxloomMod.suppressApiItemRelease(player), "Switch cancels API item use");
+            test.assertValueEqual(arrows(player), 0, "Switch never releases a charged bow shot");
+            test.assertValueEqual(player.getInventory().getItem(1).getCount(), 3, "No arrow consumed");
+            test.succeed();
+        });
+    }
+
+    @GameTest
+    public void slotSelectionAlsoCancelsNativeMainHandUse(GameTestHelper test) {
+        var player = hungryPlayer(test);
+        PlayerUseActions.INSTANCE.use(player);
+        test.assertTrue(player.isUsingItem(), "Single use starts native eating");
+        PlayerInventoryActions.INSTANCE.selectSlot(player, new SelectSlotRequest(8));
+        test.assertTrue(!player.isUsingItem(), "Switch stops native eating");
+        test.assertValueEqual(player.getInventory().getItem(0).getCount(), 2, "No apple consumed");
+        test.succeed();
     }
 
     @GameTest

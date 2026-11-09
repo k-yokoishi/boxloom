@@ -111,16 +111,23 @@ are limited to 100 stacks per call. Survival overflow drops at the player;
 creative overflow follows vanilla and may be discarded. See the
 [Python SDK reference](sdks/python/README.md) for the result and validation rules.
 
-Use bone meal on a plant (hold bone meal in the main hand and aim at the plant):
+Give, select, and use bone meal on a plant (aim at a growing plant in Minecraft):
 
 ```python
-from boxloom import get_player
+from boxloom import get_player, items
 
 player = get_player("Steve")
 if player is not None:
-    result = player.use()
-    print(result.used)
+    result = player.give_item(items.BONE_MEAL, 16)
+    if result.slot is not None:
+        player.select_slot(result.slot)
+        print(player.use().used)
 ```
+
+`result.slot` is the first hotbar slot that received items (`0–8`), or `None` if
+none did. `result.slots` reports all destination slots and their added counts.
+Items received in the main inventory or offhand must be moved to the hotbar
+in Minecraft before selecting them.
 
 Fill an inclusive block region:
 

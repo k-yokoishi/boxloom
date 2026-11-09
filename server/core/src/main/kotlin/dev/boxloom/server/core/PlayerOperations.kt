@@ -19,6 +19,8 @@ interface PlayerOperations {
 
     fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult>
 
+    fun selectPlayerSlot(username: String, request: SelectSlotRequest): CompletableFuture<SelectSlotResult>
+
     fun startMining(username: String): CompletableFuture<PlayerMiningResult>
 
     fun stopMining(username: String): CompletableFuture<PlayerMiningResult>
@@ -78,12 +80,21 @@ data class PlayerItemUseResult(
 
 data class GiveItemRequest(val item: String, val count: Int = 1)
 
+data class GivenItemSlot(val slot: Int, val count: Int)
+
 data class GiveItemResult(
     val username: String,
     val uuid: String,
     val item: String,
     val count: Int,
-)
+    val slots: List<GivenItemSlot> = emptyList(),
+) {
+    val slot: Int? get() = slots.firstOrNull { it.slot in 0..8 }?.slot
+}
+
+data class SelectSlotRequest(val slot: Int)
+
+data class SelectSlotResult(val username: String, val uuid: String, val slot: Int)
 
 enum class GameMode(val value: String) {
     CREATIVE("creative"),

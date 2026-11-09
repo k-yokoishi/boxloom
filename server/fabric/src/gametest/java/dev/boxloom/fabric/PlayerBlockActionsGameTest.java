@@ -4,6 +4,7 @@ import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import dev.boxloom.server.core.ApiException;
 import dev.boxloom.server.core.TargetedBlock;
+import dev.boxloom.server.core.SelectSlotRequest;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -437,6 +438,23 @@ public class PlayerBlockActionsGameTest {
             PlayerMiningActions.INSTANCE.stop(player);
             test.succeed();
         });
+    }
+
+    @GameTest(maxTicks = 60)
+    public void switchingSlotsStopsApiMining(GameTestHelper test) {
+        var player = player(test, GameType.SURVIVAL);
+        test.setBlock(TARGET, Blocks.DIRT);
+        player.setXRot(12.0f);
+        PlayerMiningActions.INSTANCE.start(player);
+        PlayerInventoryActions.INSTANCE.selectSlot(player, new SelectSlotRequest(1));
+        test.runAfterDelay(40, () -> {
+            test.assertBlockPresent(Blocks.DIRT, TARGET);
+            test.succeed();
+        });
+    }
+
+    static EmbeddedChannel channel(ServerPlayer player) {
+        return CHANNELS.get(player.getUUID());
     }
 
     static ServerPlayer player(GameTestHelper test, GameType mode) {

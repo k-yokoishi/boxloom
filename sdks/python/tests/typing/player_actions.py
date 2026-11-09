@@ -1,6 +1,6 @@
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Tuple
 
-from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerUseResult, PlayerItemUseResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players, set_block, SetBlockResult, GiveItemResult, give_item
+from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerUseResult, PlayerItemUseResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players, set_block, SetBlockResult, GiveItemResult, GivenItemSlot, SelectSlotResult, give_item, select_slot
 from typing_extensions import assert_type
 
 player = get_player("Steve")
@@ -11,6 +11,15 @@ assert_type(player.get_targeted_block(), Optional[TargetedBlock])
 assert_type(player.attack(), PlayerAttackResult)
 assert_type(player.use(), PlayerUseResult)
 assert_type(player.give_item("minecraft:bone_meal", count=3), GiveItemResult)
+given = player.give_item("minecraft:bone_meal", count=3)
+assert_type(given.slot, Optional[int])
+assert_type(given.slots, Tuple[GivenItemSlot, ...])
+assert_type(given.slots[0].slot, int)
+assert_type(given.slots[0].count, int)
+if given.slot is not None:
+    assert_type(player.select_slot(given.slot), SelectSlotResult)
+assert_type(select_slot("Steve", 0), SelectSlotResult)
+assert_type(BoxloomClient(base_url="http://localhost:28886").select_slot("Steve", 8), SelectSlotResult)
 assert_type(give_item("Steve", "minecraft:stone", 64), GiveItemResult)
 assert_type(BoxloomClient(base_url="http://localhost:28886").give_item("Steve", "minecraft:diamond_sword"), GiveItemResult)
 assert_type(player.use().entity, Optional[Entity])

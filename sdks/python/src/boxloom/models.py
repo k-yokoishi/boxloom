@@ -66,6 +66,11 @@ class Player:
 
         return self._require_client().give_item(self.username, item, count)
 
+    def select_slot(self, slot: int) -> "SelectSlotResult":
+        """Select a hotbar slot, numbered 0 through 8 from left to right."""
+
+        return self._require_client().select_slot(self.username, slot)
+
     def stop_mining(self) -> "PlayerMiningResult":
         """Cancel this player's API mining session; safe to call when inactive."""
 
@@ -143,13 +148,35 @@ class PlayerMiningResult:
 
 
 @dataclass(frozen=True)
+class GivenItemSlot:
+    """An inventory slot and the number of items added to it by this give."""
+
+    slot: int
+    count: int
+
+
+@dataclass(frozen=True)
 class GiveItemResult:
-    """Items given by /give rules; count is not the resulting inventory size."""
+    """Items given by /give rules; count includes overflow.
+
+    slot is the lowest hotbar destination, or None; slots records each addition.
+    """
 
     username: str
     uuid: str
     item: str
     count: int
+    slot: Optional[int] = None
+    slots: Tuple[GivenItemSlot, ...] = ()
+
+
+@dataclass(frozen=True)
+class SelectSlotResult:
+    """A connected player's selected hotbar slot immediately after the request."""
+
+    username: str
+    uuid: str
+    slot: int
 
 
 GameMode = Literal["creative", "survival"]

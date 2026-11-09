@@ -29,6 +29,8 @@ from .models import (
     Block,
     GameMode,
     GiveItemResult,
+    GivenItemSlot,
+    SelectSlotResult,
     KillResult,
     Player,
     PlayerGameMode,
@@ -223,7 +225,45 @@ class BoxloomClient:
         returned_username = _require_string(payload, "username")
         if returned_username.lower() != username.lower():
             raise ProtocolError("give response must report the requested player")
-        return GiveItemResult(returned_username, _require_string(payload, "uuid"), returned_item, returned_count)
+        entries = payload.get("slots")
+        if not isinstance(entries, list):
+            raise ProtocolError("response field 'slots' must be an array")
+        slots = []
+        seen = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise ProtocolError("response field 'slots' must contain objects")
+            index, added = _require_integer(entry, "slot"), _require_integer(entry, "count")
+            if not (0 <= index <= 35 or index == 40) or index in seen or added <= 0:
+                raise ProtocolError("give slots must have unique inventory indices and positive added counts")
+            seen.add(index)
+            slots.append(GivenItemSlot(index, added))
+        if sum(entry.count for entry in slots) > count:
+            raise ProtocolError("give slots cannot contain more than the requested count")
+        expected_slot = min((entry.slot for entry in slots if entry.slot < 9), default=None)
+        if "slot" not in payload:
+            raise ProtocolError("response field 'slot' is required")
+        returned_slot = None if payload["slot"] is None else _require_integer(payload, "slot")
+        if returned_slot != expected_slot:
+            raise ProtocolError("give slot must be the lowest hotbar slot that received items, or null")
+        return GiveItemResult(
+            returned_username, _require_string(payload, "uuid"), returned_item, returned_count,
+            expected_slot, tuple(slots),
+        )
+
+    def select_slot(self, username: str, slot: int) -> SelectSlotResult:
+        """Select a connected player's hotbar slot (0 through 8)."""
+
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+        if not isinstance(slot, int) or isinstance(slot, bool) or not 0 <= slot <= 8:
+            raise ValueError("slot must be an integer between 0 and 8")
+        payload = self._post(f"/v1/players/{quote(username, safe='')}/select-slot", {"slot": slot})
+        returned_username = _require_string(payload, "username")
+        returned_slot = _require_integer(payload, "slot")
+        if returned_username.lower() != username.lower() or returned_slot != slot:
+            raise ProtocolError("select-slot response must report the requested player and slot")
+        return SelectSlotResult(returned_username, _require_string(payload, "uuid"), returned_slot)
 
     def start_player_mining(self, username: str) -> PlayerMiningResult:
         """Enable held mining, including when no block is currently targeted."""

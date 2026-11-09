@@ -62,9 +62,11 @@ class ClientTest(unittest.TestCase):
             for item, count in ((boxloom.blocks.STONE, 65), (boxloom.items.BONE_MEAL, 3),
                                 (boxloom.items.DIAMOND_SWORD, 1), ("diamond_sword", 1)):
                 canonical = item if ":" in item else f"minecraft:{item}"
-                _ApiHandler.response_body = {"username": "Steve", "uuid": "test-uuid", "item": canonical, "count": count}
+                _ApiHandler.response_body = {"username": "Steve", "uuid": "test-uuid", "item": canonical, "count": count,
+                                             "slot": 2, "slots": [{"slot": 2, "count": count}]}
                 result = give(item) if count == 1 else give(item, count)
-                self.assertEqual(boxloom.GiveItemResult("Steve", "test-uuid", canonical, count), result)
+                self.assertEqual(boxloom.GiveItemResult("Steve", "test-uuid", canonical, count, 2,
+                                                       (boxloom.GivenItemSlot(2, count),)), result)
                 self.assertEqual("/v1/players/Steve/give", _ApiHandler.requests[-1][0])
                 self.assertEqual({"item": item, "count": count}, _ApiHandler.requests[-1][2])
         boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
@@ -85,17 +87,90 @@ class ClientTest(unittest.TestCase):
         self.assertEqual([], _ApiHandler.requests)
 
     def test_give_item_rejects_malformed_results(self):
-        valid = {"username": "Steve", "uuid": "test-uuid", "item": "minecraft:stone", "count": 1}
+        valid = {"username": "Steve", "uuid": "test-uuid", "item": "minecraft:stone", "count": 1,
+                 "slot": 0, "slots": [{"slot": 0, "count": 1}]}
         invalid = [{k: v for k, v in valid.items() if k != field} for field in valid]
         invalid.extend({**valid, key: value} for key, value in (
             ("count", True), ("count", 0), ("count", 2), ("count", 1.5),
             ("item", "minecraft:dirt"), ("username", "Alex"), ("uuid", None),
+            ("slot", True), ("slot", 0.0), ("slot", "0"), ("slot", None), ("slot", 9),
+            ("slots", None), ("slots", {}), ("slots", [None]), ("slots", [{}]),
+            ("slots", [{"slot": True, "count": 1}]), ("slots", [{"slot": -1, "count": 1}]),
+            ("slots", [{"slot": 36, "count": 1}]), ("slots", [{"slot": 41, "count": 1}]),
+            ("slots", [{"slot": 0, "count": 0}]), ("slots", [{"slot": 0, "count": True}]),
+            ("slots", [{"slot": 0, "count": 2}]),
+            ("slots", [{"slot": 0, "count": 1}, {"slot": 0, "count": 1}]),
         ))
         for body in invalid:
             with self.subTest(body=body):
                 _ApiHandler.response_body = body
                 with self.assertRaises(boxloom.ProtocolError):
                     boxloom.give_item("Steve", "stone")
+
+    def test_give_item_reports_added_counts_and_null_for_non_hotbar_destinations(self):
+        for entries, selected in (([(2, 4), (9, 61)], 2), ([(9, 64), (40, 1)], None), ([], None)):
+            with self.subTest(entries=entries):
+                _ApiHandler.response_body = {
+                    "username": "Steve", "uuid": "test-uuid", "item": "minecraft:stone", "count": 65,
+                    "slot": selected, "slots": [{"slot": slot, "count": count} for slot, count in entries],
+                }
+                result = boxloom.give_item("Steve", "stone", 65)
+                self.assertEqual(selected, result.slot)
+                self.assertEqual(tuple(boxloom.GivenItemSlot(*entry) for entry in entries), result.slots)
+
+    def test_give_item_rejects_duplicate_slots_and_incorrect_representative(self):
+        for slots, selected in (([{"slot": 0, "count": 1}, {"slot": 0, "count": 1}], 0),
+                                ([{"slot": 2, "count": 1}, {"slot": 7, "count": 1}], 7)):
+            _ApiHandler.response_body = {"username": "Steve", "uuid": "test-uuid", "item": "minecraft:stone",
+                                         "count": 65, "slots": slots, "slot": selected}
+            with self.assertRaises(boxloom.ProtocolError):
+                boxloom.give_item("Steve", "stone", 65)
+
+    def test_select_slot_supports_top_level_client_and_bound_player(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="select-secret")
+        player = self._player(client)
+        for select in (lambda slot: boxloom.select_slot("Steve", slot),
+                       lambda slot: client.select_slot("Steve", slot), player.select_slot):
+            for slot in (0, 8, 8):
+                _ApiHandler.response_body = {"username": "Steve", "uuid": "test-uuid", "slot": slot}
+                self.assertEqual(boxloom.SelectSlotResult("Steve", "test-uuid", slot), select(slot))
+                self.assertEqual("/v1/players/Steve/select-slot", _ApiHandler.requests[-1][0])
+                self.assertEqual({"slot": slot}, _ApiHandler.requests[-1][2])
+        boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
+        player.select_slot(8)
+        self.assertEqual("Bearer select-secret", _ApiHandler.requests[-1][1]["Authorization"])
+        with self.assertRaises(boxloom.ConfigurationError):
+            boxloom.Player("Steve", "test-uuid").select_slot(0)
+
+    def test_select_slot_rejects_invalid_arguments_before_requesting(self):
+        for username, slot in (("ab", 0), (None, 0), ("Steve", -1), ("Steve", 9), ("Steve", 40),
+                               ("Steve", True), ("Steve", False), ("Steve", None), ("Steve", 0.0), ("Steve", "1")):
+            with self.subTest(username=username, slot=slot), self.assertRaises(ValueError):
+                boxloom.select_slot(username, slot)
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_select_slot_rejects_malformed_results(self):
+        valid = {"username": "Steve", "uuid": "test-uuid", "slot": 0}
+        invalid = [{k: v for k, v in valid.items() if k != field} for field in valid]
+        invalid.extend({**valid, key: value} for key, value in (
+            ("slot", True), ("slot", 0.0), ("slot", None), ("slot", "0"), ("slot", 1),
+            ("username", "Alex"), ("uuid", None),
+        ))
+        for body in invalid:
+            _ApiHandler.response_body = body
+            with self.subTest(body=body), self.assertRaises(boxloom.ProtocolError):
+                boxloom.select_slot("Steve", 0)
+
+    def test_select_slot_preserves_api_errors_without_retrying(self):
+        for status, code in ((400, "INVALID_REQUEST"), (404, "PLAYER_NOT_CONNECTED"),
+                             (503, "WORLD_NOT_LOADED"), (504, "TIMEOUT")):
+            _ApiHandler.response_status = status
+            _ApiHandler.response_body = {"error": {"code": code, "message": "Cannot select"}}
+            before = len(_ApiHandler.requests)
+            with self.assertRaises(boxloom.ApiError) as raised:
+                boxloom.select_slot("Steve", 0)
+            self.assertEqual((status, code), (raised.exception.status, raised.exception.code))
+            self.assertEqual(before + 1, len(_ApiHandler.requests))
 
     def test_give_item_preserves_api_errors_without_retrying(self):
         for status, code in ((400, "INVALID_ITEM"), (400, "INVALID_COUNT"), (404, "PLAYER_NOT_CONNECTED"), (504, "TIMEOUT")):

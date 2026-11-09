@@ -394,7 +394,8 @@ mining. Protected and unbreakable targets stay intact; mining waits for the aim,
 block or tool to change. This operation only mines blocks and does not attack
 entities. The player receives arm swings and crack progress as well as observers.
 
-Call `stop_mining()` to release the hold. `attack()`, `use()`, `start_using_item()`, death, disconnect, world or
+Call `stop_mining()` to release the hold. `attack()`, `use()`, `start_using_item()`,
+a different slot selected through `select_slot()`, death, disconnect, world or
 game-mode changes, and a competing native mining action also end the mode.
 
 ```python
@@ -542,6 +543,12 @@ on the server. Requests are not retried automatically.
 | `uuid` | `str` | The player's UUID. |
 | `item` | `str` | Canonical namespaced item ID. |
 | `count` | `int` | Requested amount given, including overflow handled by vanilla rules. |
+| `slot` | `int \| None` | Lowest hotbar index that received items; `None` if none did. |
+| `slots` | `tuple[GivenItemSlot, ...]` | All destinations, ordered by slot index. Each entry has `slot: int` and `count: int` (the added count, not the final stack size). |
+
+Inventory indices are `0–8` for the hotbar, `9–35` for the main inventory, and
+`40` for the offhand. Dropped or discarded overflow has no destination slot.
+The result is a snapshot: later player actions may move or consume the items.
 
 ```python
 from boxloom import get_player, give_item, items
@@ -553,6 +560,46 @@ if player is not None:
 
 result = give_item("Steve", items.BONE_MEAL, count=16)
 print(result.item, result.count)
+```
+
+To connect giving, selecting, and using bone meal, leave a hotbar slot empty and
+aim at a growing plant in Minecraft:
+
+```python
+player = get_player("Steve")
+if player is not None:
+    result = player.give_item(items.BONE_MEAL, 16)
+    if result.slot is not None:
+        player.select_slot(result.slot)
+        player.use()
+```
+
+If `slot` is `None`, check `slots`: items may have gone into the main inventory
+or offhand, or overflowed. Move them into the hotbar in Minecraft before use.
+
+</Operation>
+
+## `select_slot`
+
+<Operation id="select_slot">
+
+```python
+select_slot(username: str, slot: int) -> SelectSlotResult
+BoxloomClient.select_slot(username: str, slot: int) -> SelectSlotResult
+Player.select_slot(slot: int) -> SelectSlotResult
+```
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `username` | `str` | Connected player name; supplied by the bound `Player` for its method. |
+| `slot` | `int` | Hotbar index from `0` to `8`, left to right. Booleans, floats, and out-of-range indices raise `ValueError` before requesting. |
+
+Returns `SelectSlotResult(username: str, uuid: str, slot: int)`, the selected
+slot immediately after the request. Selecting an empty slot is allowed.
+
+```python
+player.select_slot(0)  # Leftmost hotbar slot; Minecraft keyboard key 1.
+player.use()
 ```
 
 </Operation>

@@ -24,6 +24,75 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class BoxloomHttpServerTest {
     @Test
+    fun `selects hotbar slots with authentication and serializes selection`() {
+        val calls = mutableListOf<Int>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun selectPlayerSlot(username: String, request: SelectSlotRequest): CompletableFuture<SelectSlotResult> {
+                assertEquals("Steve", username)
+                calls += request.slot
+                return CompletableFuture.completedFuture(SelectSlotResult(username, TEST_UUID, request.slot))
+            }
+        }
+        withServer(authToken = "test-secret", minecraft = minecraft) { server, _ ->
+            val path = "/v1/players/Steve/select-slot"
+            assertEquals(401, post(server, path, """{"slot":0}""").statusCode())
+            assertEquals(403, post(server, path, """{"slot":0}""", "wrong").statusCode())
+            assertEquals(405, get(server, path, "test-secret").statusCode())
+            val wrongType = HttpRequest.newBuilder()
+                .uri(URI("http://127.0.0.1:${server.boundPort}$path"))
+                .header("Authorization", "Bearer test-secret").header("Content-Type", "text/plain")
+                .POST(HttpRequest.BodyPublishers.ofString("""{"slot":0}""")).build()
+            assertEquals(415, HttpClient.newHttpClient().send(wrongType, HttpResponse.BodyHandlers.ofString()).statusCode())
+            for (slot in listOf(0, 8, 8)) {
+                val response = post(server, path, """{"slot":$slot}""", "test-secret")
+                assertEquals(200, response.statusCode())
+                assertEquals("""{"username":"Steve","uuid":"$TEST_UUID","slot":$slot}""", response.body())
+            }
+        }
+        assertEquals(listOf(0, 8, 8), calls)
+    }
+
+    @Test
+    fun `rejects invalid select-slot requests before invoking Minecraft`() {
+        withServer(authToken = null) { server, _ ->
+            val invalid = listOf("{}", "[]", "null", "", """{"slot":0,"item":"stone"}""") +
+                listOf("-1", "9", "40", "true", "null", "1.5", "0.0", "\"1\"", "2147483648").map {
+                    """{"slot":$it}"""
+                }
+            for (body in invalid) {
+                val response = post(server, "/v1/players/Steve/select-slot", body)
+                assertEquals(400, response.statusCode(), body)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+            assertEquals(400, post(server, "/v1/players/ab/select-slot", """{"slot":0}""").statusCode())
+            assertEquals(400, post(server, "/v1/players/Steve/select-slot?slot=1", """{"slot":0}""").statusCode())
+        }
+    }
+
+    @Test
+    fun `select-slot preserves errors and cancels timed out futures`() {
+        for ((status, code) in listOf(404 to "PLAYER_NOT_CONNECTED", 503 to "WORLD_NOT_LOADED")) {
+            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+                override fun selectPlayerSlot(username: String, request: SelectSlotRequest): CompletableFuture<SelectSlotResult> =
+                    CompletableFuture.failedFuture(ApiException(status, code, "Cannot select slot"))
+            }
+            withServer(authToken = null, minecraft = minecraft) { server, _ ->
+                val response = post(server, "/v1/players/Steve/select-slot", """{"slot":0}""")
+                assertEquals(status, response.statusCode())
+                assertContains(response.body(), code)
+            }
+        }
+        val pending = CompletableFuture<SelectSlotResult>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun selectPlayerSlot(username: String, request: SelectSlotRequest): CompletableFuture<SelectSlotResult> = pending
+        }
+        withServer(authToken = null, minecraft = minecraft, requestTimeout = Duration.ofMillis(100)) { server, _ ->
+            assertEquals(504, post(server, "/v1/players/Steve/select-slot", """{"slot":0}""").statusCode())
+            assertTrue(pending.isCancelled)
+        }
+    }
+
+    @Test
     fun `starts and releases API item use with authentication and native state snapshots`() {
         var result = PlayerItemUseResult(true, "minecraft:apple", 32)
         val calls = mutableListOf<String>()
@@ -100,7 +169,8 @@ class BoxloomHttpServerTest {
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
             override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> {
                 captured = username to request
-                return CompletableFuture.completedFuture(GiveItemResult(username, TEST_UUID, "minecraft:stone", request.count))
+                val slots = if (request.count == 1) emptyList() else listOf(GivenItemSlot(2, 4), GivenItemSlot(9, 61))
+                return CompletableFuture.completedFuture(GiveItemResult(username, TEST_UUID, "minecraft:stone", request.count, slots))
             }
         }
         withServer(authToken = null, minecraft = minecraft) { server, _ ->
@@ -108,7 +178,9 @@ class BoxloomHttpServerTest {
                 val response = post(server, "/v1/players/Steve/give", body)
                 assertEquals(200, response.statusCode())
                 assertEquals("Steve" to GiveItemRequest("stone", count), captured)
-                assertEquals("""{"username":"Steve","uuid":"$TEST_UUID","item":"minecraft:stone","count":$count}""", response.body())
+                val slotsJson = if (count == 1) "\"slot\":null,\"slots\":[]" else
+                    "\"slot\":2,\"slots\":[{\"slot\":2,\"count\":4},{\"slot\":9,\"count\":61}]"
+                assertEquals("""{"username":"Steve","uuid":"$TEST_UUID","item":"minecraft:stone","count":$count,$slotsJson}""", response.body())
             }
         }
     }
@@ -1603,6 +1675,9 @@ class BoxloomHttpServerTest {
     }
 
     private object TestMinecraftOperations : MinecraftOperations {
+        override fun selectPlayerSlot(username: String, request: SelectSlotRequest): CompletableFuture<SelectSlotResult> =
+            throw AssertionError("Unexpected select-slot request")
+
         override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> =
             throw AssertionError("Unexpected give request")
 
@@ -1680,6 +1755,9 @@ class BoxloomHttpServerTest {
     }
 
     private object SayMinecraftOperations : MinecraftOperations {
+        override fun selectPlayerSlot(username: String, request: SelectSlotRequest): CompletableFuture<SelectSlotResult> =
+            throw AssertionError("Unexpected select-slot request")
+
         override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> =
             throw AssertionError("Unexpected give request")
 

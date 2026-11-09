@@ -3,6 +3,8 @@ package dev.boxloom.fabric;
 import dev.boxloom.server.core.ApiException;
 import dev.boxloom.server.core.BoxloomEventBroker;
 import dev.boxloom.server.core.BlockUseEvent;
+import dev.boxloom.server.core.GiveItemRequest;
+import dev.boxloom.server.core.SelectSlotRequest;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
@@ -40,6 +42,21 @@ public class PlayerUseActionsGameTest {
         UseEntityCallback.EVENT.register((p, level, hand, entity, hit) ->
             DENIED_ENTITIES.contains(entity.getUUID()) ? InteractionResult.FAIL : InteractionResult.PASS);
         new PlayerActionEvents(EVENTS).register();
+    }
+
+    @GameTest
+    public void giveSelectUseGrowsWheat(GameTestHelper test) {
+        var player = cropPlayer(test, GameType.SURVIVAL);
+        player.getInventory().clearContent();
+        player.getInventory().setItem(0, new ItemStack(Items.DIRT, 64));
+        var given = PlayerInventoryActions.INSTANCE.give(player, new GiveItemRequest("bone_meal", 16));
+        test.assertValueEqual(given.getSlot(), 1, "Give returns the new hotbar destination");
+        test.assertTrue(player.getMainHandItem().is(Items.DIRT), "Give leaves the current selection alone");
+        PlayerInventoryActions.INSTANCE.selectSlot(player, new SelectSlotRequest(given.getSlot()));
+        test.assertTrue(PlayerUseActions.INSTANCE.use(player).getUsed(), "Uses the given bone meal");
+        test.assertTrue(test.getBlockState(TARGET).getValue(CropBlock.AGE) > 0, "Wheat grows");
+        test.assertValueEqual(player.getMainHandItem().getCount(), 15, "Consumes exactly one given bone meal");
+        test.succeed();
     }
 
     @GameTest
