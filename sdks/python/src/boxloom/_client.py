@@ -518,6 +518,7 @@ class BoxloomClient:
         block: str,
         *,
         dimension: str = "minecraft:overworld",
+        properties: Optional[Mapping[str, str]] = None,
     ) -> SetBlockResult:
         for field_name, value in (("x", x), ("y", y), ("z", z)):
             if not isinstance(value, int) or isinstance(value, bool):
@@ -529,16 +530,20 @@ class BoxloomClient:
         if not isinstance(dimension, str) or not dimension.strip():
             raise ValueError("dimension must be a non-empty namespaced ID")
 
-        payload = self._post(
-            "/v1/world/blocks",
-            {
-                "dimension": dimension,
-                "x": x,
-                "y": y,
-                "z": z,
-                "block": block,
-            },
-        )
+        body: Dict[str, Any] = {
+            "dimension": dimension, "x": x, "y": y, "z": z, "block": block,
+        }
+        if properties is not None:
+            if not isinstance(properties, Mapping):
+                raise TypeError("properties must be a mapping of strings to strings")
+            snapshot = dict(properties)
+            for name, property_value in snapshot.items():
+                if not isinstance(name, str) or not isinstance(property_value, str):
+                    raise TypeError("properties must contain only string keys and values")
+                if not name.strip() or not property_value.strip():
+                    raise ValueError("properties keys and values must not be empty")
+            body["properties"] = snapshot
+        payload = self._post("/v1/world/blocks", body)
         changed = payload.get("changed")
         if not isinstance(changed, bool):
             raise ProtocolError("response field 'changed' must be a boolean")
@@ -550,6 +555,7 @@ class BoxloomClient:
             y=_require_integer(payload, "y"),
             z=_require_integer(payload, "z"),
             block=_require_string(payload, "block"),
+            properties=_block_properties(payload),
         )
 
     def get_block(
@@ -583,6 +589,7 @@ class BoxloomClient:
             y=_require_integer(payload, "y"),
             z=_require_integer(payload, "z"),
             block=_require_string(payload, "block"),
+            properties=_block_properties(payload),
         )
 
     def fill(
@@ -963,6 +970,7 @@ def _targeted_block(payload: Mapping[str, Any]) -> Optional[TargetedBlock]:
         block=_require_string(value, "block"),
         face=cast(BlockFace, face),
         distance=distance,
+        properties=_block_properties(value),
     )
 
 
@@ -979,3 +987,16 @@ def _entity_snapshot(value: Any) -> Entity:
         name=_require_string(value, "name"),
         health=None if value["health"] is None else _require_number(value, "health"),
     )
+
+
+def _block_properties(payload: Mapping[str, Any]) -> Mapping[str, str]:
+    # Older servers did not send this additive field.
+    value = payload.get("properties", {})
+    if not isinstance(value, dict):
+        raise ProtocolError("response field 'properties' must be an object of strings")
+    result: Dict[str, str] = {}
+    for name, item in value.items():
+        if not isinstance(name, str) or not name.strip() or not isinstance(item, str) or not item.strip():
+            raise ProtocolError("response properties must contain non-empty string keys and values")
+        result[name] = item
+    return result

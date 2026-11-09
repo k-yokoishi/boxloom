@@ -42,7 +42,8 @@ Block coordinates are `int` and must fit in 32 bits. Player and entity coordinat
 Every operation runs on the Minecraft server thread, so a stalled server surfaces as a timeout rather than a hang.
 
 `get_block()` returns the immutable `Block` class. It holds `dimension`, `x`, `y`,
-`z`, and the namespaced block ID in `block`. `TargetedBlock` inherits from `Block`,
+`z`, the namespaced block ID in `block`, and a read-only `properties` mapping.
+`TargetedBlock` inherits from `Block`,
 so functions that need this common information can accept either result:
 
 ```python
@@ -199,6 +200,7 @@ Also available as `BoxloomClient.get_player_targeted_block(username)`.
 | `block` | `str` | Namespaced block ID. |
 | `face` | `str` | `down`, `up`, `north`, `south`, `west`, or `east`. |
 | `distance` | `float` | Distance from the eye to the hit surface, in blocks. |
+| `properties` | `Mapping[str, str]` | Complete block state captured with the target. |
 
 The server uses its latest received position and view, which can lag behind the
 client's screen. The range follows the player's block interaction reach. A later
@@ -494,6 +496,7 @@ get_block(
 | `dimension` | `str` | Resolved namespaced dimension ID. |
 | `x`, `y`, `z` | `int` | The requested block coordinates. |
 | `block` | `str` | Namespaced ID of the block at that position. Empty space reads as `minecraft:air`. |
+| `properties` | `Mapping[str, str]` | Read-only map of all current state properties, using canonical string values. `{}` for blocks without properties. |
 
 **Example**
 
@@ -501,7 +504,7 @@ get_block(
 from boxloom import get_block
 
 result = get_block(0, 100, 0)
-print(result.block)
+print(result.block, result.properties)
 ```
 
 </Operation>
@@ -518,6 +521,7 @@ set_block(
     block: str,
     *,
     dimension: str = "minecraft:overworld",
+    properties: Optional[Mapping[str, str]] = None,
 ) -> SetBlockResult
 ```
 
@@ -527,16 +531,18 @@ set_block(
 | --- | --- | --- | --- |
 | `x`, `y`, `z` | `int` | required | Block coordinates, within the 32-bit integer range. |
 | `block` | `str` | required | Namespaced ID of a registered block. |
+| `properties` | `Optional[Mapping[str, str]]` | `None` | Overrides applied to the block default state. All keys and values must be non-empty strings. |
 | `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
 
 **Returns** — `SetBlockResult`
 
 | Attribute | Type | Description |
 | --- | --- | --- |
-| `changed` | `bool` | Whether the world changed. `False` for a position outside the build height, or one that already held the block. |
+| `changed` | `bool` | Whether the world changed, including a property-only change. `False` for an identical state or a position outside build height. |
 | `dimension` | `str` | Resolved namespaced dimension ID. |
 | `x`, `y`, `z` | `int` | The requested block coordinates. |
-| `block` | `str` | Resolved namespaced block ID. |
+| `block` | `str` | Namespaced ID of the actual block after the attempt. |
+| `properties` | `Mapping[str, str]` | Read-only map of the complete state after the attempt, including unchanged positions. |
 
 **Example**
 
@@ -544,8 +550,23 @@ set_block(
 from boxloom import blocks, set_block
 
 result = set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
-print(result.changed)
+print(result.changed, result.properties)
+
+# Plant wheat at growth stage 3, on farmland.
+set_block(0, 99, 0, blocks.FARMLAND, properties={"moisture": "7"})
+result = set_block(0, 100, 0, blocks.WHEAT, properties={"age": "3"})
+print(result.properties)  # {"age": "3"}
 ```
+
+`properties=None` or `{}` uses the block default state. Properties are not merged
+with the previous block: setting wheat without `age` resets it to age `0`.
+Use string values such as `"3"` and `"true"`, including for numbers and booleans.
+Unknown property names or invalid values return `400 INVALID_BLOCK_PROPERTY`
+before any world change. Property value ranges depend on the block.
+
+The response reads the actual state after the attempt; it may differ from the
+requested state after neighbor updates or an unsuccessful placement. An older
+server that omits `properties` is read as an empty mapping by the SDK.
 
 </Operation>
 

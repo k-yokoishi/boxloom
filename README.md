@@ -77,6 +77,24 @@ from boxloom import blocks, set_block
 set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
 ```
 
+Read and write block-state properties using string keys and values:
+
+```python
+from boxloom import blocks, get_block, set_block
+
+set_block(0, 99, 0, blocks.FARMLAND, properties={"moisture": "7"})
+result = set_block(0, 100, 0, blocks.WHEAT, properties={"age": "3"})
+print(result.changed, result.properties)
+print(get_block(0, 100, 0).properties["age"])  # "3"
+```
+
+Properties start from the block defaults; omitted properties reset to defaults.
+Reads and set results contain the complete state in a read-only mapping. Unknown
+properties or invalid values return `400 INVALID_BLOCK_PROPERTY` without changing
+the world. An identical state returns `changed=False`; changing a property alone
+returns `changed=True`.
+
+
 Use bone meal on a plant (hold bone meal in the main hand and aim at the plant):
 
 ```python

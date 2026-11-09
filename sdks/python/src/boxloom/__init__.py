@@ -2,7 +2,7 @@
 
 import os
 import threading
-from typing import Any, Callable, Dict, List, Literal, Optional, Union, overload
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Union, overload
 
 from . import blocks, entities
 from ._client import BoxloomClient
@@ -414,10 +414,11 @@ def set_block(
     block: str,
     *,
     dimension: str = "minecraft:overworld",
+    properties: Optional[Mapping[str, str]] = None,
 ) -> SetBlockResult:
-    """Set a block in a loaded Minecraft dimension."""
+    """Set a block from its default state plus optional string properties."""
 
-    return _default_client().set_block(x, y, z, block, dimension=dimension)
+    return _default_client().set_block(x, y, z, block, dimension=dimension, properties=properties)
 
 
 def get_block(

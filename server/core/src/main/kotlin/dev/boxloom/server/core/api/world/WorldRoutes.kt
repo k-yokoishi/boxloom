@@ -113,6 +113,9 @@ internal class WorldRoutes(
             put("y", result.y)
             put("z", result.z)
             put("block", result.block)
+            put("properties", buildJsonObject {
+                result.properties.forEach { (name, value) -> put(name, value) }
+            })
         }.toString()
 
         HttpExchangeSupport.sendJson(exchange, 200, response)
@@ -129,6 +132,7 @@ internal class WorldRoutes(
             JsonSupport.requireInteger(objectValue, "y"),
             JsonSupport.requireInteger(objectValue, "z"),
             JsonSupport.requireString(objectValue, "block"),
+            JsonSupport.optionalStringMap(objectValue, "properties"),
         )
         val result = operations.await(minecraft.setBlock(request))
         val response = buildJsonObject {
@@ -138,6 +142,9 @@ internal class WorldRoutes(
             put("y", result.y)
             put("z", result.z)
             put("block", result.block)
+            put("properties", buildJsonObject {
+                result.properties.forEach { (name, value) -> put(name, value) }
+            })
         }.toString()
 
         HttpExchangeSupport.sendJson(exchange, 200, response)
@@ -259,7 +266,7 @@ internal class WorldRoutes(
         private val GET_ENTITIES_FIELDS =
             setOf("dimension", "entity", "radius", "sort", "limit") + ENTITY_CENTER_FIELDS
         private val GET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z")
-        private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block")
+        private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block", "properties")
         private val FILL_FIELDS = setOf(
             "dimension",
             "x1",

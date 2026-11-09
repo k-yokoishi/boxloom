@@ -250,7 +250,9 @@ internal class FabricMinecraftOperations(
                 )
             }
             val position = BlockPos(request.x, request.y, request.z)
-            val changed = level.setBlock(position, block.defaultBlockState(), 3)
+            val state = BlockStates.resolve(block, request.properties)
+            val changed = level.setBlock(position, state, 3)
+            val after = level.getBlockState(position)
 
             SetBlockResult(
                 changed,
@@ -258,7 +260,8 @@ internal class FabricMinecraftOperations(
                 request.x,
                 request.y,
                 request.z,
-                blockId.toString(),
+                BuiltInRegistries.BLOCK.getKey(after.block).toString(),
+                BlockStates.properties(after),
             )
         }
 
@@ -274,7 +277,8 @@ internal class FabricMinecraftOperations(
                     "Dimension '${request.dimension}' is not loaded",
                 )
             val position = BlockPos(request.x, request.y, request.z)
-            val blockId = BuiltInRegistries.BLOCK.getKey(level.getBlockState(position).block)
+            val state = level.getBlockState(position)
+            val blockId = BuiltInRegistries.BLOCK.getKey(state.block)
 
             GetBlockResult(
                 dimensionKey.identifier().toString(),
@@ -282,6 +286,7 @@ internal class FabricMinecraftOperations(
                 request.y,
                 request.z,
                 blockId.toString(),
+                BlockStates.properties(state),
             )
         }
 

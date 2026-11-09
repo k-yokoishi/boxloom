@@ -49,6 +49,7 @@ public class PlayerUseActionsGameTest {
         var result = PlayerUseActions.INSTANCE.use(player);
         test.assertTrue(result.getUsed() && result.getSwung(), "Bone meal use succeeds and swings");
         test.assertTrue(result.getTarget() != null && result.getEntity() == null, "Returns the wheat target");
+        test.assertValueEqual(result.getTarget().getProperties().get("age"), "0", "Target captures pre-use age");
         test.assertTrue(test.getBlockState(TARGET).getValue(CropBlock.AGE) > 0, "Wheat grows");
         test.assertValueEqual(player.getMainHandItem().getCount(), 2, "Consumes one bone meal");
         var events = EVENTS.awaitAfter(cursor, Duration.ZERO);

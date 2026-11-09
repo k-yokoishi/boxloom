@@ -32,6 +32,7 @@ data class GetBlockResult(
     val y: Int,
     val z: Int,
     val block: String,
+    val properties: Map<String, String> = emptyMap(),
 )
 
 data class SetBlockRequest(
@@ -40,6 +41,7 @@ data class SetBlockRequest(
     val y: Int,
     val z: Int,
     val block: String,
+    val properties: Map<String, String> = emptyMap(),
 )
 
 data class SetBlockResult(
@@ -49,6 +51,7 @@ data class SetBlockResult(
     val y: Int,
     val z: Int,
     val block: String,
+    val properties: Map<String, String> = emptyMap(),
 )
 
 data class FillRequest(

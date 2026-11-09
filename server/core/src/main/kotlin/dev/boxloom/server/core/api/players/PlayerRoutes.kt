@@ -131,6 +131,9 @@ internal class PlayerRoutes(
         put("block", block)
         put("face", face)
         put("distance", distance)
+        put("properties", buildJsonObject {
+            properties.forEach { (name, value) -> put(name, value) }
+        })
     }
 
     private fun teleport(exchange: HttpExchange, parameters: RouteParameters) {

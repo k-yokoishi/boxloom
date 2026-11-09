@@ -266,7 +266,7 @@ export const apiOperations = {
     description: (
       <p>
         Read one block in a loaded dimension. The result echoes the resolved
-        dimension and position alongside the block that is there.
+        dimension and position alongside the block and its complete state properties.
       </p>
     ),
     errors: [invalidDimension, dimensionNotFound],
@@ -274,13 +274,16 @@ export const apiOperations = {
   set_block: {
     description: (
       <p>
-        Place one block in a loaded dimension. The block is placed in its default
-        state; block state properties are not configurable. <code>changed</code>{' '}
-        reports whether the world actually changed, so placing a block that is
-        already there reports no change.
+        Place one block in a loaded dimension, starting from its default state
+        and applying optional string properties. The response describes the actual
+        block state after placement. <code>changed</code> includes changes to
+        properties alone; repeating an identical state reports no change.
       </p>
     ),
-    errors: [invalidDimension, invalidBlock, dimensionNotFound],
+    errors: [
+      invalidDimension, invalidBlock, dimensionNotFound,
+      { status: 400, code: 'INVALID_BLOCK_PROPERTY', meaning: 'A property does not exist on this block, or its string value is invalid. The world is not changed.' },
+    ],
   },
   fill: {
     description: (
