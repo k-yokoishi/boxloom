@@ -13,8 +13,8 @@ The mod exposes Minecraft operations and a live player event stream:
 - Start and stop continuous held mining with native speed, drops and durability
 - Teleport a connected player to absolute coordinates
 - Set a connected player's game mode to Creative or Survival
-- Get one block from a loaded dimension
-- Set one block
+- Get one block and its complete state properties from a loaded dimension
+- Set one block with optional string state properties
 - Fill an inclusive block region
 - Summon one entity with optional NBT
 - List loaded entities with type and sphere filters, distance sorting, and a result limit
@@ -60,6 +60,15 @@ delayed breaks. `active` remains true while waiting and after an instant break;
 `target` can be null. This mode does not attack entities. The controlled player
 receives cracks and swings as well as observers. Native protection events, tool
 durability and drops apply.
+
+Block reads and targeting snapshots include `properties`, a map of canonical
+state names to string values. `POST /v1/world/blocks` accepts optional properties,
+such as `{"age":"3"}` for wheat, applied to the block default state. Unspecified
+properties reset to defaults. Unknown names or invalid values return
+`400 INVALID_BLOCK_PROPERTY` before changing the world. Read and set responses
+include every current property, or `{}` for blocks without state properties.
+Set responses report the actual block and state after the attempt; property-only
+changes count as changed, while an identical state is a no-op.
 
 ## Fixed compatibility versions
 

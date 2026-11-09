@@ -41,6 +41,7 @@ data class TargetedBlock(
     val block: String,
     val face: String,
     val distance: Double,
+    val properties: Map<String, String> = emptyMap(),
 )
 
 data class PlayerAttackResult(

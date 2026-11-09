@@ -123,11 +123,13 @@ the screen's crosshair may differ because of network latency.
   "target": {
     "dimension": "minecraft:overworld",
     "x": 10, "y": 64, "z": 20,
-    "block": "minecraft:stone", "face": "north", "distance": 2.5
+    "block": "minecraft:stone", "face": "north", "distance": 2.5,
+    "properties": {}
   }
 }
 ```
 
+`properties` contains the complete state captured with the block.
 The coordinates identify the block, `face` is one of the six lowercase directions,
 and `distance` measures from the eye to the hit surface. A miss or an intervening
 entity returns `{"target": null}`.
@@ -151,7 +153,8 @@ The username has the same constraints as `get_targeted_block`.
   "target": {
     "dimension": "minecraft:overworld",
     "x": 10, "y": 64, "z": 20,
-    "block": "minecraft:stone", "face": "north", "distance": 2.5
+    "block": "minecraft:stone", "face": "north", "distance": 2.5,
+    "properties": {}
   },
   "broken": false
 }
@@ -192,7 +195,8 @@ the same constraints as `get_targeted_block`.
   "target": {
     "dimension": "minecraft:overworld",
     "x": 10, "y": 64, "z": 20,
-    "block": "minecraft:wheat", "face": "north", "distance": 2.5
+    "block": "minecraft:wheat", "face": "north", "distance": 2.5,
+    "properties": {"age": "0"}
   },
   "entity": null
 }
@@ -239,7 +243,8 @@ same name constraints as other player operations.
   "active": true,
   "target": {
     "dimension": "minecraft:overworld", "x": 10, "y": 64, "z": 20,
-    "block": "minecraft:stone", "face": "north", "distance": 2.5
+    "block": "minecraft:stone", "face": "north", "distance": 2.5,
+    "properties": {}
   },
   "broken": false
 }
@@ -425,6 +430,7 @@ curl --fail-with-body \
 | `dimension` | string | Resolved namespaced dimension ID. |
 | `x`, `y`, `z` | integer | The requested block coordinates. |
 | `block` | string | Namespaced ID of the block at that position. Empty space reads as `minecraft:air`. |
+| `properties` | object | All block-state property names and string values. Always present; `{}` for blocks without properties. |
 
 **Example**
 
@@ -445,7 +451,8 @@ curl --fail-with-body \
   "x": 0,
   "y": 100,
   "z": 0,
-  "block": "minecraft:air"
+  "block": "minecraft:air",
+  "properties": {}
 }
 ```
 
@@ -457,22 +464,32 @@ curl --fail-with-body \
 
 <ApiEndpoint method="POST" path="/v1/world/blocks" />
 
-**Request body** — all fields required.
+**Request body** — all fields required except `properties`.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `dimension` | string | Namespaced ID of a loaded dimension. |
 | `x`, `y`, `z` | integer | Block coordinates, within the 32-bit integer range. |
 | `block` | string | Namespaced ID of a registered block. |
+| `properties` | object | Optional state overrides, e.g. `{"age":"3"}`. Keys and values must be non-empty strings. |
+
+Omitting `properties` or passing `{}` starts from the block default state. Specified
+properties override those defaults, not the previous block state. Use string
+values even for numbers and booleans, such as `{"age":"3"}` or `{"lit":"true"}`.
+Unknown properties or invalid values return `400 INVALID_BLOCK_PROPERTY` before
+any world change. For example, wheat supports `age` from `"0"` to `"7"`; an
+existing wheat crop resets to age `0` when no age is specified.
+
 
 **Response** — `200 application/json`
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `changed` | boolean | Whether the world changed. `false` for a position outside the build height, or one that already held the block. |
+| `changed` | boolean | Whether the world changed, including property-only changes. `false` for an identical state or a position outside build height. |
 | `dimension` | string | Resolved namespaced dimension ID. |
 | `x`, `y`, `z` | integer | The requested block coordinates. |
-| `block` | string | Resolved namespaced block ID. |
+| `block` | string | Namespaced ID of the actual block at the position after the attempt. |
+| `properties` | object | The complete actual state after the attempt, including a no-op. Always present. |
 
 **Example**
 
@@ -498,7 +515,8 @@ curl --fail-with-body \
   "x": 0,
   "y": 100,
   "z": 0,
-  "block": "minecraft:diamond_block"
+  "block": "minecraft:diamond_block",
+  "properties": {}
 }
 ```
 

@@ -68,6 +68,18 @@ internal object JsonSupport {
         return requireString(objectValue, name)
     }
 
+    fun optionalStringMap(objectValue: JsonObject, name: String): Map<String, String> {
+        val value = objectValue[name] ?: return emptyMap()
+        val entries = value as? JsonObject
+            ?: throw invalid("Field '$name' must be an object of string values")
+        return entries.mapValues { (key, element) ->
+            if (key.isBlank() || element !is JsonPrimitive || !element.isString || element.content.isBlank()) {
+                throw invalid("Field '$name' must contain non-empty string keys and values")
+            }
+            element.content
+        }
+    }
+
     fun optionalFiniteDouble(objectValue: JsonObject, name: String): Double? {
         if (name !in objectValue) return null
         return requireFiniteDouble(objectValue, name)

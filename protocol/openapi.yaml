@@ -1367,7 +1367,7 @@ components:
     TargetedBlock:
       type: object
       additionalProperties: false
-      required: [dimension, x, y, z, block, face, distance]
+      required: [dimension, x, y, z, block, face, distance, properties]
       properties:
         dimension:
           type: string
@@ -1390,6 +1390,8 @@ components:
           type: number
           minimum: 0
           description: Distance in blocks from the eye to the hit surface.
+        properties:
+          $ref: '#/components/schemas/BlockProperties'
     TargetedBlockResponse:
       type: object
       additionalProperties: false
@@ -1558,8 +1560,19 @@ components:
         pitch:
           type: number
           description: Vertical rotation in degrees; omitted to keep the current pitch
+    BlockProperties:
+      type: object
+      description: Canonical block-state property names and string values. Empty for blocks without state properties.
+      propertyNames:
+        type: string
+        minLength: 1
+      additionalProperties:
+        type: string
+        minLength: 1
+      example: {age: '3'}
     SetBlockRequest:
       type: object
+      description: Start from the block default state and apply optional properties; omitted properties reset to defaults. All values must be strings. Unknown properties or invalid values return 400 INVALID_BLOCK_PROPERTY before any world change.
       additionalProperties: false
       required:
         - dimension
@@ -1585,6 +1598,8 @@ components:
           type: string
           examples:
             - minecraft:diamond_block
+        properties:
+          $ref: '#/components/schemas/BlockProperties'
     GetBlockResult:
       type: object
       additionalProperties: false
@@ -1594,6 +1609,7 @@ components:
         - y
         - z
         - block
+        - properties
       properties:
         dimension:
           type: string
@@ -1608,8 +1624,11 @@ components:
           format: int32
         block:
           type: string
+        properties:
+          $ref: '#/components/schemas/BlockProperties'
     SetBlockResult:
       type: object
+      description: Actual block and complete state at the position after the attempt, including a no-op or a position outside build height. Properties-only changes count as changed.
       additionalProperties: false
       required:
         - changed
@@ -1618,6 +1637,7 @@ components:
         - y
         - z
         - block
+        - properties
       properties:
         changed:
           type: boolean
@@ -1634,6 +1654,8 @@ components:
           format: int32
         block:
           type: string
+        properties:
+          $ref: '#/components/schemas/BlockProperties'
     FillRequest:
       type: object
       description: >-

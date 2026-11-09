@@ -17,6 +17,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -623,6 +625,61 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `reads and writes block properties as strings`() {
+        var captured: SetBlockRequest? = null
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> {
+                captured = request
+                return CompletableFuture.completedFuture(SetBlockResult(
+                    true, request.dimension, request.x, request.y, request.z, request.block, request.properties,
+                ))
+            }
+            override fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult> =
+                CompletableFuture.completedFuture(GetBlockResult(
+                    request.dimension, request.x, request.y, request.z, "minecraft:wheat", mapOf("age" to "3"),
+                ))
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            for (properties in listOf(null, emptyMap(), mapOf("age" to "3"))) {
+                val body = buildJsonObject {
+                    put("dimension", JsonPrimitive("minecraft:overworld"))
+                    put("x", JsonPrimitive(1))
+                    put("y", JsonPrimitive(64))
+                    put("z", JsonPrimitive(2))
+                    put("block", JsonPrimitive("minecraft:wheat"))
+                    if (properties != null) put("properties", buildJsonObject {
+                        properties.forEach { (name, value) -> put(name, JsonPrimitive(value)) }
+                    })
+                }.toString()
+                val response = post(server, "/v1/world/blocks", body)
+                assertEquals(200, response.statusCode(), response.body())
+                assertEquals(properties ?: emptyMap(), captured!!.properties)
+                assertEquals(properties ?: emptyMap(), Json.parseToJsonElement(response.body()).jsonObject["properties"]!!
+                    .jsonObject.mapValues { (_, value) -> value.jsonPrimitive.content })
+            }
+            val response = get(server, "/v1/world/blocks?dimension=minecraft:overworld&x=1&y=64&z=2")
+            assertEquals(200, response.statusCode())
+            val age = Json.parseToJsonElement(response.body()).jsonObject["properties"]!!.jsonObject["age"]!!.jsonPrimitive
+            assertTrue(age.isString)
+            assertEquals("3", age.content)
+        }
+    }
+
+    @Test
+    fun `rejects malformed block properties before invoking Minecraft`() {
+        withServer(authToken = null) { server, _ ->
+            for (properties in listOf("null", "[]", "3", "true", "\"age=3\"",
+                """{"age":3}""", """{"lit":true}""", """{"age":null}""", """{"age":{}}""",
+                """{"age":[]}""", """{"":"3"}""", """{"age":""}""")) {
+                val body = """{"dimension":"minecraft:overworld","x":1,"y":64,"z":2,"block":"minecraft:wheat","properties":$properties}"""
+                val response = post(server, "/v1/world/blocks", body)
+                assertEquals(400, response.statusCode(), body)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+        }
+    }
+
+    @Test
     fun `gets a block from query parameters`() {
         var capturedRequest: GetBlockRequest? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
@@ -648,7 +705,7 @@ class BoxloomHttpServerTest {
 
             assertEquals(200, response.statusCode())
             assertEquals(
-                """{"dimension":"minecraft:the_nether","x":1,"y":64,"z":-2,"block":"minecraft:stone"}""",
+                """{"dimension":"minecraft:the_nether","x":1,"y":64,"z":-2,"block":"minecraft:stone","properties":{}}""",
                 response.body(),
             )
         }

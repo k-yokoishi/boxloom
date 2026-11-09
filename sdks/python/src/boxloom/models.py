@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from math import floor
-from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Literal, Mapping, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from ._client import BoxloomClient
@@ -66,23 +67,45 @@ class Player:
 BlockFace = Literal["down", "up", "north", "south", "west", "east"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class Block:
-    """An immutable snapshot of a block's dimension, coordinates and namespaced ID."""
+    """An immutable snapshot of a block, including canonical state properties."""
 
     dimension: str
     x: int
     y: int
     z: int
     block: str
+    properties: Mapping[str, str] = field(hash=False)
+
+    def __init__(
+        self, dimension: str, x: int, y: int, z: int, block: str,
+        properties: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        object.__setattr__(self, "dimension", dimension)
+        object.__setattr__(self, "x", x)
+        object.__setattr__(self, "y", y)
+        object.__setattr__(self, "z", z)
+        object.__setattr__(self, "block", block)
+        object.__setattr__(self, "properties", MappingProxyType(dict({} if properties is None else properties)))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class TargetedBlock(Block):
     """A block hit by a ray from the player's eyes, with the hit face and distance."""
 
     face: BlockFace
     distance: float
+
+    def __init__(
+        self, dimension: str, x: int, y: int, z: int, block: str,
+        face: BlockFace, distance: float, *,
+        properties: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        # Preserve the pre-properties positional signature on Python 3.9 too.
+        super().__init__(dimension, x, y, z, block, {} if properties is None else properties)
+        object.__setattr__(self, "face", face)
+        object.__setattr__(self, "distance", distance)
 
 
 @dataclass(frozen=True)
@@ -250,6 +273,10 @@ class SetBlockResult:
     y: int
     z: int
     block: str
+    properties: Mapping[str, str] = field(default_factory=dict, hash=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "properties", MappingProxyType(dict(self.properties)))
 
 
 @dataclass(frozen=True)

@@ -124,6 +124,7 @@ internal object PlayerBlockActions {
             player.level().dimension().identifier().toString(), pos.x, pos.y, pos.z,
             BuiltInRegistries.BLOCK.getKey(player.level().getBlockState(pos).block).toString(),
             hit.direction.serializedName, player.eyePosition.distanceTo(hit.location),
+            BlockStates.properties(player.level().getBlockState(pos)),
         )
     }
 

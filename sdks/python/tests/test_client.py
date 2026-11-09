@@ -1,4 +1,5 @@
 import json
+from importlib import import_module
 import os
 import threading
 import unittest
@@ -103,7 +104,7 @@ class ClientTest(unittest.TestCase):
         for lookup in (client.get_player, boxloom.get_player):
             with self.assertRaises(boxloom.ProtocolError):
                 lookup("Steve")
-            with patch("boxloom._client.urlopen", side_effect=URLError("offline")):
+            with patch.object(import_module("boxloom._client"), "urlopen", side_effect=URLError("offline")):
                 with self.assertRaises(boxloom.ConnectionError):
                     lookup("Steve")
 
@@ -1069,6 +1070,75 @@ class ClientTest(unittest.TestCase):
                     boxloom.set_time("day")
                 self.assertEqual(code, raised.exception.code)
                 self.assertEqual(status, raised.exception.status)
+
+    def test_block_properties_round_trip_as_strings(self):
+        snapshot = {"dimension": "minecraft:overworld", "x": 1, "y": 64, "z": 2,
+                    "block": "minecraft:wheat", "properties": {"age": "3"}}
+        _ApiHandler.response_body = {**snapshot, "changed": True}
+        result = boxloom.set_block(1, 64, 2, boxloom.blocks.WHEAT, properties={"age": "3"})
+        self.assertEqual({"age": "3"}, result.properties)
+        self.assertEqual({"age": "3"}, _ApiHandler.requests[-1][2]["properties"])
+        _ApiHandler.response_body = snapshot
+        result = boxloom.get_block(1, 64, 2)
+        self.assertEqual(3, int(result.properties["age"]))
+        _ApiHandler.response_body = {**snapshot, "properties": {}}
+        self.assertEqual({}, boxloom.get_block(1, 64, 2).properties)
+
+    def test_block_properties_mappings_are_immutable_snapshots(self):
+        from types import MappingProxyType
+        properties = {"age": "3"}
+        block = boxloom.Block("minecraft:overworld", 1, 64, 2, "minecraft:wheat", properties)
+        target = boxloom.TargetedBlock("minecraft:overworld", 1, 64, 2, "minecraft:wheat", "up", 2.0,
+                                      properties=properties)
+        result = boxloom.SetBlockResult(True, "minecraft:overworld", 1, 64, 2, "minecraft:wheat", properties)
+        properties["age"] = "7"
+        for value in (block, target, result):
+            self.assertEqual({"age": "3"}, value.properties)
+            with self.assertRaises(TypeError):
+                value.properties["age"] = "4"
+        self.assertIsInstance(target, boxloom.Block)
+        self.assertIsInstance(hash(block), int)
+        _ApiHandler.response_body = {"changed": False, "dimension": "minecraft:overworld",
+                                     "x": 1, "y": 64, "z": 2, "block": "minecraft:wheat", "properties": {"age": "3"}}
+        boxloom.BoxloomClient(base_url=self.base_url).set_block(
+            1, 64, 2, "minecraft:wheat", properties=MappingProxyType({"age": "3"}))
+        self.assertEqual({"age": "3"}, _ApiHandler.requests[-1][2]["properties"])
+
+    def test_set_block_rejects_malformed_properties_before_network_io(self):
+        for properties in ([], "age=3", 3, True, {"age": 3}, {"lit": True},
+                           {1: "3"}, {"age": None}, {"age": []}, {"": "3"}, {"age": ""}):
+            with self.subTest(properties=properties):
+                with self.assertRaises((TypeError, ValueError)):
+                    boxloom.set_block(1, 64, 2, "minecraft:wheat", properties=properties)
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_block_property_responses_reject_non_string_values(self):
+        player = self._player()
+        target = self._target()
+        snapshot = {"dimension": "minecraft:overworld", "x": 1, "y": 64, "z": 2, "block": "minecraft:wheat"}
+        for properties in (None, [], "age=3", {"age": 3}, {"lit": True}, {"age": None}, {"": "3"}, {"age": ""}):
+            with self.subTest(properties=properties):
+                _ApiHandler.response_body = {**snapshot, "properties": properties, "changed": True}
+                with self.assertRaises(boxloom.ProtocolError):
+                    boxloom.get_block(1, 64, 2)
+                with self.assertRaises(boxloom.ProtocolError):
+                    boxloom.set_block(1, 64, 2, "minecraft:wheat")
+                _ApiHandler.response_body = {"target": {**target, "properties": properties}}
+                with self.assertRaises(boxloom.ProtocolError):
+                    player.get_targeted_block()
+
+    def test_targeted_block_includes_immutable_properties(self):
+        player = self._player()
+        _ApiHandler.response_body = {"target": {**self._target(), "properties": {"age": "3"}}}
+        self.assertEqual({"age": "3"}, player.get_targeted_block().properties)
+
+    def test_set_block_preserves_property_validation_errors_without_retry(self):
+        _ApiHandler.response_status = 400
+        _ApiHandler.response_body = {"error": {"code": "INVALID_BLOCK_PROPERTY", "message": "Invalid age"}}
+        with self.assertRaises(boxloom.ApiError) as raised:
+            boxloom.set_block(1, 64, 2, "minecraft:wheat", properties={"age": "8"})
+        self.assertEqual((400, "INVALID_BLOCK_PROPERTY"), (raised.exception.status, raised.exception.code))
+        self.assertEqual(1, len(_ApiHandler.requests))
 
     def test_set_block_uses_overworld_by_default(self):
         _ApiHandler.response_body = {
