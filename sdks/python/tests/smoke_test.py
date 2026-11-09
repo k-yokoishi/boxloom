@@ -15,7 +15,6 @@ from boxloom import (
     Entity,
     FillResult,
     Block,
-    GetBlockResult,
     KillResult,
     Player,
     PlayerMiningResult,
@@ -92,7 +91,6 @@ for event_name, cls in (
 assert files("boxloom").joinpath("py.typed").is_file()
 assert FillResult.__name__ == "FillResult"
 assert Block.__name__ == "Block"
-assert GetBlockResult is Block
 assert Block("minecraft:overworld", BlockPos(0, 64, 0), "minecraft:wheat", {"age": "3"}).properties == {"age": "3"}
 assert PlayerMiningResult(True, None, False).active
 assert PlayerUseResult(False, False, None).used is False

@@ -90,20 +90,6 @@ if player is not None:
 ```
 
 `TargetedBlock` additionally carries the hit `face` and `distance`.
-`GetBlockResult` remains an alias for `Block`; its constructor takes a
-`BlockPos` position as well.
-
-### Migrating from separate coordinates
-
-This is a breaking Python SDK change. Replace separate coordinate arguments with
-`BlockPos` or `Vec3`, and replace snapshot `.x`, `.y`, `.z` access with
-`.position.x`, `.position.y`, `.position.z` (or pass `.position` directly).
-Use `center=Vec3(...)` for entity queries and range kills. Fill results expose
-`.start` and `.end` as `BlockPos`; block action events expose `.block_position`
-as `BlockPos`. Replace `state.block_coordinates()` with
-`state.position.to_block_pos()`. These changes apply equally to top-level
-functions and `BoxloomClient` methods. The [REST API](./rest) keeps its existing
-flat coordinate fields.
 
 ## Errors
 

@@ -1412,7 +1412,7 @@ class ClientTest(unittest.TestCase):
         self.assertIs(type(result), boxloom.Block)
 
         self.assertEqual(
-            boxloom.GetBlockResult(
+            boxloom.Block(
                 "minecraft:the_nether",
                 boxloom.BlockPos(1, 64, -2),
                 "minecraft:stone",

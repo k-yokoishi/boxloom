@@ -303,10 +303,6 @@ class PlayerPosition:
     pitch: float
 
 
-# Compatibility name for callers of earlier SDK releases; block reads return Block.
-GetBlockResult = Block
-
-
 @dataclass(frozen=True)
 class SetBlockResult:
     """Result returned after setting a block in a loaded dimension."""

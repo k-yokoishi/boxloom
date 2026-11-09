@@ -178,8 +178,6 @@ player receives crack progress as well as observers. Client methods are
 `get_block()` returns an immutable `Block` snapshot with `dimension`,
 `position` (`BlockPos`), and the namespaced ID in `block`. `TargetedBlock` inherits from `Block` and
 adds `face` and `distance`, so code can accept `Block` from either API.
-`GetBlockResult` remains an alias for `Block`; its constructor also takes a
-`BlockPos` position.
 
 ### Coordinates
 
@@ -206,15 +204,6 @@ set_block(origin + BlockPos(1, -1, 0), blocks.DIAMOND_BLOCK, dimension=state.dim
 add `Vec3(0.5, 0.5, 0.5)` for its center. Conversions are explicit: block APIs
 reject `Vec3`, and teleport/summon/query APIs reject `BlockPos`. Convert before
 mixing the two types in arithmetic. Neither type carries a dimension.
-
-This is a breaking change from the separate-coordinate API:
-
-- `get_block`, `set_block`, and `fill` take `BlockPos` values; `fill` takes `start` and `end`.
-- `teleport_player` and `summon` take a `Vec3` position.
-- `get_entities` and `kill_entities` take `center=Vec3(...)` instead of `x`, `y`, and `z`.
-- Player/entity snapshots and events expose `.position: Vec3`; block snapshots and set results expose `.position: BlockPos`.
-- Block events expose `.block_position: BlockPos`; fill results expose `.start` and `.end`.
-- Replace `state.block_coordinates()` with `state.position.to_block_pos()`.
 
 The same signatures apply to `BoxloomClient`. The REST API still uses its existing
 flat coordinate fields; the SDK performs serialization and decoding.
