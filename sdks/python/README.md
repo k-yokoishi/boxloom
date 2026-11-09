@@ -55,6 +55,24 @@ swing can prevent a new swing. Event player snapshots and manually constructed
 `Player` values are not bound; resolve them with the appropriate client's
 `get_player()` before calling methods.
 
+Use the main-hand item once on the aimed block or entity, or in the air:
+
+```python
+# Hold bone meal and aim at a growing plant in Minecraft first.
+result = player.use()
+print(result.used, result.target)
+```
+
+`Player.use()` (or `BoxloomClient.use_player_item(username)`) uses native effects,
+consumption, creative rules, cooldowns, reach, spawn protection and mod cancellation.
+It can also place blocks, operate a lever with an empty hand, feed animals or throw
+an item. There is no automatic offhand fallback. `used` reports accepted native use,
+not guaranteed growth or consumption; `target` is the block snapshot before use
+and `entity` is an entity snapshot after the attempt. Dead, spectator or already-using
+players raise `PLAYER_CANNOT_USE`. Calling `use()` cancels API mining. Long-duration
+items start native use; release charged items in the Minecraft client. Requests
+are not retried automatically.
+
 To hold mining, use `start_mining()` and release it with `stop_mining()`:
 
 ```python
@@ -72,7 +90,7 @@ five-tick delay. Looking away resets block progress; changing the target, block
 state, tool or slot starts fresh progress. Item use pauses mining. Protected or
 unbreakable blocks stay intact until the aim, block or tool changes. The mode
 only mines blocks and does not attack entities. It ends on `stop_mining()`,
-`attack()`, death, disconnect, world or game-mode changes, or a competing native
+`attack()`, `use()`, death, disconnect, world or game-mode changes, or a competing native
 mining action. Repeating start preserves progress. `active` means the hold is
 enabled, including while `target` is `None`. `broken` is true only for an immediate
 creative or instant break; `active` remains true. Read blocks to observe later

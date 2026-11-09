@@ -9,6 +9,7 @@ The mod exposes Minecraft operations and a live player event stream:
 - Read a connected player's position and look direction
 - Read the block under a player's server-side crosshair, within interaction reach
 - Perform one native block or entity attack or miss, including a swing sent to the player and observers
+- Use the main hand on the aimed block or entity, or in the air (including bone meal)
 - Start and stop continuous held mining with native speed, drops and durability
 - Teleport a connected player to absolute coordinates
 - Set a connected player's game mode to Creative or Survival
@@ -37,13 +38,23 @@ can break; other survival blocks need sustained mining. Piercing weapons return
 `409 UNSUPPORTED_ATTACK_TARGET`; dead, spectator or busy players return
 `409 PLAYER_CANNOT_ATTACK`.
 
+`POST /v1/players/{username}/use` accepts `{}` and performs one main-hand use
+on the aimed block/entity, or in the air. Returns `used`, `swung`, `target` and
+`entity` (both targets are nullable). Bone meal growth and consumption, creative
+rules, cooldowns, reach, spawn protection and Fabric cancellation use native
+processing. `used` means the action was accepted, not guaranteed growth or
+consumption. No automatic offhand fallback. Dead, spectator or already-using
+players return `409 PLAYER_CANNOT_USE`. API mining is cancelled. Long-duration
+items start native use; release charged items in the Minecraft client. Block/item
+attempts emit existing use events; use swings do not emit attack-only `player.swing`.
+
 `POST /v1/players/{username}/mining/start` and `/mining/stop` accept `{}` and return
 `active`, `target`, and `broken`. Start returns immediately and the server advances
 native mining like holding the mining button. It waits without a target and
 continues to the next block after a five-tick break delay. Repeated start preserves
 progress. Target, block-state, tool or slot changes reset progress; item use pauses
 mining. Protected or unbreakable targets wait for the aim, block or tool to change.
-The mode ends on stop, attack, death, disconnect, world or game-mode changes, or
+The mode ends on stop, attack, use, death, disconnect, world or game-mode changes, or
 a competing native mining action. Stop is idempotent and cancels pending native
 delayed breaks. `active` remains true while waiting and after an instant break;
 `target` can be null. This mode does not attack entities. The controlled player

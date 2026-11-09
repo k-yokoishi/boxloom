@@ -235,6 +235,56 @@ timeout can occur after the action has already taken effect.
 
 </Operation>
 
+### `Player.use`
+
+<Operation id="use">
+
+```python
+player.use() -> PlayerUseResult
+```
+
+Also available as `BoxloomClient.use_player_item(username)`.
+
+Hold bone meal in your main hand and aim at a growing plant before running:
+
+```python
+from boxloom import get_player
+
+player = get_player("Steve")
+if player is None:
+    raise RuntimeError("Steve is not connected")
+result = player.use()
+print(result.used, result.target)
+```
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `used` | `bool` | Whether Minecraft accepted the action. This does not guarantee growth or item consumption. |
+| `swung` | `bool` | Whether a new interaction arm swing started. |
+| `target` | `Optional[TargetedBlock]` | Block snapshot before the attempt, or `None` for entities and air. |
+| `entity` | `Optional[Entity]` | Entity snapshot after the attempt, including a refused attempt; `None` for blocks and air. |
+
+Uses the latest server-side view and native block/entity interaction reach.
+The main hand can apply bone meal, place blocks, operate a lever with an empty
+hand, feed animals, or use items in the air. There is no automatic offhand fallback.
+Intervening entities and blocks occlude targets. Fluids are ignored by the outer
+raycast; items such as buckets use their own native targeting. Survival consumption,
+creative rules, cooldowns, spawn protection and mod cancellation apply. Refused or
+ineffective uses return `used=False`; dead, spectator or already-using players
+raise `409 PLAYER_CANNOT_USE`.
+
+A block that does not handle the interaction may fall back to in-air item use;
+`target` still describes that block. A cancelled interaction stops without this
+fallback. API block/item uses emit the existing `block.use` / `item.use` attempt
+events; an interaction swing does not emit the attack-only `player.swing` event.
+
+Calling `use()` cancels API mining. Long-duration items start their native use;
+this method does not simulate holding and releasing a button. Use the Minecraft
+client to release a charged item. Requests are not retried automatically: a timeout
+can occur after the action has taken effect.
+
+</Operation>
+
 ### `Player.start_mining`
 
 <Operation id="start_mining">
@@ -262,7 +312,7 @@ mining. Protected and unbreakable targets stay intact; mining waits for the aim,
 block or tool to change. This operation only mines blocks and does not attack
 entities. The player receives arm swings and crack progress as well as observers.
 
-Call `stop_mining()` to release the hold. `attack()`, death, disconnect, world or
+Call `stop_mining()` to release the hold. `attack()`, `use()`, death, disconnect, world or
 game-mode changes, and a competing native mining action also end the mode.
 
 ```python

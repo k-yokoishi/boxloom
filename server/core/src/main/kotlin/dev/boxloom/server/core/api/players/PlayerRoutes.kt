@@ -30,6 +30,7 @@ internal class PlayerRoutes(
         router.get("/players/{username}/position", ::position)
         router.get("/players/{username}/targeted-block", ::targetedBlock)
         router.post("/players/{username}/attack", ::attack)
+        router.post("/players/{username}/use", ::use)
         router.post("/players/{username}/mining/start") { exchange, parameters -> mining(exchange, parameters, true) }
         router.post("/players/{username}/mining/stop") { exchange, parameters -> mining(exchange, parameters, false) }
         router.post("/players/{username}/teleport", ::teleport)
@@ -76,6 +77,18 @@ internal class PlayerRoutes(
             put("target", result.target?.toJson() ?: JsonNull)
             put("broken", result.broken)
             result.entity?.let { put("entity", it.toJson()) }
+        }.toString())
+    }
+
+    private fun use(exchange: HttpExchange, parameters: RouteParameters) {
+        val username = requireUsername(parameters)
+        requireEmptyAction(exchange)
+        val result = operations.await(minecraft.usePlayerItem(username))
+        HttpExchangeSupport.sendJson(exchange, 200, buildJsonObject {
+            put("used", result.used)
+            put("swung", result.swung)
+            put("target", result.target?.toJson() ?: JsonNull)
+            put("entity", result.entity?.toJson() ?: JsonNull)
         }.toString())
     }
 

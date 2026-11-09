@@ -134,7 +134,7 @@ class ClientTest(unittest.TestCase):
 
     def test_snapshot_players_require_an_explicit_client_binding(self):
         player = boxloom.Player("Steve", "test-uuid")
-        for operation in (player.get_targeted_block, player.attack, player.start_mining, player.stop_mining):
+        for operation in (player.get_targeted_block, player.attack, player.use, player.start_mining, player.stop_mining):
             with self.assertRaises(boxloom.ConfigurationError):
                 operation()
         self.assertEqual([], _ApiHandler.requests)
@@ -151,6 +151,62 @@ class ClientTest(unittest.TestCase):
                 _ApiHandler.response_body = body
                 with self.assertRaises(boxloom.ProtocolError):
                     player.get_targeted_block()
+
+    def test_player_use_uses_its_bound_client_and_returns_block_or_air_result(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="origin-secret")
+        player = self._player(client)
+        boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
+        target = boxloom.TargetedBlock(**self._target())
+        for used, swung, snapshot in ((True, True, self._target()), (False, False, None)):
+            _ApiHandler.response_body = {"used": used, "swung": swung, "target": snapshot, "entity": None}
+            result = player.use()
+            self.assertEqual(boxloom.PlayerUseResult(used, swung, target if snapshot else None), result)
+            path, headers, body = _ApiHandler.requests[-1]
+            self.assertEqual("/v1/players/Steve/use", path)
+            self.assertEqual("Bearer origin-secret", headers["Authorization"])
+            self.assertEqual({}, body)
+
+    def test_use_returns_an_entity_snapshot(self):
+        player = self._player()
+        entity = {
+            "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af", "entity": "minecraft:cow",
+            "dimension": "minecraft:overworld", "x": 1, "y": 64, "z": 3,
+            "yaw": 0, "pitch": 0, "name": "Cow", "health": 10,
+        }
+        _ApiHandler.response_body = {"used": True, "swung": False, "target": None, "entity": entity}
+        self.assertEqual(boxloom.Entity(**entity), player.use().entity)
+        _ApiHandler.response_body["target"] = self._target()
+        with self.assertRaises(boxloom.ProtocolError):
+            player.use()
+
+    def test_use_rejects_invalid_usernames_and_malformed_results(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        for username in ("", "ab", "has-dash", None, 42):
+            with self.assertRaises(ValueError):
+                client.use_player_item(username)
+        self.assertEqual([], _ApiHandler.requests)
+        valid = {"used": True, "swung": True, "target": None, "entity": None}
+        invalid = [{}, {**valid, "used": 1}, {**valid, "swung": "true"},
+                   {**valid, "used": False}, {**valid, "target": []},
+                   {**valid, "entity": "cow"}]
+        invalid.extend({k: v for k, v in valid.items() if k != field} for field in valid)
+        for body in invalid:
+            with self.subTest(body=body):
+                _ApiHandler.response_body = body
+                with self.assertRaises(boxloom.ProtocolError):
+                    client.use_player_item("Steve")
+
+    def test_use_preserves_api_errors_without_retrying(self):
+        player = self._player()
+        for status, code in ((404, "PLAYER_NOT_CONNECTED"), (409, "PLAYER_CANNOT_USE"),
+                             (504, "MINECRAFT_TIMEOUT")):
+            _ApiHandler.response_status = status
+            _ApiHandler.response_body = {"error": {"code": code, "message": "Cannot use"}}
+            before = len(_ApiHandler.requests)
+            with self.assertRaises(boxloom.ApiError) as raised:
+                player.use()
+            self.assertEqual((status, code), (raised.exception.status, raised.exception.code))
+            self.assertEqual(before + 1, len(_ApiHandler.requests))
 
     def test_attack_rejects_malformed_results(self):
         player = self._player()

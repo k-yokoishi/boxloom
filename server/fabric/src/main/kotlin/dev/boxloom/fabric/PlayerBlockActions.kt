@@ -99,7 +99,7 @@ internal object PlayerBlockActions {
     }
 
     /** Traces the player's view from their eyes, returning a block/entity hit or a miss. */
-    private fun raycastFromPlayerView(player: ServerPlayer, entityReach: Double = player.blockInteractionRange()): HitResult {
+    fun raycastFromPlayerView(player: ServerPlayer, entityReach: Double = player.blockInteractionRange()): HitResult {
         val range = maxOf(player.blockInteractionRange(), entityReach)
         val blockHit = player.pick(range, 1.0f, false)
         val eye = player.eyePosition
@@ -127,7 +127,7 @@ internal object PlayerBlockActions {
         )
     }
 
-    private fun entitySnapshot(entity: Entity): EntitySnapshot = EntitySnapshot(
+    fun entitySnapshot(entity: Entity): EntitySnapshot = EntitySnapshot(
         entity.uuid.toString(), EntityType.getKey(entity.type).toString(),
         entity.level().dimension().identifier().toString(), entity.x, entity.y, entity.z,
         entity.yRot, entity.xRot, entity.name.string, (entity as? LivingEntity)?.health,

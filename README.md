@@ -77,6 +77,17 @@ from boxloom import blocks, set_block
 set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
 ```
 
+Use bone meal on a plant (hold bone meal in the main hand and aim at the plant):
+
+```python
+from boxloom import get_player
+
+player = get_player("Steve")
+if player is not None:
+    result = player.use()
+    print(result.used)
+```
+
 Fill an inclusive block region:
 
 ```python

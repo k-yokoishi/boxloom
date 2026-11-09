@@ -439,7 +439,7 @@ public class PlayerBlockActionsGameTest {
         });
     }
 
-    private static ServerPlayer player(GameTestHelper test, GameType mode) {
+    static ServerPlayer player(GameTestHelper test, GameType mode) {
         var level = test.getLevel();
         var cookie = CommonListenerCookie.createInitial(new GameProfile(UUID.randomUUID(), "boxloom_test"), false);
         // GameTestHelper's mock overrides gameMode() to CREATIVE, even after setGameMode().

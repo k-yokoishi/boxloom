@@ -20,6 +20,7 @@ import dev.boxloom.server.core.PlayerGameMode
 import dev.boxloom.server.core.PlayerPosition
 import dev.boxloom.server.core.TargetedBlock
 import dev.boxloom.server.core.PlayerAttackResult
+import dev.boxloom.server.core.PlayerUseResult
 import dev.boxloom.server.core.PlayerMiningResult
 import dev.boxloom.server.core.SayRequest
 import dev.boxloom.server.core.SayResult
@@ -118,6 +119,9 @@ internal class FabricMinecraftOperations(
 
     override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
         onServerThread { server -> PlayerBlockActions.attack(connectedPlayer(server, username)) }
+
+    override fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult> =
+        onServerThread { server -> PlayerUseActions.use(connectedPlayer(server, username)) }
 
     override fun startMining(username: String): CompletableFuture<PlayerMiningResult> =
         onServerThread { server -> PlayerMiningActions.start(connectedPlayer(server, username)) }

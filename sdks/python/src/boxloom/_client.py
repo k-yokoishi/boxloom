@@ -38,6 +38,7 @@ from .models import (
     ItemUseEvent,
     PlayerPosition,
     PlayerAttackResult,
+    PlayerUseResult,
     PlayerMiningResult,
     TargetedBlock,
     BlockFace,
@@ -141,6 +142,26 @@ class BoxloomClient:
         if target is not None and entity is not None:
             raise ProtocolError("an attack cannot target both a block and an entity")
         return PlayerAttackResult(swung, target, broken, entity)
+
+    def use_player_item(self, username: str) -> PlayerUseResult:
+        """Use the main hand once using native interaction and cooldown rules."""
+
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+        payload = self._post(f"/v1/players/{quote(username, safe='')}/use", {})
+        used, swung = payload.get("used"), payload.get("swung")
+        if not isinstance(used, bool) or not isinstance(swung, bool):
+            raise ProtocolError("response fields 'used' and 'swung' must be booleans")
+        target = _targeted_block(payload)
+        if "entity" not in payload:
+            raise ProtocolError("response field 'entity' is required")
+        entity_value = payload["entity"]
+        entity = None if entity_value is None else _entity_snapshot(entity_value)
+        if target is not None and entity is not None:
+            raise ProtocolError("a use cannot target both a block and an entity")
+        if swung and not used:
+            raise ProtocolError("an unused action cannot swing")
+        return PlayerUseResult(used, swung, target, entity)
 
     def start_player_mining(self, username: str) -> PlayerMiningResult:
         """Enable held mining, including when no block is currently targeted."""
