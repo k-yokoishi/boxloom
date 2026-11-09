@@ -67,7 +67,7 @@ print(result.item, result.count)
 ```
 
 Also available as `BoxloomClient.give_item(username, item, count=1)`. All forms
-return `GiveItemResult(username, uuid, item, count)` with a canonical namespaced
+return `GiveItemResult(username, uuid, item, count, slot, slots)` with a canonical namespaced
 item ID. Blocks with an item form use item IDs too; both `items.STONE` and
 `blocks.STONE` work, while world-only blocks such as water cannot be given. The `minecraft:` prefix may be
 omitted. Registered mod item IDs are accepted. Item components and NBT are not
@@ -80,6 +80,33 @@ at the player with immediate pickup reserved for them. Creative overflow follows
 vanilla `/give` and can be discarded. `count` reports the amount given, not the
 amount retained in inventory. Invalid IDs raise `INVALID_ITEM`; an item-specific
 limit violation raises `INVALID_COUNT`. Requests are not retried automatically.
+
+`slots` is a tuple of `GivenItemSlot(slot, count)` entries, ordered by inventory
+index. Each count is how many items this request added to that slot, not its
+resulting stack size. Indices are `0–8` for the hotbar, `9–35` for the main
+inventory, and `40` for the offhand. Dropped or discarded items have no slot.
+`slot` is the lowest hotbar index that received items, or `None` if none did.
+These are response-time snapshots; later player actions can move the items.
+
+Give, select, then use bone meal (aim at a growing plant in Minecraft first):
+
+```python
+result = player.give_item(items.BONE_MEAL, 16)
+if result.slot is not None:
+    player.select_slot(result.slot)
+    player.use()
+```
+
+`player.select_slot(slot)` selects one hotbar slot, numbered `0–8` from left to
+right (Minecraft keyboard keys `1–9`). Also available as
+`select_slot(username, slot)` and `BoxloomClient.select_slot(username, slot)`.
+It returns `SelectSlotResult(username, uuid, slot)` and synchronizes the selection
+to the player's client. Empty slots are allowed. Invalid indices, booleans and
+floats raise `ValueError` before requesting. Changing slots stops API mining and
+main-hand item use without firing a bow; selecting the current slot preserves
+ongoing actions. Main-inventory and offhand items must be moved into the hotbar
+in Minecraft before they can be selected. If no hotbar slot received items,
+`result.slot` is `None` even if `result.slots` contains other destinations.
 
 Use the main-hand item once on the aimed block or entity, or in the air:
 
@@ -138,7 +165,8 @@ five-tick delay. Looking away resets block progress; changing the target, block
 state, tool or slot starts fresh progress. Item use pauses mining. Protected or
 unbreakable blocks stay intact until the aim, block or tool changes. The mode
 only mines blocks and does not attack entities. It ends on `stop_mining()`,
-`attack()`, `use()`, `start_using_item()`, death, disconnect, world or game-mode changes, or a competing native
+`attack()`, `use()`, `start_using_item()`, a different slot selected with `select_slot()`,
+death, disconnect, world or game-mode changes, or a competing native
 mining action. Repeating start preserves progress. `active` means the hold is
 enabled, including while `target` is `None`. `broken` is true only for an immediate
 creative or instant break; `active` remains true. Read blocks to observe later

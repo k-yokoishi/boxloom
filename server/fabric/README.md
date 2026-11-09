@@ -12,6 +12,7 @@ The mod exposes Minecraft operations and a live player event stream:
 - Use the main hand on the aimed block or entity, or in the air (including bone meal)
 - Start and release continuous main-hand item use for food, drink, bows and shields
 - Give registered items or block items using vanilla `/give` stacking and overflow rules
+- Select a hotbar slot and synchronize the selection to the player's client
 - Start and stop continuous held mining with native speed, drops and durability
 - Teleport a connected player to absolute coordinates
 - Set a connected player's game mode to Creative or Survival
@@ -28,7 +29,11 @@ Arbitrary command execution is intentionally outside this PoC.
 
 `POST /v1/players/{username}/give` accepts `{ "item": "minecraft:stone", "count": 64 }`.
 `count` defaults to 1 and is limited to 100 stacks of the item. The response
-contains `username`, `uuid`, canonical `item`, and the requested `count`. Registered
+contains `username`, `uuid`, canonical `item`, and the requested `count`, plus
+`slots` entries with each destination's inventory index and added count. Indices
+are 0–8 for the hotbar, 9–35 for the main inventory, and 40 for the offhand.
+`slot` is the lowest hotbar index that received items, or null if none did.
+Dropped or discarded overflow has no slot. Registered
 mod items and blocks with an item form are supported; air, unknown IDs, and
 world-only blocks are rejected with `400 INVALID_ITEM`. Excessive counts return
 `400 INVALID_COUNT`. Matching stacks and free inventory slots are used automatically,
@@ -36,6 +41,14 @@ without replacing other items or selecting a hotbar slot. Survival overflow drop
 at the player; creative overflow follows vanilla and may be discarded. The response
 count does not promise that all items remain in inventory. Components and NBT are
 not accepted. No player OP permission is required.
+
+`POST /v1/players/{username}/select-slot` accepts `{ "slot": 2 }` and returns
+`username`, `uuid`, and the selected `slot`. Only integer indices 0–8 are accepted;
+other values return `400 INVALID_REQUEST`. Empty hotbar slots may be selected.
+The server sends `ClientboundSetHeldSlotPacket` to synchronize the client.
+Changing slots cancels API mining and main-hand item use without release effects;
+selecting the current slot preserves ongoing actions. It does not move items
+from the main inventory or offhand. No player OP permission is required.
 
 `GET /v1/players/{username}/targeted-block` returns `{ "target": null }` or a
 snapshot with dimension, block coordinates, block ID, face and eye-to-surface

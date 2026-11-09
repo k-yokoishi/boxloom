@@ -318,7 +318,8 @@ preserves progress.
 Target, block-state, held-stack or slot changes reset block progress. Item use
 pauses mining. Protected and unbreakable targets remain intact, waiting for the
 aim, block or tool to change. This mode only mines blocks and does not attack
-entities. It ends on `stop_mining`, `attack`, `use`, `start_using_item`, death, disconnect, world or game-mode
+entities. It ends on `stop_mining`, `attack`, `use`, `start_using_item`, a different
+slot selected through `select_slot`, death, disconnect, world or game-mode
 changes, or another native mining action. Read blocks to observe later breaks.
 The controlled player and observers receive swings and crack progress.
 
@@ -451,6 +452,11 @@ This operation is not idempotent; repeating a successful request gives more item
 | `uuid` | string (uuid) | The player's UUID. |
 | `item` | string | Canonical namespaced item ID. |
 | `count` | integer | Requested amount given, including overflow handled by vanilla rules. |
+| `slot` | integer or null | Lowest hotbar index that received items (`0–8`); null if none did. |
+| `slots` | array of objects | Each `{ "slot": integer, "count": integer }` reports the added count, not the resulting stack size. Ordered by inventory index: `0–8` hotbar, `9–35` main inventory, `40` offhand. |
+
+Dropped or discarded overflow has no slot. These are response-time snapshots;
+later player actions may move or consume the items.
 
 ```bash
 curl --fail-with-body \
@@ -466,7 +472,49 @@ curl --fail-with-body \
   "username": "Steve",
   "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
   "item": "minecraft:stone",
-  "count": 64
+  "count": 64,
+  "slot": 0,
+  "slots": [{ "slot": 0, "count": 64 }]
+}
+```
+
+</Operation>
+
+## `select_slot`
+
+<Operation id="select_slot">
+
+<ApiEndpoint method="POST" path="/v1/players/{username}/select-slot" />
+
+The `username` path parameter is a connected player name (3–16 letters, digits,
+or underscores). No query parameters or extra body fields are accepted.
+
+| Request field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `slot` | integer | yes | Hotbar index from `0` to `8`, left to right. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `username` | string | The player's name. |
+| `uuid` | string (uuid) | The player's UUID. |
+| `slot` | integer | The selected hotbar index, `0–8`. |
+
+```bash
+curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"slot":2}' \
+  "$BOXLOOM_BASE_URL/v1/players/Steve/select-slot"
+```
+
+```json
+{
+  "username": "Steve",
+  "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
+  "slot": 2
 }
 ```
 

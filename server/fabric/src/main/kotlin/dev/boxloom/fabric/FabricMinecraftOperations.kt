@@ -7,6 +7,8 @@ import dev.boxloom.server.core.GetEntitiesRequest
 import dev.boxloom.server.core.GameMode
 import dev.boxloom.server.core.GiveItemRequest
 import dev.boxloom.server.core.GiveItemResult
+import dev.boxloom.server.core.SelectSlotRequest
+import dev.boxloom.server.core.SelectSlotResult
 import dev.boxloom.server.core.FillRequest
 import dev.boxloom.server.core.FillResult
 import dev.boxloom.server.core.GetBlockRequest
@@ -134,6 +136,9 @@ internal class FabricMinecraftOperations(
 
     override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> =
         onServerThread { server -> PlayerInventoryActions.give(connectedPlayer(server, username), request) }
+
+    override fun selectPlayerSlot(username: String, request: SelectSlotRequest): CompletableFuture<SelectSlotResult> =
+        onServerThread { server -> PlayerInventoryActions.selectSlot(connectedPlayer(server, username), request) }
 
     override fun startMining(username: String): CompletableFuture<PlayerMiningResult> =
         onServerThread { server -> PlayerMiningActions.start(connectedPlayer(server, username)) }

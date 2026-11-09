@@ -8,6 +8,7 @@ import dev.boxloom.server.core.JsonSupport
 import dev.boxloom.server.core.PlayerOperations
 import dev.boxloom.server.core.PlayerPosition
 import dev.boxloom.server.core.SetPlayerGameModeRequest
+import dev.boxloom.server.core.SelectSlotRequest
 import dev.boxloom.server.core.TeleportPlayerRequest
 import dev.boxloom.server.core.TargetedBlock
 import dev.boxloom.server.core.http.HttpExchangeSupport
@@ -35,6 +36,7 @@ internal class PlayerRoutes(
         router.post("/players/{username}/item-use/start") { exchange, parameters -> itemUse(exchange, parameters, true) }
         router.post("/players/{username}/item-use/stop") { exchange, parameters -> itemUse(exchange, parameters, false) }
         router.post("/players/{username}/give", ::give)
+        router.post("/players/{username}/select-slot", ::selectSlot)
         router.post("/players/{username}/mining/start") { exchange, parameters -> mining(exchange, parameters, true) }
         router.post("/players/{username}/mining/stop") { exchange, parameters -> mining(exchange, parameters, false) }
         router.post("/players/{username}/teleport", ::teleport)
@@ -125,6 +127,32 @@ internal class PlayerRoutes(
             put("uuid", result.uuid)
             put("item", result.item)
             put("count", result.count)
+            put("slot", result.slot?.let { JsonPrimitive(it) } ?: JsonNull)
+            put("slots", buildJsonArray {
+                result.slots.forEach { entry ->
+                    add(buildJsonObject {
+                        put("slot", entry.slot)
+                        put("count", entry.count)
+                    })
+                }
+            })
+        }.toString())
+    }
+
+    private fun selectSlot(exchange: HttpExchange, parameters: RouteParameters) {
+        val username = requireUsername(parameters)
+        HttpExchangeSupport.requireOnlyQueryParameters(HttpExchangeSupport.queryParameters(exchange), emptySet())
+        HttpExchangeSupport.requireJsonContentType(exchange)
+        val body = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
+        JsonSupport.requireOnlyFields(body, setOf("slot"))
+        val slot = JsonSupport.requireInteger(body, "slot")
+        if (slot !in 0..8) throw JsonSupport.invalid("Field 'slot' must be between 0 and 8")
+
+        val result = operations.await(minecraft.selectPlayerSlot(username, SelectSlotRequest(slot)))
+        HttpExchangeSupport.sendJson(exchange, 200, buildJsonObject {
+            put("username", result.username)
+            put("uuid", result.uuid)
+            put("slot", result.slot)
         }.toString())
     }
 

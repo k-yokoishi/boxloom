@@ -559,7 +559,8 @@ paths:
         Target, block-state, tool or selected-slot changes reset block progress;
         item use pauses mining. Protected and unbreakable targets remain intact and
         wait until the aim, block or tool changes. The mode ends on stop_mining,
-        attack, API item-use start, death, disconnect, world or game-mode changes, or a competing native
+        attack, API item-use start, a different slot selected through select-slot,
+        death, disconnect, world or game-mode changes, or a competing native
         mining action. The response is a snapshot; broken is true only for an
         immediate creative or instant break and does not turn active off. Later
         breaks are visible through block reads. The player and observers receive
@@ -825,6 +826,74 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/players/{username}/select-slot:
+    post:
+      operationId: selectSlot
+      summary: Select a connected player's hotbar slot
+      description: >-
+        Selects a hotbar slot on the server thread and sends the selection to
+        the player's client. Slots are numbered 0-8, left to right (keyboard
+        keys 1-9). Does not move items from the main inventory or offhand.
+        Empty slots may be selected. Changing slots cancels API mining and
+        main-hand item use without release effects (a bow does not fire).
+        Selecting the current slot preserves ongoing actions. No query parameters.
+        Player operator permissions are not required.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_]{3,16}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectSlotRequest'
+      responses:
+        '200':
+          description: The player and selected hotbar slot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelectSlotResult'
+        '400':
+          description: INVALID_REQUEST for malformed fields or a slot outside 0-8
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The player is not connected (PLAYER_NOT_CONNECTED), or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: The Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/players/{username}/give:
     post:
       operationId: giveItem
@@ -837,7 +906,12 @@ paths:
         100 stacks per request match vanilla /give. Survival overflow drops at
         the player with immediate pickup reserved for that player; creative
         overflow follows vanilla and may be discarded. Count reports the amount
-        given, not the amount retained in inventory. Accepts registered item IDs
+        given, not the amount retained in inventory. Slots reports each destination
+        and its added count, ordered by inventory index (0-8 hotbar, 9-35 main
+        inventory, 40 offhand). Slot is the lowest hotbar index that received
+        items, or null if none did. Dropped or discarded items have no slot.
+        These are response-time snapshots; later player actions may move items.
+        Accepts registered item IDs
         only, without command selectors, components, or NBT. No query parameters.
         Player operator permissions are not required. Requests are not idempotent.
       parameters:
@@ -855,7 +929,7 @@ paths:
               $ref: '#/components/schemas/GiveItemRequest'
       responses:
         '200':
-          description: The player, canonical item ID, and requested count
+          description: The player, canonical item ID, requested count, and inventory destinations
           content:
             application/json:
               schema:
@@ -1724,10 +1798,49 @@ components:
           maximum: 2147483647
           default: 1
           description: At most 100 times this item's maximum stack size, validated by the server.
+    GivenItemSlot:
+      type: object
+      additionalProperties: false
+      required: [slot, count]
+      properties:
+        slot:
+          type: integer
+          oneOf:
+            - minimum: 0
+              maximum: 35
+            - const: 40
+          description: Inventory index; 0-8 hotbar, 9-35 main inventory, 40 offhand.
+        count:
+          type: integer
+          minimum: 1
+          description: Number of items added to this slot by this request, not its resulting stack size.
+    SelectSlotRequest:
+      type: object
+      additionalProperties: false
+      required: [slot]
+      properties:
+        slot:
+          type: integer
+          minimum: 0
+          maximum: 8
+    SelectSlotResult:
+      type: object
+      additionalProperties: false
+      required: [username, uuid, slot]
+      properties:
+        username:
+          type: string
+        uuid:
+          type: string
+          format: uuid
+        slot:
+          type: integer
+          minimum: 0
+          maximum: 8
     GiveItemResult:
       type: object
       additionalProperties: false
-      required: [username, uuid, item, count]
+      required: [username, uuid, item, count, slot, slots]
       properties:
         username:
           type: string
@@ -1741,6 +1854,16 @@ components:
           type: integer
           minimum: 1
           description: Amount given; overflow follows vanilla rules and may not remain in inventory.
+        slot:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 8
+          description: Lowest hotbar index that received items, or null if no hotbar slot received any.
+        slots:
+          type: array
+          description: Destinations ordered by slot index; excludes dropped or discarded overflow. Counts sum to at most count.
+          items:
+            $ref: '#/components/schemas/GivenItemSlot'
     GameMode:
       type: string
       enum: [creative, survival]
