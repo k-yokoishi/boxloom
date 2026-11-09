@@ -242,7 +242,7 @@ class ClientTest(unittest.TestCase):
         boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
         _ApiHandler.response_body = {"target": self._target()}
         target = player.get_targeted_block()
-        self.assertEqual(boxloom.TargetedBlock(**self._target()), target)
+        self.assertEqual(boxloom.TargetedBlock("minecraft:overworld", boxloom.BlockPos(-1, 64, 3), "minecraft:stone", "north", 2.5), target)
         self.assertIsInstance(target, boxloom.Block)
         self.assertEqual("/v1/players/Steve/targeted-block", _ApiHandler.requests[-1][0])
         self.assertEqual("Bearer origin-secret", _ApiHandler.requests[-1][1]["Authorization"])
@@ -285,7 +285,7 @@ class ClientTest(unittest.TestCase):
         client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="origin-secret")
         player = self._player(client)
         boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
-        target = boxloom.TargetedBlock(**self._target())
+        target = boxloom.TargetedBlock("minecraft:overworld", boxloom.BlockPos(-1, 64, 3), "minecraft:stone", "north", 2.5)
         for used, swung, snapshot in ((True, True, self._target()), (False, False, None)):
             _ApiHandler.response_body = {"used": used, "swung": swung, "target": snapshot, "entity": None}
             result = player.use()
@@ -303,7 +303,10 @@ class ClientTest(unittest.TestCase):
             "yaw": 0, "pitch": 0, "name": "Cow", "health": 10,
         }
         _ApiHandler.response_body = {"used": True, "swung": False, "target": None, "entity": entity}
-        self.assertEqual(boxloom.Entity(**entity), player.use().entity)
+        self.assertEqual(boxloom.Entity(
+            entity["uuid"], "minecraft:cow", "minecraft:overworld",
+            boxloom.Vec3(1, 64, 3), 0, 0, "Cow", 10,
+        ), player.use().entity)
         _ApiHandler.response_body["target"] = self._target()
         with self.assertRaises(boxloom.ProtocolError):
             player.use()
@@ -415,7 +418,10 @@ class ClientTest(unittest.TestCase):
             "yaw": 0, "pitch": 0, "name": "Zombie", "health": 19,
         }
         _ApiHandler.response_body = {"swung": True, "target": None, "broken": False, "entity": entity}
-        self.assertEqual(boxloom.Entity(**entity), player.attack().entity)
+        self.assertEqual(boxloom.Entity(
+            entity["uuid"], "minecraft:zombie", "minecraft:overworld",
+            boxloom.Vec3(1, 64, 3), 0, 0, "Zombie", 19,
+        ), player.attack().entity)
         _ApiHandler.response_body["target"] = self._target()
         with self.assertRaises(boxloom.ProtocolError):
             player.attack()
@@ -429,7 +435,7 @@ class ClientTest(unittest.TestCase):
         player = self._player(client)
         boxloom.init(base_url="http://127.0.0.1:1")
         _ApiHandler.response_body = {"active": True, "target": self._target(), "broken": False}
-        self.assertEqual(boxloom.PlayerMiningResult(True, boxloom.TargetedBlock(**self._target()), False), player.start_mining())
+        self.assertEqual(boxloom.PlayerMiningResult(True, boxloom.TargetedBlock("minecraft:overworld", boxloom.BlockPos(-1, 64, 3), "minecraft:stone", "north", 2.5), False), player.start_mining())
         self.assertEqual("/v1/players/Steve/mining/start", _ApiHandler.requests[-1][0])
         self.assertEqual("Bearer mining-secret", _ApiHandler.requests[-1][1]["Authorization"])
         self.assertEqual({}, _ApiHandler.requests[-1][2])
@@ -530,11 +536,48 @@ class ClientTest(unittest.TestCase):
 
         self.assertEqual("Player_123", result.username)
         self.assertEqual("minecraft:the_nether", result.dimension)
-        self.assertEqual((-1, 64, -4), result.block_coordinates())
+        self.assertEqual(boxloom.BlockPos(-1, 64, -4), result.position.to_block_pos())
         path, headers, body = _ApiHandler.requests[0]
         self.assertEqual("/v1/players/Player_123/position", path)
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
         self.assertIsNone(body)
+
+    def test_coordinate_types_are_checked_before_network_io(self):
+        vector = boxloom.Vec3(0, 64, 0)
+        block = boxloom.BlockPos(0, 64, 0)
+        for api in (boxloom, boxloom.BoxloomClient(base_url=self.base_url)):
+            for operation in (
+                lambda: api.get_block(vector),
+                lambda: api.set_block(vector, "minecraft:stone"),
+                lambda: api.fill(vector, block, "minecraft:stone"),
+                lambda: api.fill(block, vector, "minecraft:stone"),
+                lambda: api.teleport_player("Steve", block),
+                lambda: api.summon("minecraft:pig", block),
+                lambda: api.get_entities(center=block),
+                lambda: api.kill_entities("minecraft:pig", center=block, radius=10),
+                lambda: api.get_block((0, 64, 0)),
+                lambda: api.summon("minecraft:pig", {"x": 0, "y": 64, "z": 0}),
+            ):
+                with self.subTest(api=api, operation=operation), self.assertRaises(TypeError):
+                    operation()
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_coordinate_decoding_reports_protocol_errors(self):
+        player = {
+            "username": "Steve", "uuid": "test-uuid", "dimension": "minecraft:overworld",
+            "x": 0, "y": 64, "z": 0, "yaw": 0, "pitch": 0,
+        }
+        block = {"dimension": "minecraft:overworld", "x": 0, "y": 64, "z": 0,
+                 "block": "minecraft:stone"}
+        for axis in ("x", "y", "z"):
+            for value in (True, None, "1", float("nan"), float("inf"), 10**1000):
+                _ApiHandler.response_body = {**player, axis: value}
+                with self.subTest(axis=axis, value=value), self.assertRaises(boxloom.ProtocolError):
+                    boxloom.get_player_position("Steve")
+            for value in (True, None, "1", 1.5, 2**31, -(2**31) - 1):
+                _ApiHandler.response_body = {**block, axis: value}
+                with self.subTest(axis=axis, value=value), self.assertRaises(boxloom.ProtocolError):
+                    boxloom.get_block(boxloom.BlockPos(0, 64, 0))
 
     def test_get_players_reads_authenticated_player_list(self):
         _ApiHandler.response_body = {
@@ -583,18 +626,23 @@ class ClientTest(unittest.TestCase):
         _ApiHandler.response_body = {"entities": [item, zombie]}
 
         result = boxloom.get_entities(
-            "minecraft:zombie", x=1.5, y=64, z=-2.25, radius=20,
+            "minecraft:zombie", center=boxloom.Vec3(1.5, 64, -2.25), radius=20,
             dimension="minecraft:the_nether", sort="nearest", limit=2,
         )
 
-        self.assertEqual([boxloom.Entity(**item), boxloom.Entity(**zombie)], result)
+        self.assertEqual([
+            boxloom.Entity(item["uuid"], "minecraft:item", "minecraft:the_nether",
+                           boxloom.Vec3(1.5, 64, -2.25), 90, -12.5, "Diamond", None),
+            boxloom.Entity(zombie["uuid"], "minecraft:zombie", "minecraft:the_nether",
+                           boxloom.Vec3(1.5, 64, -2.25), 90, -12.5, "Zombie", 20),
+        ], result)
         self.assertIsNone(result[0].health)
         self.assertEqual(20.0, result[1].health)
         path, headers, body = _ApiHandler.requests[0]
         self.assertEqual("/v1/world/entities", urlsplit(path).path)
         self.assertEqual({
             "dimension": ["minecraft:the_nether"], "entity": ["minecraft:zombie"],
-            "x": ["1.5"], "y": ["64"], "z": ["-2.25"], "radius": ["20"],
+            "x": ["1.5"], "y": ["64.0"], "z": ["-2.25"], "radius": ["20"],
             "sort": ["nearest"], "limit": ["2"],
         }, parse_qs(urlsplit(path).query))
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
@@ -606,7 +654,7 @@ class ClientTest(unittest.TestCase):
         self.assertEqual({"dimension": ["minecraft:overworld"], "sort": ["arbitrary"]},
                          parse_qs(urlsplit(_ApiHandler.requests[0][0]).query))
         client = boxloom.BoxloomClient(base_url=self.base_url)
-        self.assertEqual([], client.get_entities(x=0, y=64, z=0, sort="furthest", limit=1))
+        self.assertEqual([], client.get_entities(center=boxloom.Vec3(0, 64, 0), sort="furthest", limit=1))
         query = parse_qs(urlsplit(_ApiHandler.requests[1][0]).query)
         self.assertNotIn("radius", query)
         self.assertEqual(["furthest"], query["sort"])
@@ -614,14 +662,13 @@ class ClientTest(unittest.TestCase):
     def test_get_entities_rejects_invalid_arguments_before_network_io(self):
         invalid = [
             {"entity": ""}, {"entity": True}, {"dimension": ""}, {"dimension": None},
-            {"x": 0}, {"x": 0, "y": 64}, {"radius": 20},
+            {"center": boxloom.BlockPos(0, 64, 0)}, {"center": (0, 64, 0)}, {"radius": 20},
             {"sort": "nearest"}, {"sort": "furthest"}, {"sort": "random"}, {"sort": []},
             {"limit": 0}, {"limit": -1}, {"limit": True}, {"limit": 1.5}, {"limit": 2**31},
         ]
-        for field in ("x", "y", "z", "radius"):
-            for value in (True, "1", float("nan"), float("inf"), -float("inf"), 10**1000):
-                invalid.append({**dict(x=0, y=64, z=0, radius=20), field: value})
-        invalid.append(dict(x=0, y=64, z=0, radius=-1))
+        for value in (True, "1", float("nan"), float("inf"), -float("inf"), 10**1000, -1):
+            invalid.append({"center": boxloom.Vec3(0, 64, 0), "radius": value})
+        invalid.extend({"center": value} for value in (True, "1", [], {}))
         for kwargs in invalid:
             with self.subTest(kwargs=kwargs):
                 with self.assertRaises((TypeError, ValueError)):
@@ -726,7 +773,7 @@ class ClientTest(unittest.TestCase):
             "pitch": 10,
         }
 
-        result = boxloom.teleport_player("Player_123", 100, 64, -20)
+        result = boxloom.teleport_player("Player_123", boxloom.Vec3(100, 64, -20))
 
         self.assertEqual("minecraft:the_nether", result.dimension)
         path, headers, body = _ApiHandler.requests[0]
@@ -752,15 +799,13 @@ class ClientTest(unittest.TestCase):
 
         result = client.teleport_player(
             "Player_123",
-            1.5,
-            72,
-            -2.25,
+            boxloom.Vec3(1.5, 72, -2.25),
             dimension="minecraft:the_end",
             yaw=90,
             pitch=-12.5,
         )
 
-        self.assertEqual((1, 72, -3), result.block_coordinates())
+        self.assertEqual(boxloom.BlockPos(1, 72, -3), result.position.to_block_pos())
         self.assertEqual(
             {
                 "x": 1.5,
@@ -776,7 +821,7 @@ class ClientTest(unittest.TestCase):
     def test_teleport_rejects_invalid_coordinates_before_request(self):
         client = boxloom.BoxloomClient(base_url=self.base_url)
         with self.assertRaises(ValueError):
-            client.teleport_player("Player_123", float("inf"), 64, 0)
+            client.teleport_player("Player_123", boxloom.Vec3(float("inf"), 64, 0))
 
         self.assertEqual([], _ApiHandler.requests)
 
@@ -909,10 +954,10 @@ class ClientTest(unittest.TestCase):
                 self.assertEqual("Player_123", event.player.username)
                 self.assertEqual("off_hand", event.hand)
                 self.assertIsNone(event.item)
-                self.assertEqual((1.5, 64.0, -2.25), (event.x, event.y, event.z))
+                self.assertEqual(boxloom.Vec3(1.5, 64.0, -2.25), event.position)
                 if kind.startswith("block."):
                     self.assertEqual("minecraft:stone", event.block)
-                    self.assertEqual((-2, 63, 4), (event.block_x, event.block_y, event.block_z))
+                    self.assertEqual(boxloom.BlockPos(-2, 63, 4), event.block_position)
                     self.assertEqual("up", event.face)
 
         _ApiHandler.stream_responses = [(200, "text/event-stream", b"".join(
@@ -991,9 +1036,7 @@ class ClientTest(unittest.TestCase):
                     "Player_123", "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
                 ),
                 dimension="minecraft:the_nether",
-                x=1.5,
-                y=64.0,
-                z=-2.25,
+                position=boxloom.Vec3(1.5, 64.0, -2.25),
             ),
             event,
         )
@@ -1264,22 +1307,22 @@ class ClientTest(unittest.TestCase):
         snapshot = {"dimension": "minecraft:overworld", "x": 1, "y": 64, "z": 2,
                     "block": "minecraft:wheat", "properties": {"age": "3"}}
         _ApiHandler.response_body = {**snapshot, "changed": True}
-        result = boxloom.set_block(1, 64, 2, boxloom.blocks.WHEAT, properties={"age": "3"})
+        result = boxloom.set_block(boxloom.BlockPos(1, 64, 2), boxloom.blocks.WHEAT, properties={"age": "3"})
         self.assertEqual({"age": "3"}, result.properties)
         self.assertEqual({"age": "3"}, _ApiHandler.requests[-1][2]["properties"])
         _ApiHandler.response_body = snapshot
-        result = boxloom.get_block(1, 64, 2)
+        result = boxloom.get_block(boxloom.BlockPos(1, 64, 2))
         self.assertEqual(3, int(result.properties["age"]))
         _ApiHandler.response_body = {**snapshot, "properties": {}}
-        self.assertEqual({}, boxloom.get_block(1, 64, 2).properties)
+        self.assertEqual({}, boxloom.get_block(boxloom.BlockPos(1, 64, 2)).properties)
 
     def test_block_properties_mappings_are_immutable_snapshots(self):
         from types import MappingProxyType
         properties = {"age": "3"}
-        block = boxloom.Block("minecraft:overworld", 1, 64, 2, "minecraft:wheat", properties)
-        target = boxloom.TargetedBlock("minecraft:overworld", 1, 64, 2, "minecraft:wheat", "up", 2.0,
+        block = boxloom.Block("minecraft:overworld", boxloom.BlockPos(1, 64, 2), "minecraft:wheat", properties)
+        target = boxloom.TargetedBlock("minecraft:overworld", boxloom.BlockPos(1, 64, 2), "minecraft:wheat", "up", 2.0,
                                       properties=properties)
-        result = boxloom.SetBlockResult(True, "minecraft:overworld", 1, 64, 2, "minecraft:wheat", properties)
+        result = boxloom.SetBlockResult(True, "minecraft:overworld", boxloom.BlockPos(1, 64, 2), "minecraft:wheat", properties)
         properties["age"] = "7"
         for value in (block, target, result):
             self.assertEqual({"age": "3"}, value.properties)
@@ -1290,7 +1333,7 @@ class ClientTest(unittest.TestCase):
         _ApiHandler.response_body = {"changed": False, "dimension": "minecraft:overworld",
                                      "x": 1, "y": 64, "z": 2, "block": "minecraft:wheat", "properties": {"age": "3"}}
         boxloom.BoxloomClient(base_url=self.base_url).set_block(
-            1, 64, 2, "minecraft:wheat", properties=MappingProxyType({"age": "3"}))
+            boxloom.BlockPos(1, 64, 2), "minecraft:wheat", properties=MappingProxyType({"age": "3"}))
         self.assertEqual({"age": "3"}, _ApiHandler.requests[-1][2]["properties"])
 
     def test_set_block_rejects_malformed_properties_before_network_io(self):
@@ -1298,7 +1341,7 @@ class ClientTest(unittest.TestCase):
                            {1: "3"}, {"age": None}, {"age": []}, {"": "3"}, {"age": ""}):
             with self.subTest(properties=properties):
                 with self.assertRaises((TypeError, ValueError)):
-                    boxloom.set_block(1, 64, 2, "minecraft:wheat", properties=properties)
+                    boxloom.set_block(boxloom.BlockPos(1, 64, 2), "minecraft:wheat", properties=properties)
         self.assertEqual([], _ApiHandler.requests)
 
     def test_block_property_responses_reject_non_string_values(self):
@@ -1309,9 +1352,9 @@ class ClientTest(unittest.TestCase):
             with self.subTest(properties=properties):
                 _ApiHandler.response_body = {**snapshot, "properties": properties, "changed": True}
                 with self.assertRaises(boxloom.ProtocolError):
-                    boxloom.get_block(1, 64, 2)
+                    boxloom.get_block(boxloom.BlockPos(1, 64, 2))
                 with self.assertRaises(boxloom.ProtocolError):
-                    boxloom.set_block(1, 64, 2, "minecraft:wheat")
+                    boxloom.set_block(boxloom.BlockPos(1, 64, 2), "minecraft:wheat")
                 _ApiHandler.response_body = {"target": {**target, "properties": properties}}
                 with self.assertRaises(boxloom.ProtocolError):
                     player.get_targeted_block()
@@ -1325,7 +1368,7 @@ class ClientTest(unittest.TestCase):
         _ApiHandler.response_status = 400
         _ApiHandler.response_body = {"error": {"code": "INVALID_BLOCK_PROPERTY", "message": "Invalid age"}}
         with self.assertRaises(boxloom.ApiError) as raised:
-            boxloom.set_block(1, 64, 2, "minecraft:wheat", properties={"age": "8"})
+            boxloom.set_block(boxloom.BlockPos(1, 64, 2), "minecraft:wheat", properties={"age": "8"})
         self.assertEqual((400, "INVALID_BLOCK_PROPERTY"), (raised.exception.status, raised.exception.code))
         self.assertEqual(1, len(_ApiHandler.requests))
 
@@ -1339,7 +1382,7 @@ class ClientTest(unittest.TestCase):
             "block": "minecraft:gold_block",
         }
 
-        result = boxloom.set_block(1, 80, -2, boxloom.blocks.GOLD_BLOCK)
+        result = boxloom.set_block(boxloom.BlockPos(1, 80, -2), boxloom.blocks.GOLD_BLOCK)
 
         self.assertTrue(result.changed)
         self.assertEqual("minecraft:gold_block", result.block)
@@ -1364,16 +1407,14 @@ class ClientTest(unittest.TestCase):
         }
 
         result = boxloom.get_block(
-            1, 64, -2, dimension="minecraft:the_nether"
+            boxloom.BlockPos(1, 64, -2), dimension="minecraft:the_nether"
         )
         self.assertIs(type(result), boxloom.Block)
 
         self.assertEqual(
             boxloom.GetBlockResult(
                 "minecraft:the_nether",
-                1,
-                64,
-                -2,
+                boxloom.BlockPos(1, 64, -2),
                 "minecraft:stone",
             ),
             result,
@@ -1395,11 +1436,11 @@ class ClientTest(unittest.TestCase):
             "block": "minecraft:air",
         }
 
-        result = boxloom.BoxloomClient(base_url=self.base_url).get_block(0, 64, 0)
+        result = boxloom.BoxloomClient(base_url=self.base_url).get_block(boxloom.BlockPos(0, 64, 0))
 
         self.assertEqual("minecraft:air", result.block)
         self.assertEqual("minecraft:overworld", result.dimension)
-        self.assertEqual((0, 64, 0), (result.x, result.y, result.z))
+        self.assertEqual(boxloom.BlockPos(0, 64, 0), result.position)
         self.assertEqual(
             "/v1/world/blocks?dimension=minecraft%3Aoverworld&x=0&y=64&z=0",
             _ApiHandler.requests[0][0],
@@ -1407,9 +1448,9 @@ class ClientTest(unittest.TestCase):
 
     def test_get_block_rejects_invalid_coordinates_before_request(self):
         with self.assertRaises(TypeError):
-            boxloom.get_block(1.5, 64, 0)
+            boxloom.get_block(boxloom.BlockPos(1.5, 64, 0))
         with self.assertRaises(ValueError):
-            boxloom.get_block(2**31, 64, 0)
+            boxloom.get_block(boxloom.BlockPos(2**31, 64, 0))
 
         self.assertEqual([], _ApiHandler.requests)
 
@@ -1427,12 +1468,7 @@ class ClientTest(unittest.TestCase):
         }
 
         result = boxloom.fill(
-            2,
-            65,
-            -1,
-            1,
-            64,
-            -2,
+            boxloom.BlockPos(2, 65, -1), boxloom.BlockPos(1, 64, -2),
             "minecraft:stone",
             dimension="minecraft:the_nether",
         )
@@ -1441,12 +1477,7 @@ class ClientTest(unittest.TestCase):
             boxloom.FillResult(
                 8,
                 "minecraft:the_nether",
-                2,
-                65,
-                -1,
-                1,
-                64,
-                -2,
+                boxloom.BlockPos(2, 65, -1), boxloom.BlockPos(1, 64, -2),
                 "minecraft:stone",
             ),
             result,
@@ -1480,7 +1511,7 @@ class ClientTest(unittest.TestCase):
         }
 
         boxloom.BoxloomClient(base_url=self.base_url).fill(
-            0, 64, 0, 0, 64, 0, boxloom.blocks.GOLD_BLOCK
+            boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(0, 64, 0), boxloom.blocks.GOLD_BLOCK
         )
 
         self.assertEqual(
@@ -1490,9 +1521,9 @@ class ClientTest(unittest.TestCase):
 
     def test_fill_rejects_invalid_or_oversized_regions_before_request(self):
         with self.assertRaises(TypeError):
-            boxloom.fill(0, 0, 0, 1.5, 1, 1, "minecraft:stone")
+            boxloom.fill(boxloom.BlockPos(0, 0, 0), boxloom.BlockPos(1.5, 1, 1), "minecraft:stone")
         with self.assertRaises(ValueError):
-            boxloom.fill(0, 0, 0, 32, 32, 30, "minecraft:stone")
+            boxloom.fill(boxloom.BlockPos(0, 0, 0), boxloom.BlockPos(32, 32, 30), "minecraft:stone")
 
         self.assertEqual([], _ApiHandler.requests)
 
@@ -1512,16 +1543,14 @@ class ClientTest(unittest.TestCase):
             "Tags": ["boxloom", "example"],
         }
 
-        result = boxloom.summon(boxloom.entities.ARROW, 1.5, 72, -2.25, nbt=nbt)
+        result = boxloom.summon(boxloom.entities.ARROW, boxloom.Vec3(1.5, 72, -2.25), nbt=nbt)
 
         self.assertEqual(
             boxloom.SummonResult(
                 "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
                 "minecraft:arrow",
                 "minecraft:overworld",
-                1.5,
-                72.0,
-                -2.25,
+                boxloom.Vec3(1.5, 72.0, -2.25),
             ),
             result,
         )
@@ -1549,7 +1578,7 @@ class ClientTest(unittest.TestCase):
         }
 
         boxloom.summon(
-            "minecraft:pig", 0, 64, 0, dimension="minecraft:the_nether"
+            "minecraft:pig", boxloom.Vec3(0, 64, 0), dimension="minecraft:the_nether"
         )
 
         self.assertNotIn("nbt", _ApiHandler.requests[0][2])
@@ -1566,13 +1595,13 @@ class ClientTest(unittest.TestCase):
         for nbt in invalid_values:
             with self.subTest(nbt=nbt):
                 with self.assertRaises((TypeError, ValueError)):
-                    boxloom.summon("minecraft:pig", 0, 64, 0, nbt=nbt)
+                    boxloom.summon("minecraft:pig", boxloom.Vec3(0, 64, 0), nbt=nbt)
 
         self.assertEqual([], _ApiHandler.requests)
 
     def test_summon_rejects_non_finite_coordinates(self):
         with self.assertRaises(ValueError):
-            boxloom.summon("minecraft:pig", float("inf"), 64, 0)
+            boxloom.summon("minecraft:pig", boxloom.Vec3(float("inf"), 64, 0))
 
         self.assertEqual([], _ApiHandler.requests)
 
@@ -1592,7 +1621,7 @@ class ClientTest(unittest.TestCase):
         _ApiHandler.response_body = {"dimension": "minecraft:the_end", "killedEntities": 3}
 
         result = boxloom.kill_entities(
-            "minecraft:zombie", x=1.5, y=64, z=-2.25, radius=20,
+            "minecraft:zombie", center=boxloom.Vec3(1.5, 64, -2.25), radius=20,
             dimension="minecraft:the_end",
         )
 
@@ -1619,7 +1648,7 @@ class ClientTest(unittest.TestCase):
     def test_kill_entities_accepts_zero_radius(self):
         _ApiHandler.response_body = {"dimension": "minecraft:overworld", "killedEntities": 1}
 
-        boxloom.kill_entities("minecraft:zombie", x=0, y=64, z=0, radius=0)
+        boxloom.kill_entities("minecraft:zombie", center=boxloom.Vec3(0, 64, 0), radius=0)
 
         self.assertEqual(0, _ApiHandler.requests[0][2]["radius"])
 
@@ -1628,13 +1657,14 @@ class ClientTest(unittest.TestCase):
             with self.subTest(uuid=uuid), self.assertRaises(ValueError):
                 boxloom.kill_entity(uuid)
         for kwargs in (
-            {"x": 0}, {"radius": 20}, {"x": 0, "y": 64, "z": 0},
-            {"x": 0, "y": 64, "z": 0, "radius": -1},
-            {"x": True, "y": 64, "z": 0, "radius": 20},
-            {"x": "0", "y": 64, "z": 0, "radius": 20},
-            {"x": float("inf"), "y": 64, "z": 0, "radius": 20},
-            {"x": 0, "y": 64, "z": 0, "radius": float("nan")},
-            {"x": 10**400, "y": 64, "z": 0, "radius": 20},
+            {"center": boxloom.Vec3(0, 64, 0)}, {"radius": 20},
+            {"center": boxloom.Vec3(0, 64, 0), "radius": -1},
+            {"center": boxloom.BlockPos(0, 64, 0), "radius": 20},
+            {"center": (0, 64, 0), "radius": 20},
+            {"center": True, "radius": 20},
+            {"center": boxloom.Vec3(0, 64, 0), "radius": float("nan")},
+            {"center": boxloom.Vec3(0, 64, 0), "radius": 10**1000},
+            {"center": boxloom.Vec3(0, 64, 0), "radius": True},
             {"dimension": ""},
         ):
             with self.subTest(kwargs=kwargs), self.assertRaises((TypeError, ValueError)):

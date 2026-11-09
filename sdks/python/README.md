@@ -32,7 +32,7 @@ if player is None:
     raise RuntimeError("Steve is not connected")
 target = player.get_targeted_block()
 if target is not None:
-    print(target.block, target.x, target.y, target.z, target.face, target.distance)
+    print(target.block, target.position.x, target.position.y, target.position.z, target.face, target.distance)
 result = player.attack()
 print(result.swung, result.broken, result.entity)
 ```
@@ -175,29 +175,67 @@ player receives crack progress as well as observers. Client methods are
 `start_player_mining(username)` and `stop_player_mining(username)`;
 `PlayerMiningResult` is returned by both.
 
-`get_block()` returns an immutable `Block` snapshot with `dimension`, `x`, `y`,
-`z`, and the namespaced ID in `block`. `TargetedBlock` inherits from `Block` and
+`get_block()` returns an immutable `Block` snapshot with `dimension`,
+`position` (`BlockPos`), and the namespaced ID in `block`. `TargetedBlock` inherits from `Block` and
 adds `face` and `distance`, so code can accept `Block` from either API.
-`GetBlockResult` remains an alias for `Block` for compatibility; existing
-constructor arguments and response formats are preserved.
+`GetBlockResult` remains an alias for `Block`; its constructor also takes a
+`BlockPos` position.
+
+### Coordinates
+
+Use `Vec3(x, y, z)` for player/entity positions, directions, and offsets, and
+`BlockPos(x, y, z)` for block positions. Both are immutable values with named
+components, equality, hashing, addition, subtraction, negation, and scalar
+multiplication (`offset * distance` or `distance * offset`). `Vec3` stores finite
+floats; `BlockPos` requires signed 32-bit integers and only integer multipliers.
+Booleans are rejected. Arithmetic that produces invalid components raises
+`ValueError`.
+
+```python
+from boxloom import BlockPos, Vec3, blocks, get_player_position, set_block, teleport_player
+
+state = get_player_position("Steve")
+teleport_player("Steve", state.position + Vec3(0, 10, 0))
+
+origin = state.position.to_block_pos()
+set_block(origin + BlockPos(1, -1, 0), blocks.DIAMOND_BLOCK, dimension=state.dimension)
+```
+
+`Vec3.to_block_pos()` floors each component: `Vec3(-0.2, 64.8, 3.9)` becomes
+`BlockPos(-1, 64, 3)`. `BlockPos.to_vec3()` returns the block's minimum corner;
+add `Vec3(0.5, 0.5, 0.5)` for its center. Conversions are explicit: block APIs
+reject `Vec3`, and teleport/summon/query APIs reject `BlockPos`. Convert before
+mixing the two types in arithmetic. Neither type carries a dimension.
+
+This is a breaking change from the separate-coordinate API:
+
+- `get_block`, `set_block`, and `fill` take `BlockPos` values; `fill` takes `start` and `end`.
+- `teleport_player` and `summon` take a `Vec3` position.
+- `get_entities` and `kill_entities` take `center=Vec3(...)` instead of `x`, `y`, and `z`.
+- Player/entity snapshots and events expose `.position: Vec3`; block snapshots and set results expose `.position: BlockPos`.
+- Block events expose `.block_position: BlockPos`; fill results expose `.start` and `.end`.
+- Replace `state.block_coordinates()` with `state.position.to_block_pos()`.
+
+The same signatures apply to `BoxloomClient`. The REST API still uses its existing
+flat coordinate fields; the SDK performs serialization and decoding.
 
 Place a block:
 
 ```python
-from boxloom import blocks, set_block
+from boxloom import BlockPos, blocks, set_block
 
-set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
+set_block(BlockPos(0, 100, 0), blocks.DIAMOND_BLOCK)
 ```
 
 Read and write block-state properties using string keys and values:
 
 ```python
-from boxloom import blocks, get_block, set_block
+from boxloom import BlockPos, blocks, get_block, set_block
 
-set_block(0, 99, 0, blocks.FARMLAND, properties={"moisture": "7"})
-result = set_block(0, 100, 0, blocks.WHEAT, properties={"age": "3"})
+set_block(BlockPos(0, 99, 0), blocks.FARMLAND, properties={"moisture": "7"})
+result = set_block(BlockPos(0, 100, 0), blocks.WHEAT, properties={"age": "3"})
 print(result.changed, result.properties)
-print(get_block(0, 100, 0).properties["age"])  # "3"
+print(get_block(BlockPos(0, 100, 0)).properties["age"])  # "3"
 ```
 
 Properties start from the block defaults; omitted properties reset to defaults.
@@ -210,9 +248,9 @@ returns `changed=True`.
 Fill an inclusive block region (up to 32,768 blocks per call):
 
 ```python
-from boxloom import blocks, fill
+from boxloom import BlockPos, blocks, fill
 
-result = fill(0, 100, 0, 4, 100, 4, blocks.GOLD_BLOCK)
+result = fill(BlockPos(0, 100, 0), BlockPos(4, 100, 4), blocks.GOLD_BLOCK)
 print(result.changed_blocks)
 ```
 
@@ -283,7 +321,7 @@ with watch_event() as events:
             print(f"<{event.player.username}> {event.message}")
         elif event.type == "player.death":
             print(f"{event.player.username} died: {event.message}")
-            print(event.dimension, event.x, event.y, event.z)
+            print(event.dimension, event.position.x, event.position.y, event.position.z)
 ```
 
 `watch_event("player.death")` receives only player deaths;
@@ -319,10 +357,10 @@ with watch_event("player.swing") as swings:
 | `"block.use"` | `BlockUseEvent` | A request to use a block. |
 | `"item.use"` | `ItemUseEvent` | A request to use a non-empty held item. |
 
-All four classes have `id`, `timestamp`, `player`, `dimension`, `x`, `y`, `z`,
+All four classes have `id`, `timestamp`, `player`, `dimension`, `position`,
 `hand` (`"main_hand"` or `"off_hand"`), and `item` (namespaced ID, or `None`
-for an empty hand). `x`, `y`, and `z` are the player's position. Block events
-also have `block`, integer `block_x`, `block_y`, `block_z`, and `face` (`"down"`,
+for an empty hand). `position` is the player's `Vec3` position. Block events
+also have `block`, `block_position` (`BlockPos`), and `face` (`"down"`,
 `"up"`, `"north"`, `"south"`, `"west"`, or `"east"`). Item and target values
 are server-thread snapshots taken before consumption or other changes.
 
@@ -410,13 +448,13 @@ sets total elapsed ticks. `add_time` accepts signed ticks and clamps at zero.
 List entities, or find the nearest zombie within 20 blocks:
 
 ```python
-from boxloom import get_entities
+from boxloom import Vec3, get_entities
 
 for entity in get_entities():
     print(entity.uuid, entity.name, entity.entity, entity.health)
 
 nearest = get_entities(
-    "minecraft:zombie", x=0, y=64, z=0,
+    "minecraft:zombie", center=Vec3(0, 64, 0),
     radius=20, sort="nearest", limit=1,
 )
 ```
@@ -426,7 +464,7 @@ snapshots with UUID, type, dimension, position, rotation, name, and health.
 It includes loaded, alive entities, including players and dropped items;
 health is `None` for entities without health. No chunks are loaded.
 The default dimension is `minecraft:overworld`. Omit `entity` for all types.
-Supply `x`, `y`, and `z` together for an inclusive non-negative `radius` or
+Supply `center=Vec3(...)` for an inclusive non-negative `radius` or
 `sort="nearest"` / `"furthest"`. Sorting works without a radius.
 Filtering precedes sorting, then `limit` (a positive 32-bit integer) is applied.
 Distance ties use UUID order; the default `sort="arbitrary"` order is unspecified.
@@ -435,19 +473,19 @@ An empty selection returns `[]`.
 Kill entities by UUID or by type and optional range:
 
 ```python
-from boxloom import entities, kill_entities, kill_entity, summon
+from boxloom import Vec3, entities, kill_entities, kill_entity, summon
 
-zombie = summon(entities.ZOMBIE, 0, 64, 0)
+zombie = summon(entities.ZOMBIE, Vec3(0, 64, 0))
 print(kill_entity(zombie.uuid).killed_entities)
 
-result = kill_entities(entities.ZOMBIE, x=0, y=64, z=0, radius=20)
+result = kill_entities(entities.ZOMBIE, center=Vec3(0, 64, 0), radius=20)
 print(result.killed_entities)
 ```
 
 Both functions also exist on `BoxloomClient` and default to
 `dimension="minecraft:overworld"`. A missing or already dead entity reports zero.
-`kill_entities` matches an exact registered type ID. Supply `x`, `y`, `z`, and a
-finite non-negative `radius` together for an inclusive sphere; omit all four to
+`kill_entities` matches an exact registered type ID. Supply `center=Vec3(...)`
+and a finite non-negative `radius` together for an inclusive sphere; omit both to
 select every loaded entity of that type in the dimension. No chunks are loaded.
 Summoning zombies requires a non-peaceful difficulty.
 

@@ -12,7 +12,7 @@ def main() -> None:
                 elif event.type == "block.attack" or event.type == "block.use":
                     print(
                         event.player.username, event.type, event.block,
-                        (event.block_x, event.block_y, event.block_z),
+                        (event.block_position.x, event.block_position.y, event.block_position.z),
                         event.face, event.hand, event.item,
                     )
                 elif event.type == "item.use":

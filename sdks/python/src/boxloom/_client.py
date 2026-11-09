@@ -17,10 +17,13 @@ from ._transport import (
     _connection_error,
     _decode_object,
     _require_integer,
+    _require_vec3,
+    _require_block_pos,
     _require_number,
     _require_string,
 )
 from .events import ChatEventStream, EventStream, EventSubscription, EventType
+from .coordinates import BlockPos, Vec3
 from .models import (
     ChatEvent,
     Entity,
@@ -103,9 +106,7 @@ class BoxloomClient:
             username=_require_string(payload, "username"),
             uuid=_require_string(payload, "uuid"),
             dimension=_require_string(payload, "dimension"),
-            x=_require_number(payload, "x"),
-            y=_require_number(payload, "y"),
-            z=_require_number(payload, "z"),
+            position=_require_vec3(payload),
             yaw=_require_number(payload, "yaw"),
             pitch=_require_number(payload, "pitch"),
         )
@@ -319,9 +320,7 @@ class BoxloomClient:
     def teleport_player(
         self,
         username: str,
-        x: float,
-        y: float,
-        z: float,
+        position: Vec3,
         *,
         dimension: Optional[str] = None,
         yaw: Optional[float] = None,
@@ -329,11 +328,9 @@ class BoxloomClient:
     ) -> PlayerPosition:
         if not isinstance(username, str) or not _USERNAME.fullmatch(username):
             raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
-        for field_name, value in (("x", x), ("y", y), ("z", z)):
-            if not isinstance(value, (int, float)) or isinstance(value, bool):
-                raise TypeError(f"{field_name} must be a number")
-            if not isfinite(value):
-                raise ValueError(f"{field_name} must be finite")
+        if not isinstance(position, Vec3):
+            raise TypeError("position must be a Vec3")
+        x, y, z = position.x, position.y, position.z
         if dimension is not None and (
             not isinstance(dimension, str) or not dimension.strip()
         ):
@@ -362,9 +359,7 @@ class BoxloomClient:
             username=_require_string(payload, "username"),
             uuid=_require_string(payload, "uuid"),
             dimension=_require_string(payload, "dimension"),
-            x=_require_number(payload, "x"),
-            y=_require_number(payload, "y"),
-            z=_require_number(payload, "z"),
+            position=_require_vec3(payload),
             yaw=_require_number(payload, "yaw"),
             pitch=_require_number(payload, "pitch"),
         )
@@ -614,19 +609,15 @@ class BoxloomClient:
 
     def set_block(
         self,
-        x: int,
-        y: int,
-        z: int,
+        position: BlockPos,
         block: str,
         *,
         dimension: str = "minecraft:overworld",
         properties: Optional[Mapping[str, str]] = None,
     ) -> SetBlockResult:
-        for field_name, value in (("x", x), ("y", y), ("z", z)):
-            if not isinstance(value, int) or isinstance(value, bool):
-                raise TypeError(f"{field_name} must be an integer")
-            if not -(2**31) <= value < 2**31:
-                raise ValueError(f"{field_name} must fit in a signed 32-bit integer")
+        if not isinstance(position, BlockPos):
+            raise TypeError("position must be a BlockPos")
+        x, y, z = position.x, position.y, position.z
         if not isinstance(block, str) or not block.strip():
             raise ValueError("block must be a non-empty namespaced ID")
         if not isinstance(dimension, str) or not dimension.strip():
@@ -653,26 +644,20 @@ class BoxloomClient:
         return SetBlockResult(
             changed=changed,
             dimension=_require_string(payload, "dimension"),
-            x=_require_integer(payload, "x"),
-            y=_require_integer(payload, "y"),
-            z=_require_integer(payload, "z"),
+            position=_require_block_pos(payload),
             block=_require_string(payload, "block"),
             properties=_block_properties(payload),
         )
 
     def get_block(
         self,
-        x: int,
-        y: int,
-        z: int,
+        position: BlockPos,
         *,
         dimension: str = "minecraft:overworld",
     ) -> Block:
-        for field_name, value in (("x", x), ("y", y), ("z", z)):
-            if not isinstance(value, int) or isinstance(value, bool):
-                raise TypeError(f"{field_name} must be an integer")
-            if not -(2**31) <= value < 2**31:
-                raise ValueError(f"{field_name} must fit in a signed 32-bit integer")
+        if not isinstance(position, BlockPos):
+            raise TypeError("position must be a BlockPos")
+        x, y, z = position.x, position.y, position.z
         if not isinstance(dimension, str) or not dimension.strip():
             raise ValueError("dimension must be a non-empty namespaced ID")
 
@@ -687,40 +672,23 @@ class BoxloomClient:
         payload = self._get(f"/v1/world/blocks?{query}")
         return Block(
             dimension=_require_string(payload, "dimension"),
-            x=_require_integer(payload, "x"),
-            y=_require_integer(payload, "y"),
-            z=_require_integer(payload, "z"),
+            position=_require_block_pos(payload),
             block=_require_string(payload, "block"),
             properties=_block_properties(payload),
         )
 
     def fill(
         self,
-        x1: int,
-        y1: int,
-        z1: int,
-        x2: int,
-        y2: int,
-        z2: int,
+        start: BlockPos,
+        end: BlockPos,
         block: str,
         *,
         dimension: str = "minecraft:overworld",
     ) -> FillResult:
-        coordinates = (
-            ("x1", x1),
-            ("y1", y1),
-            ("z1", z1),
-            ("x2", x2),
-            ("y2", y2),
-            ("z2", z2),
-        )
-        for field_name, value in coordinates:
-            if not isinstance(value, int) or isinstance(value, bool):
-                raise TypeError(f"{field_name} must be an integer")
-            if not -(2**31) <= value < 2**31:
-                raise ValueError(
-                    f"{field_name} must fit in a signed 32-bit integer"
-                )
+        if not isinstance(start, BlockPos) or not isinstance(end, BlockPos):
+            raise TypeError("start and end must be BlockPos values")
+        x1, y1, z1 = start.x, start.y, start.z
+        x2, y2, z2 = end.x, end.y, end.z
         if not isinstance(block, str) or not block.strip():
             raise ValueError("block must be a non-empty namespaced ID")
         if not isinstance(dimension, str) or not dimension.strip():
@@ -758,21 +726,15 @@ class BoxloomClient:
         return FillResult(
             changed_blocks=changed_blocks,
             dimension=_require_string(payload, "dimension"),
-            x1=_require_integer(payload, "x1"),
-            y1=_require_integer(payload, "y1"),
-            z1=_require_integer(payload, "z1"),
-            x2=_require_integer(payload, "x2"),
-            y2=_require_integer(payload, "y2"),
-            z2=_require_integer(payload, "z2"),
+            start=_require_block_pos(payload, ("x1", "y1", "z1")),
+            end=_require_block_pos(payload, ("x2", "y2", "z2")),
             block=_require_string(payload, "block"),
         )
 
     def summon(
         self,
         entity: str,
-        x: float,
-        y: float,
-        z: float,
+        position: Vec3,
         *,
         nbt: Optional[Dict[str, Any]] = None,
         dimension: str = "minecraft:overworld",
@@ -781,11 +743,9 @@ class BoxloomClient:
             raise ValueError("entity must be a non-empty namespaced ID")
         if not isinstance(dimension, str) or not dimension.strip():
             raise ValueError("dimension must be a non-empty namespaced ID")
-        for field_name, value in (("x", x), ("y", y), ("z", z)):
-            if not isinstance(value, (int, float)) or isinstance(value, bool):
-                raise TypeError(f"{field_name} must be a number")
-            if not isfinite(value):
-                raise ValueError(f"{field_name} must be finite")
+        if not isinstance(position, Vec3):
+            raise TypeError("position must be a Vec3")
+        x, y, z = position.x, position.y, position.z
         if nbt is not None:
             if not isinstance(nbt, dict):
                 raise TypeError("nbt must be a dict or None")
@@ -806,18 +766,14 @@ class BoxloomClient:
             uuid=_require_string(payload, "uuid"),
             entity=_require_string(payload, "entity"),
             dimension=_require_string(payload, "dimension"),
-            x=_require_number(payload, "x"),
-            y=_require_number(payload, "y"),
-            z=_require_number(payload, "z"),
+            position=_require_vec3(payload),
         )
 
     def get_entities(
         self,
         entity: Optional[str] = None,
         *,
-        x: Optional[float] = None,
-        y: Optional[float] = None,
-        z: Optional[float] = None,
+        center: Optional[Vec3] = None,
         radius: Optional[float] = None,
         dimension: str = "minecraft:overworld",
         sort: Literal["arbitrary", "nearest", "furthest"] = "arbitrary",
@@ -825,9 +781,9 @@ class BoxloomClient:
     ) -> List[Entity]:
         """List loaded, alive entities after filtering, sorting, and limiting.
 
-        Coordinates must be supplied together, and are required for a radius
-        or distance sorting. No chunks are loaded. Health is None for entities
-        without health, such as dropped items.
+        A Vec3 center is required for radius filtering or distance sorting.
+        No chunks are loaded. Health is None for entities without health,
+        such as dropped items.
         """
 
         if entity is not None and (
@@ -843,31 +799,18 @@ class BoxloomClient:
                 raise TypeError("limit must be an integer or None")
             if not 1 <= limit <= 2**31 - 1:
                 raise ValueError("limit must be between 1 and 2147483647")
-        coordinates = {"x": x, "y": y, "z": z}
-        has_center = any(value is not None for value in coordinates.values())
-        if has_center and any(value is None for value in coordinates.values()):
-            raise ValueError("x, y, and z must be supplied together")
-        if not has_center and (radius is not None or sort != "arbitrary"):
-            raise ValueError("x, y, and z are required for radius or distance sorting")
-        for field_name, value in {**coordinates, "radius": radius}.items():
-            if value is None:
-                continue
-            if not isinstance(value, (int, float)) or isinstance(value, bool):
-                raise TypeError(f"{field_name} must be a number or None")
-            try:
-                finite = isfinite(value)
-            except OverflowError:
-                finite = False
-            if not finite:
-                raise ValueError(f"{field_name} must be finite")
-        if radius is not None and radius < 0:
-            raise ValueError("radius must not be negative")
+        if center is not None and not isinstance(center, Vec3):
+            raise TypeError("center must be a Vec3 or None")
+        if center is None and (radius is not None or sort != "arbitrary"):
+            raise ValueError("center is required for radius or distance sorting")
+        if radius is not None:
+            _validate_radius(radius)
 
         parameters: Dict[str, Any] = {"dimension": dimension}
         if entity is not None:
             parameters["entity"] = entity
-        if has_center:
-            parameters.update(coordinates)
+        if center is not None:
+            parameters.update(x=center.x, y=center.y, z=center.z)
         if radius is not None:
             parameters["radius"] = radius
         parameters["sort"] = sort
@@ -907,15 +850,13 @@ class BoxloomClient:
         self,
         entity: str,
         *,
-        x: Optional[float] = None,
-        y: Optional[float] = None,
-        z: Optional[float] = None,
+        center: Optional[Vec3] = None,
         radius: Optional[float] = None,
         dimension: str = "minecraft:overworld",
     ) -> KillResult:
         """Kill loaded entities of a type, optionally within an inclusive sphere.
 
-        Supply x, y, z, and a non-negative radius together, or omit all four to
+        Supply center and a non-negative radius together, or omit both to
         select every loaded entity of the given type in the dimension.
         """
 
@@ -924,22 +865,13 @@ class BoxloomClient:
         if not isinstance(dimension, str) or not dimension.strip():
             raise ValueError("dimension must be a non-empty namespaced ID")
         body: Dict[str, Any] = {"dimension": dimension, "entity": entity}
-        region = {"x": x, "y": y, "z": z, "radius": radius}
-        if any(value is not None for value in region.values()):
-            if any(value is None for value in region.values()):
-                raise ValueError("x, y, z, and radius must be supplied together")
-            for field_name, value in region.items():
-                if not isinstance(value, (int, float)) or isinstance(value, bool):
-                    raise TypeError(f"{field_name} must be a number")
-                try:
-                    finite = isfinite(value)
-                except OverflowError:
-                    finite = False
-                if not finite:
-                    raise ValueError(f"{field_name} must be finite")
-            if radius is not None and radius < 0:
-                raise ValueError("radius must not be negative")
-            body.update(region)
+        if center is not None and not isinstance(center, Vec3):
+            raise TypeError("center must be a Vec3 or None")
+        if (center is None) != (radius is None):
+            raise ValueError("center and radius must be supplied together")
+        if center is not None and radius is not None:
+            _validate_radius(radius)
+            body.update(x=center.x, y=center.y, z=center.z, radius=radius)
         return _kill_result(self._post("/v1/world/entities/kill", body))
 
     def _get(self, path: str) -> Dict[str, Any]:
@@ -979,6 +911,19 @@ class BoxloomClient:
             raise _api_error(error) from None
         except (URLError, socket.timeout, TimeoutError, OSError) as error:
             raise _connection_error(error) from None
+
+
+def _validate_radius(radius: float) -> None:
+    if not isinstance(radius, (int, float)) or isinstance(radius, bool):
+        raise TypeError("radius must be a number")
+    try:
+        finite = isfinite(radius)
+    except OverflowError:
+        finite = False
+    if not finite:
+        raise ValueError("radius must be finite")
+    if radius < 0:
+        raise ValueError("radius must not be negative")
 
 
 def _kill_result(payload: Mapping[str, Any]) -> KillResult:
@@ -1068,7 +1013,7 @@ def _targeted_block(payload: Mapping[str, Any]) -> Optional[TargetedBlock]:
         raise ProtocolError("response field 'distance' must be finite and non-negative")
     return TargetedBlock(
         dimension=_require_string(value, "dimension"),
-        x=_require_integer(value, "x"), y=_require_integer(value, "y"), z=_require_integer(value, "z"),
+        position=_require_block_pos(value),
         block=_require_string(value, "block"),
         face=cast(BlockFace, face),
         distance=distance,
@@ -1084,7 +1029,7 @@ def _entity_snapshot(value: Any) -> Entity:
     return Entity(
         uuid=_require_string(value, "uuid"), entity=_require_string(value, "entity"),
         dimension=_require_string(value, "dimension"),
-        x=_require_number(value, "x"), y=_require_number(value, "y"), z=_require_number(value, "z"),
+        position=_require_vec3(value),
         yaw=_require_number(value, "yaw"), pitch=_require_number(value, "pitch"),
         name=_require_string(value, "name"),
         health=None if value["health"] is None else _require_number(value, "health"),

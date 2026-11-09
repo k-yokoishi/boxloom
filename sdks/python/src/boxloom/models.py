@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
-from math import floor
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal, Mapping, Optional, Tuple, Union
+
+from .coordinates import BlockPos, Vec3
 
 if TYPE_CHECKING:
     from ._client import BoxloomClient
@@ -92,20 +93,16 @@ class Block:
     """An immutable snapshot of a block, including canonical state properties."""
 
     dimension: str
-    x: int
-    y: int
-    z: int
+    position: BlockPos
     block: str
     properties: Mapping[str, str] = field(hash=False)
 
     def __init__(
-        self, dimension: str, x: int, y: int, z: int, block: str,
+        self, dimension: str, position: BlockPos, block: str,
         properties: Optional[Mapping[str, str]] = None,
     ) -> None:
         object.__setattr__(self, "dimension", dimension)
-        object.__setattr__(self, "x", x)
-        object.__setattr__(self, "y", y)
-        object.__setattr__(self, "z", z)
+        object.__setattr__(self, "position", position)
         object.__setattr__(self, "block", block)
         object.__setattr__(self, "properties", MappingProxyType(dict({} if properties is None else properties)))
 
@@ -118,12 +115,11 @@ class TargetedBlock(Block):
     distance: float
 
     def __init__(
-        self, dimension: str, x: int, y: int, z: int, block: str,
+        self, dimension: str, position: BlockPos, block: str,
         face: BlockFace, distance: float, *,
         properties: Optional[Mapping[str, str]] = None,
     ) -> None:
-        # Preserve the pre-properties positional signature on Python 3.9 too.
-        super().__init__(dimension, x, y, z, block, {} if properties is None else properties)
+        super().__init__(dimension, position, block, {} if properties is None else properties)
         object.__setattr__(self, "face", face)
         object.__setattr__(self, "distance", distance)
 
@@ -230,9 +226,7 @@ class PlayerDeathEvent:
     message: str
     player: Player
     dimension: str
-    x: float
-    y: float
-    z: float
+    position: Vec3
     type: Literal["player.death"] = field(default="player.death", init=False)
 
 
@@ -244,9 +238,7 @@ class _PlayerActionEvent:
     timestamp: str
     player: Player
     dimension: str
-    x: float
-    y: float
-    z: float
+    position: Vec3
     hand: Literal["main_hand", "off_hand"]
     item: Optional[str]
 
@@ -261,9 +253,7 @@ class PlayerSwingEvent(_PlayerActionEvent):
 @dataclass(frozen=True)
 class _BlockActionEvent(_PlayerActionEvent):
     block: str
-    block_x: int
-    block_y: int
-    block_z: int
+    block_position: BlockPos
     face: Literal["down", "up", "north", "south", "west", "east"]
 
 
@@ -308,16 +298,9 @@ class PlayerPosition:
     username: str
     uuid: str
     dimension: str
-    x: float
-    y: float
-    z: float
+    position: Vec3
     yaw: float
     pitch: float
-
-    def block_coordinates(self) -> Tuple[int, int, int]:
-        """Return the block containing the player's feet."""
-
-        return floor(self.x), floor(self.y), floor(self.z)
 
 
 # Compatibility name for callers of earlier SDK releases; block reads return Block.
@@ -330,9 +313,7 @@ class SetBlockResult:
 
     changed: bool
     dimension: str
-    x: int
-    y: int
-    z: int
+    position: BlockPos
     block: str
     properties: Mapping[str, str] = field(default_factory=dict, hash=False)
 
@@ -346,12 +327,8 @@ class FillResult:
 
     changed_blocks: int
     dimension: str
-    x1: int
-    y1: int
-    z1: int
-    x2: int
-    y2: int
-    z2: int
+    start: BlockPos
+    end: BlockPos
     block: str
 
 
@@ -362,9 +339,7 @@ class Entity:
     uuid: str
     entity: str
     dimension: str
-    x: float
-    y: float
-    z: float
+    position: Vec3
     yaw: float
     pitch: float
     name: str
@@ -378,9 +353,7 @@ class SummonResult:
     uuid: str
     entity: str
     dimension: str
-    x: float
-    y: float
-    z: float
+    position: Vec3
 
 
 @dataclass(frozen=True)

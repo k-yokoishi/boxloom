@@ -34,7 +34,7 @@ def check_top_level() -> None:
     with watch_event("player.death") as deaths:
         assert_type(next(deaths), PlayerDeathEvent)
         for death in deaths:
-            assert_type(death.x, float)
+            assert_type(death.position.x, float)
             assert_type(death.type, Literal["player.death"])
     with watch_event(event_type="chat.message") as chats:
         assert_type(next(chats), ChatEvent)
@@ -62,18 +62,18 @@ def check_type_discriminator(event: Event) -> None:
     if event.type == "player.death":
         assert_type(event, PlayerDeathEvent)
         assert_type(event.dimension, str)
-        assert_type(event.x, float)
+        assert_type(event.position.x, float)
     elif event.type == "chat.message":
         assert_type(event, ChatEvent)
         assert_type(event.message, str)
-        event.x  # type: ignore[attr-defined]
+        event.position.x  # type: ignore[attr-defined]
     elif event.type == "player.swing":
         assert_type(event, PlayerSwingEvent)
         assert_type(event.item, Optional[str])
         assert_type(event.hand, Literal["main_hand", "off_hand"])
     elif event.type == "block.attack":
         assert_type(event, BlockAttackEvent)
-        assert_type(event.block_x, int)
+        assert_type(event.block_position.x, int)
     elif event.type == "block.use":
         assert_type(event, BlockUseEvent)
         assert_type(event.block, str)
@@ -87,7 +87,7 @@ def check_invalid_usage(client: BoxloomClient) -> None:
     watch_event("player.deth")  # type: ignore[call-overload]
     client.watch_event("player.deth")  # type: ignore[call-overload]
     with watch_event("chat.message") as chats:
-        next(chats).x  # type: ignore[attr-defined]
+        next(chats).position.x  # type: ignore[attr-defined]
     with watch_event() as events:
         event = next(events)
         event.type = "player.death"  # type: ignore[misc]
@@ -95,7 +95,7 @@ def check_invalid_usage(client: BoxloomClient) -> None:
 
 def check_subscriptions(client: BoxloomClient, kind: Optional[EventType]) -> None:
     def on_death(event: PlayerDeathEvent) -> None:
-        assert_type(event.x, float)
+        assert_type(event.position.x, float)
 
     def on_chat(event: ChatEvent) -> None:
         assert_type(event.message, str)

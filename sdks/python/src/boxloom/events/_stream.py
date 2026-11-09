@@ -10,8 +10,8 @@ from .._transport import (
     _api_error,
     _connection_error,
     _decode_object,
-    _require_integer,
-    _require_number,
+    _require_vec3,
+    _require_block_pos,
     _require_string,
 )
 from ..errors import (
@@ -419,9 +419,7 @@ def _decode_player_death_event(
             uuid=_require_string(player_value, "uuid"),
         ),
         dimension=_require_string(payload, "dimension"),
-        x=_require_number(payload, "x"),
-        y=_require_number(payload, "y"),
-        z=_require_number(payload, "z"),
+        position=_require_vec3(payload),
     )
 
 
@@ -453,9 +451,7 @@ def _decode_player_action_event(
             uuid=_require_string(player_value, "uuid"),
         ),
         _require_string(payload, "dimension"),
-        _require_number(payload, "x"),
-        _require_number(payload, "y"),
-        _require_number(payload, "z"),
+        _require_vec3(payload),
         cast(Literal["main_hand", "off_hand"], hand),
         item,
     )
@@ -469,9 +465,7 @@ def _decode_player_action_event(
         raise ProtocolError("response field 'face' must be a block face direction")
     block = (
         _require_string(payload, "block"),
-        _require_integer(payload, "block_x"),
-        _require_integer(payload, "block_y"),
-        _require_integer(payload, "block_z"),
+        _require_block_pos(payload, ("block_x", "block_y", "block_z")),
         cast(Literal["down", "up", "north", "south", "west", "east"], face),
     )
     if event_name == "block.attack":

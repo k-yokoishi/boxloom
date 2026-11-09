@@ -1,6 +1,6 @@
 from typing import Mapping, Optional, Tuple
 
-from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerUseResult, PlayerItemUseResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players, set_block, SetBlockResult, GiveItemResult, GivenItemSlot, SelectSlotResult, give_item, select_slot
+from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerUseResult, PlayerItemUseResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players, set_block, SetBlockResult, GiveItemResult, GivenItemSlot, SelectSlotResult, give_item, select_slot, BlockPos
 from typing_extensions import assert_type
 
 player = get_player("Steve")
@@ -32,18 +32,18 @@ assert_type(BoxloomClient(base_url="http://localhost:28886").get_player("Steve")
 
 
 def describe_block(block: Block) -> str:
-    return f"{block.block} at {block.dimension}: {block.x}, {block.y}, {block.z}"
+    return f"{block.block} at {block.dimension}: {block.position.x}, {block.position.y}, {block.position.z}"
 
 
-describe_block(get_block(0, 64, 0))
-assert_type(get_block(0, 64, 0), Block)
+describe_block(get_block(BlockPos(0, 64, 0)))
+assert_type(get_block(BlockPos(0, 64, 0)), Block)
 target = player.get_targeted_block()
 if target is not None:
     describe_block(target)
 
-assert_type(get_block(0, 64, 0).properties, Mapping[str, str])
-assert_type(set_block(0, 64, 0, "minecraft:wheat", properties={"age": "3"}), SetBlockResult)
-assert_type(set_block(0, 64, 0, "minecraft:wheat").properties, Mapping[str, str])
+assert_type(get_block(BlockPos(0, 64, 0)).properties, Mapping[str, str])
+assert_type(set_block(BlockPos(0, 64, 0), "minecraft:wheat", properties={"age": "3"}), SetBlockResult)
+assert_type(set_block(BlockPos(0, 64, 0), "minecraft:wheat").properties, Mapping[str, str])
 if target is not None:
     assert_type(target.properties, Mapping[str, str])
 

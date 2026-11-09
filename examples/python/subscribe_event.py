@@ -11,7 +11,7 @@ def on_event(event: Event) -> None:
     elif event.type == "player.death":
         print(
             f"{event.player.username} died in {event.dimension} "
-            f"at ({event.x}, {event.y}, {event.z}): {event.message}"
+            f"at ({event.position.x}, {event.position.y}, {event.position.z}): {event.message}"
         )
 
 

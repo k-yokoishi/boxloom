@@ -72,20 +72,25 @@ The Docker Compose environment sets these values automatically inside its browse
 Place a block:
 
 ```python
-from boxloom import blocks, set_block
+from boxloom import BlockPos, blocks, set_block
 
-set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
+set_block(BlockPos(0, 100, 0), blocks.DIAMOND_BLOCK)
 ```
+
+Python uses `BlockPos` for integer block coordinates and `Vec3` for player/entity
+positions and offsets. Both support addition, subtraction, and scalar multiplication.
+Convert explicitly with `position.to_block_pos()` (floor) or `block_pos.to_vec3()`
+(the block's minimum corner). See the [Python SDK](sdks/python/README.md#coordinates).
 
 Read and write block-state properties using string keys and values:
 
 ```python
-from boxloom import blocks, get_block, set_block
+from boxloom import BlockPos, blocks, get_block, set_block
 
-set_block(0, 99, 0, blocks.FARMLAND, properties={"moisture": "7"})
-result = set_block(0, 100, 0, blocks.WHEAT, properties={"age": "3"})
+set_block(BlockPos(0, 99, 0), blocks.FARMLAND, properties={"moisture": "7"})
+result = set_block(BlockPos(0, 100, 0), blocks.WHEAT, properties={"age": "3"})
 print(result.changed, result.properties)
-print(get_block(0, 100, 0).properties["age"])  # "3"
+print(get_block(BlockPos(0, 100, 0)).properties["age"])  # "3"
 ```
 
 Properties start from the block defaults; omitted properties reset to defaults.
@@ -132,17 +137,17 @@ in Minecraft before selecting them.
 Fill an inclusive block region:
 
 ```python
-from boxloom import blocks, fill
+from boxloom import BlockPos, blocks, fill
 
-fill(0, 100, 0, 4, 100, 4, blocks.GOLD_BLOCK)
+fill(BlockPos(0, 100, 0), BlockPos(4, 100, 4), blocks.GOLD_BLOCK)
 ```
 
 Summon an entity:
 
 ```python
-from boxloom import entities, summon
+from boxloom import Vec3, entities, summon
 
-summon(entities.PIG, 0, 100, 0)
+summon(entities.PIG, Vec3(0, 100, 0))
 ```
 
 Type `blocks.`, `entities.`, or `items.` in your editor to browse vanilla IDs with completion.
@@ -197,7 +202,7 @@ no client-side mod. See the [action example](examples/python/watch_player_action
 and the [Python SDK event reference](sdks/python/README.md).
 
 Use `watch_event("player.death")` to receive only player deaths, including their
-dimension and `x`, `y`, `z` coordinates. Both event types use `GET /v1/events`.
+dimension and a `position` (`Vec3`) in Python. Both event types use `GET /v1/events`.
 
 To keep a game running while events arrive in the background, use
 `subscribe_event("player.death", callback=on_death)`. Registration waits for the
