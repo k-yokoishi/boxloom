@@ -243,6 +243,32 @@ export const apiOperations = {
       },
     ],
   },
+  give_item: {
+    description: (
+      <p>
+        Give a connected player an item using vanilla <code>/give</code> rules.
+        Matching stacks and empty inventory slots are used automatically without
+        replacing other items or changing the selected hotbar slot. Blocks with
+        an item form use item IDs too. Survival overflow drops at the player with
+        immediate pickup reserved for them; creative overflow may be discarded,
+        as in vanilla. The returned count is the amount given, rather than the
+        amount retained in inventory. Player operator permissions are not required.
+      </p>
+    ),
+    errors: [
+      playerNotConnected,
+      {
+        status: 400,
+        code: 'INVALID_ITEM',
+        meaning: 'The item ID is malformed, unknown, air, or disabled in this world.',
+      },
+      {
+        status: 400,
+        code: 'INVALID_COUNT',
+        meaning: 'The count exceeds 100 stacks of this item.',
+      },
+    ],
+  },
   set_player_gamemode: {
     description: (
       <p>

@@ -95,6 +95,21 @@ the world. An identical state returns `changed=False`; changing a property alone
 returns `changed=True`.
 
 
+Give a player blocks or items, as with `/give`:
+
+```python
+from boxloom import blocks, give_item
+
+give_item("Steve", blocks.STONE, count=64)
+give_item("Steve", "minecraft:diamond_sword")  # count defaults to 1
+```
+
+Also available as `player.give_item(item, count=1)` on a player returned by
+`get_player()`. Matching stacks and free slots are chosen automatically. Counts
+are limited to 100 stacks per call. Survival overflow drops at the player;
+creative overflow follows vanilla and may be discarded. See the
+[Python SDK reference](sdks/python/README.md) for the result and validation rules.
+
 Use bone meal on a plant (hold bone meal in the main hand and aim at the plant):
 
 ```python
