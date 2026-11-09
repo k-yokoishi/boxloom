@@ -120,7 +120,7 @@ __all__ = [
     "watch_event",
 ]
 
-__version__ = "0.1.0a9"
+__version__ = "0.1.0a10"
 
 _DEFAULT_BASE_URL = "http://127.0.0.1:28886"
 _DEFAULT_TIMEOUT = 10.0
