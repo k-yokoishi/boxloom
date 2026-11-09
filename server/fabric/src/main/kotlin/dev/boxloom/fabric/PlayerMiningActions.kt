@@ -38,6 +38,7 @@ internal object PlayerMiningActions {
     private val sessions = mutableMapOf<UUID, Session>()
 
     fun start(player: ServerPlayer): PlayerMiningResult {
+        PlayerItemUseActions.cancel(player)
         PlayerBlockActions.requireCanAttack(player)
         val existing = sessions[player.uuid]
         if (existing != null && valid(existing)) {

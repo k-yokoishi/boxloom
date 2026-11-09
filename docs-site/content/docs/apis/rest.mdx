@@ -221,9 +221,67 @@ A block interaction that passes may fall back to in-air item use, retaining its
 block `target`. A cancelled interaction does not fall back. Existing `block.use`
 / `item.use` attempt events are emitted; use swings are not attack-only
 `player.swing` events. Any API mining session ends before using the item.
-Long-duration items start native use; this endpoint does not simulate holding
-and releasing a button. Release charged items in the Minecraft client.
+Any API-owned continuous item use is cancelled without release effects.
+Long-duration items start native use, but vanilla clients can immediately interrupt
+them. Use `start_using_item` / `stop_using_item` for controlled continuous use.
 Avoid retrying a timed-out mutation: it may already have taken effect.
+
+</Operation>
+
+## `start_using_item`
+
+<Operation id="start_using_item">
+
+<ApiEndpoint method="POST" path="/v1/players/{username}/item-use/start" />
+
+**Request body** — `{}`. No query parameters. The username has the same constraints
+as the other player actions.
+
+**Response** — `200 application/json`
+
+```json
+{"active": true, "item": "minecraft:apple", "remaining_ticks": 32}
+```
+
+Refused use returns `{"active": false, "item": null, "remaining_ticks": 0}`.
+`remaining_ticks` is a nonnegative snapshot of native use duration remaining, not
+charge percentage. Both nullable/inactive fields are always present. The endpoint
+returns immediately.
+
+Uses the main-hand item itself, even while aiming at an interactive block; it does
+not operate that block or an entity. Empty hands and instant-use items (bone meal,
+blocks, ender pearls) return `409 ITEM_NOT_CONTINUOUSLY_USABLE` before use. Normal
+food at full hunger, cooldowns and mod cancellation return an inactive result.
+An existing use started in the Minecraft client returns `409 PLAYER_CANNOT_USE`.
+
+While this API owns the use, client `RELEASE_USE_ITEM` packets are ignored, including
+the automatic release sent when the physical use key is not held. Other client use
+is unchanged. No client mod is required. A vanilla client can stop its local
+first-person animation even while the server continues consumption or charging.
+
+Food/drink finishes one item and ends automatically. Holding a bow or shield
+continues until release. Slot or held-stack changes, world or game-mode changes,
+death, disconnect, server shutdown, API attack, `use()` or mining start cancel
+without release effects; these cancellations never fire a bow. Starting item use
+cancels API mining. Repeating start while active preserves progress, but calling
+start after completion begins another use; do not use start to poll for completion.
+
+</Operation>
+
+## `stop_using_item`
+
+<Operation id="stop_using_item">
+
+<ApiEndpoint method="POST" path="/v1/players/{username}/item-use/stop" />
+
+**Request body** — `{}`. No query parameters.
+
+Returns `200` with `{"active": false, "item": null, "remaining_ticks": 0}`.
+Releases API-owned use: food/drink is interrupted without consumption, while a
+charged bow fires with native ammo and durability rules. Inactive, completed or
+invalidated sessions are a successful no-op; client-owned native use is preserved.
+These mutations are not retried automatically; a timeout can follow a completed
+action.
 
 </Operation>
 
@@ -260,7 +318,7 @@ preserves progress.
 Target, block-state, held-stack or slot changes reset block progress. Item use
 pauses mining. Protected and unbreakable targets remain intact, waiting for the
 aim, block or tool to change. This mode only mines blocks and does not attack
-entities. It ends on `stop_mining`, `attack`, `use`, death, disconnect, world or game-mode
+entities. It ends on `stop_mining`, `attack`, `use`, `start_using_item`, death, disconnect, world or game-mode
 changes, or another native mining action. Read blocks to observe later breaks.
 The controlled player and observers receive swings and crack progress.
 

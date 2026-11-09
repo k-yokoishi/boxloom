@@ -188,7 +188,7 @@ class ClientTest(unittest.TestCase):
 
     def test_snapshot_players_require_an_explicit_client_binding(self):
         player = boxloom.Player("Steve", "test-uuid")
-        for operation in (player.get_targeted_block, player.attack, player.use, player.start_mining, player.stop_mining):
+        for operation in (player.get_targeted_block, player.attack, player.use, player.start_mining, player.stop_mining, player.start_using_item, player.stop_using_item):
             with self.assertRaises(boxloom.ConfigurationError):
                 operation()
         self.assertEqual([], _ApiHandler.requests)
@@ -261,6 +261,67 @@ class ClientTest(unittest.TestCase):
                 player.use()
             self.assertEqual((status, code), (raised.exception.status, raised.exception.code))
             self.assertEqual(before + 1, len(_ApiHandler.requests))
+
+    def test_continuous_item_use_keeps_client_binding_and_returns_native_state(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="origin-secret")
+        player = self._player(client)
+        boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
+        _ApiHandler.response_body = {"active": True, "item": "minecraft:apple", "remaining_ticks": 32}
+        self.assertEqual(boxloom.PlayerItemUseResult(True, "minecraft:apple", 32), player.start_using_item())
+        self.assertEqual("/v1/players/Steve/item-use/start", _ApiHandler.requests[-1][0])
+        _ApiHandler.response_body = {"active": False, "item": None, "remaining_ticks": 0}
+        self.assertEqual(boxloom.PlayerItemUseResult(False, None, 0), player.stop_using_item())
+        self.assertEqual("/v1/players/Steve/item-use/stop", _ApiHandler.requests[-1][0])
+        for path, headers, body in _ApiHandler.requests[-2:]:
+            self.assertEqual("Bearer origin-secret", headers["Authorization"])
+            self.assertEqual({}, body)
+
+    def test_continuous_item_use_refusal_and_idempotent_stop(self):
+        player = self._player()
+        _ApiHandler.response_body = {"active": False, "item": None, "remaining_ticks": 0}
+        for operation in (player.start_using_item, player.stop_using_item, player.stop_using_item):
+            self.assertEqual(boxloom.PlayerItemUseResult(False, None, 0), operation())
+
+    def test_continuous_item_use_rejects_malformed_results(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        valid = {"active": True, "item": "minecraft:bow", "remaining_ticks": 72000}
+        invalid = [{}, {**valid, "active": 1}, {**valid, "item": ""}, {**valid, "item": None},
+                   {**valid, "item": 1}, {**valid, "remaining_ticks": -1},
+                   {**valid, "remaining_ticks": True},
+                   {**valid, "remaining_ticks": 2.5}, {**valid, "remaining_ticks": "32"},
+                   {"active": False, "item": None, "remaining_ticks": 32},
+                   {"active": False, "item": "minecraft:apple", "remaining_ticks": 0}]
+        invalid.extend({k: v for k, v in valid.items() if k != field} for field in valid)
+        for operation in (client.start_using_player_item, client.stop_using_player_item):
+            for body in invalid:
+                with self.subTest(operation=operation, body=body):
+                    _ApiHandler.response_body = body
+                    with self.assertRaises(boxloom.ProtocolError):
+                        operation("Steve")
+        _ApiHandler.response_body = valid
+        with self.assertRaises(boxloom.ProtocolError):
+            client.stop_using_player_item("Steve")
+
+    def test_continuous_item_use_validates_names_before_network_io(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url)
+        for operation in (client.start_using_player_item, client.stop_using_player_item):
+            for name in ("", "ab", "has-dash", "not/a/player", None, 42):
+                with self.assertRaises(ValueError):
+                    operation(name)
+        self.assertEqual([], _ApiHandler.requests)
+
+    def test_continuous_item_use_propagates_errors_without_retrying(self):
+        player = self._player()
+        for status, code in ((404, "PLAYER_NOT_CONNECTED"), (409, "PLAYER_CANNOT_USE"),
+                             (409, "ITEM_NOT_CONTINUOUSLY_USABLE"), (504, "MINECRAFT_TIMEOUT")):
+            _ApiHandler.response_status = status
+            _ApiHandler.response_body = {"error": {"code": code, "message": "Cannot use"}}
+            for operation in (player.start_using_item, player.stop_using_item):
+                before = len(_ApiHandler.requests)
+                with self.assertRaises(boxloom.ApiError) as raised:
+                    operation()
+                self.assertEqual((status, code), (raised.exception.status, raised.exception.code))
+                self.assertEqual(before + 1, len(_ApiHandler.requests))
 
     def test_attack_rejects_malformed_results(self):
         player = self._player()

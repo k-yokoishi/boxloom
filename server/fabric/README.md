@@ -10,6 +10,7 @@ The mod exposes Minecraft operations and a live player event stream:
 - Read the block under a player's server-side crosshair, within interaction reach
 - Perform one native block or entity attack or miss, including a swing sent to the player and observers
 - Use the main hand on the aimed block or entity, or in the air (including bone meal)
+- Start and release continuous main-hand item use for food, drink, bows and shields
 - Give registered items or block items using vanilla `/give` stacking and overflow rules
 - Start and stop continuous held mining with native speed, drops and durability
 - Teleport a connected player to absolute coordinates
@@ -57,8 +58,23 @@ rules, cooldowns, reach, spawn protection and Fabric cancellation use native
 processing. `used` means the action was accepted, not guaranteed growth or
 consumption. No automatic offhand fallback. Dead, spectator or already-using
 players return `409 PLAYER_CANNOT_USE`. API mining is cancelled. Long-duration
-items start native use; release charged items in the Minecraft client. Block/item
+items start native use but a vanilla client can interrupt them; use the item-use
+endpoints for controlled continuous use. Block/item
 attempts emit existing use events; use swings do not emit attack-only `player.swing`.
+
+`POST /v1/players/{username}/item-use/start` and `/item-use/stop` accept `{}` and
+return `active`, nullable `item`, and nonnegative `remaining_ticks`. Start keeps
+the main-hand item in native use; food/drink completes one item, bows/shields
+continue until release. Repeating start preserves progress. Native hunger,
+consumption, cooldowns, creative behavior and Fabric UseItemCallback apply. Empty
+or instant-use items return `ITEM_NOT_CONTINUOUSLY_USABLE`; native refusals return
+inactive. Stop releases only valid API-owned use (interrupt food or fire a charged
+bow), otherwise it is an idempotent no-op and leaves native client use alone.
+The packet listener suppresses client release only while the API owns that use,
+after vanilla's server-thread dispatch. No client mod is required; a vanilla
+client may stop its local first-person animation while the server continues use.
+Slot/stack, world/mode changes, death, disconnect, shutdown and competing API
+attack/use/mining cancel without release effects. Item-use start cancels mining.
 
 `POST /v1/players/{username}/mining/start` and `/mining/stop` accept `{}` and return
 `active`, `target`, and `broken`. Start returns immediately and the server advances
@@ -66,7 +82,7 @@ native mining like holding the mining button. It waits without a target and
 continues to the next block after a five-tick break delay. Repeated start preserves
 progress. Target, block-state, tool or slot changes reset progress; item use pauses
 mining. Protected or unbreakable targets wait for the aim, block or tool to change.
-The mode ends on stop, attack, use, death, disconnect, world or game-mode changes, or
+The mode ends on stop, attack, use, item-use start, death, disconnect, world or game-mode changes, or
 a competing native mining action. Stop is idempotent and cancels pending native
 delayed breaks. `active` remains true while waiting and after an instant break;
 `target` can be null. This mode does not attack entities. The controlled player

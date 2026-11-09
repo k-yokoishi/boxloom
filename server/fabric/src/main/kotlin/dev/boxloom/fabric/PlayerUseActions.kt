@@ -14,6 +14,7 @@ import net.minecraft.world.phys.HitResult
 /** Server-thread-only, main-hand right-click using the latest server-side view. */
 internal object PlayerUseActions {
     fun use(player: ServerPlayer): PlayerUseResult {
+        PlayerItemUseActions.cancel(player)
         val level = player.level()
         val hand = InteractionHand.MAIN_HAND
         val stack = player.mainHandItem
