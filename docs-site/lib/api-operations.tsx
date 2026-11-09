@@ -168,7 +168,7 @@ export const apiOperations = {
       <p>
         Attack the targeted block or entity once, or swing at empty space. Native
         game-mode, tool, attack reach, damage cooldown and protection rules apply.
-        Any API mining session ends before attacking.
+        Any API mining session ends before attacking; API item use is cancelled without release effects.
         The arm swing is sent to the player and observers.
       </p>
     ),
@@ -183,7 +183,7 @@ export const apiOperations = {
       <p>
         Use the main hand once on the aimed block or entity, or in the air.
         Native item effects, consumption, creative rules, cooldowns, reach,
-        spawn protection and Fabric cancellation apply. Cancels API mining.
+        spawn protection and Fabric cancellation apply. Cancels API mining and continuous item use.
         There is no automatic offhand fallback.
       </p>
     ),
@@ -191,6 +191,31 @@ export const apiOperations = {
       playerNotConnected,
       { status: 409, code: 'PLAYER_CANNOT_USE', meaning: 'The player is dead, spectating, already using an item, or otherwise unable to interact with their held item.' },
     ],
+  },
+  start_using_item: {
+    description: (
+      <p>
+        Start using the main-hand item itself and keep using it until native
+        completion or API release. Food and drink complete once. Native hunger,
+        cooldowns, creative rules and Fabric cancellation apply. Repeating start
+        while active preserves progress. API mining is cancelled.
+      </p>
+    ),
+    errors: [
+      playerNotConnected,
+      { status: 409, code: 'PLAYER_CANNOT_USE', meaning: 'The player is dead, spectating, disconnected, already using a non-API item, or otherwise unable to use the held item.' },
+      { status: 409, code: 'ITEM_NOT_CONTINUOUSLY_USABLE', meaning: 'The main hand is empty or its item has no continuous use.' },
+    ],
+  },
+  stop_using_item: {
+    description: (
+      <p>
+        Release API-owned item use. Interrupt food or drink, or release a charged
+        bow using native firing rules. Inactive or completed sessions are a no-op.
+        Native client-owned use is left unchanged.
+      </p>
+    ),
+    errors: [playerNotConnected],
   },
   start_mining: {
     description: (

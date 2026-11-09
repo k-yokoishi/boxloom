@@ -69,9 +69,31 @@ It can also place blocks, operate a lever with an empty hand, feed animals or th
 an item. There is no automatic offhand fallback. `used` reports accepted native use,
 not guaranteed growth or consumption; `target` is the block snapshot before use
 and `entity` is an entity snapshot after the attempt. Dead, spectator or already-using
-players raise `PLAYER_CANNOT_USE`. Calling `use()` cancels API mining. Long-duration
-items start native use; release charged items in the Minecraft client. Requests
+players raise `PLAYER_CANNOT_USE`. Calling `use()` cancels API mining and continuous item use without release effects.
+Long-duration items can be interrupted by a vanilla client; use
+`start_using_item()` / `stop_using_item()` for controlled continuous use. Requests
 are not retried automatically.
+
+Eat one main-hand food item while hungry, or start charging a bow:
+
+```python
+result = player.start_using_item()  # Returns immediately; food finishes once.
+print(result.active, result.item, result.remaining_ticks)
+# player.stop_using_item()  # Interrupt food, or release a bow to fire it.
+```
+
+Native hunger, consumption, creative rules, cooldowns and Fabric cancellation
+apply. Only API-owned use ignores the client's automatic use-release packets.
+Food/drink completes once; a bow/shield continues until release. Repeating start
+while active preserves progress; after completion it starts a new use. Stop is
+idempotent and leaves client-owned use alone. Slot/stack, world/mode changes,
+death, disconnect, shutdown, API attack, single use or mining start cancel without
+firing a bow. No client mod is required; the local first-person animation may
+stop while the server continues use. Client equivalents are
+`start_using_player_item(username)` and `stop_using_player_item(username)`.
+Empty or instant-use items return `ITEM_NOT_CONTINUOUSLY_USABLE`. Native refusal
+(full hunger, cooldown or mod cancellation) returns inactive. Other busy/invalid
+player states return `PLAYER_CANNOT_USE`. Mutations are not retried automatically.
 
 To hold mining, use `start_mining()` and release it with `stop_mining()`:
 
@@ -90,7 +112,7 @@ five-tick delay. Looking away resets block progress; changing the target, block
 state, tool or slot starts fresh progress. Item use pauses mining. Protected or
 unbreakable blocks stay intact until the aim, block or tool changes. The mode
 only mines blocks and does not attack entities. It ends on `stop_mining()`,
-`attack()`, `use()`, death, disconnect, world or game-mode changes, or a competing native
+`attack()`, `use()`, `start_using_item()`, death, disconnect, world or game-mode changes, or a competing native
 mining action. Repeating start preserves progress. `active` means the hold is
 enabled, including while `target` is `None`. `broken` is true only for an immediate
 creative or instant break; `active` remains true. Read blocks to observe later

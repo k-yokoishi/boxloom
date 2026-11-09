@@ -51,6 +51,16 @@ class Player:
 
         return self._require_client().use_player_item(self.username)
 
+    def start_using_item(self) -> "PlayerItemUseResult":
+        """Keep using the main-hand item until completion or explicit release."""
+
+        return self._require_client().start_using_player_item(self.username)
+
+    def stop_using_item(self) -> "PlayerItemUseResult":
+        """Release API item use; interrupts food or fires a charged bow."""
+
+        return self._require_client().stop_using_player_item(self.username)
+
     def stop_mining(self) -> "PlayerMiningResult":
         """Cancel this player's API mining session; safe to call when inactive."""
 
@@ -138,6 +148,15 @@ class PlayerUseResult:
     swung: bool
     target: Optional[TargetedBlock]
     entity: Optional["Entity"] = None
+
+
+@dataclass(frozen=True)
+class PlayerItemUseResult:
+    """API item-use state at response time; remaining_ticks is a native tick count."""
+
+    active: bool
+    item: Optional[str]
+    remaining_ticks: int
 
 
 @dataclass(frozen=True)

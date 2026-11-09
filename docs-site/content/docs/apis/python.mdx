@@ -280,10 +280,85 @@ A block that does not handle the interaction may fall back to in-air item use;
 fallback. API block/item uses emit the existing `block.use` / `item.use` attempt
 events; an interaction swing does not emit the attack-only `player.swing` event.
 
-Calling `use()` cancels API mining. Long-duration items start their native use;
-this method does not simulate holding and releasing a button. Use the Minecraft
-client to release a charged item. Requests are not retried automatically: a timeout
+Calling `use()` cancels API mining and any API-owned continuous item use without
+release effects. Long-duration items start native use, but a vanilla client can
+immediately interrupt them. Use `start_using_item()` and `stop_using_item()` for
+controlled eating, drinking or charging. Requests are not retried automatically: a timeout
 can occur after the action has taken effect.
+
+</Operation>
+
+### `Player.start_using_item`
+
+<Operation id="start_using_item">
+
+```python
+player.start_using_item() -> PlayerItemUseResult
+```
+
+Also available as `BoxloomClient.start_using_player_item(username)`.
+
+Hold food in your main hand while hungry, then call:
+
+```python
+player = get_player("Steve")
+if player is None:
+    raise RuntimeError("Steve is not connected")
+result = player.start_using_item()  # Returns immediately; one item finishes natively.
+print(result.active, result.item, result.remaining_ticks)
+```
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `active` | `bool` | Whether API-owned native use is active at response time. |
+| `item` | `Optional[str]` | Namespaced item ID while active; `None` when inactive. |
+| `remaining_ticks` | `int` | Nonnegative native use ticks remaining. Zero when inactive. This is a snapshot, not charge percentage. |
+
+Uses the main-hand item itself, even while aiming at an interactive block; it does
+not operate that block or an entity. Empty hands and instant-use items (bone meal,
+blocks, ender pearls) return `409 ITEM_NOT_CONTINUOUSLY_USABLE` before use. Normal
+food at full hunger, cooldowns and mod cancellation return an inactive result.
+An existing use started in the Minecraft client returns `409 PLAYER_CANNOT_USE`.
+
+While this API owns the use, client `RELEASE_USE_ITEM` packets are ignored, including
+the automatic release sent when the physical use key is not held. Other client use
+is unchanged. No client mod is required. A vanilla client can stop its local
+first-person animation even while the server continues consumption or charging.
+
+Food/drink finishes one item and ends automatically. Holding a bow or shield
+continues until release. Slot or held-stack changes, world or game-mode changes,
+death, disconnect, server shutdown, API attack, `use()` or mining start cancel
+without release effects; these cancellations never fire a bow. Starting item use
+cancels API mining. Repeating start while active preserves progress, but calling
+start after completion begins another use; do not use start to poll for completion.
+
+</Operation>
+
+### `Player.stop_using_item`
+
+<Operation id="stop_using_item">
+
+```python
+player.stop_using_item() -> PlayerItemUseResult
+```
+
+Also available as `BoxloomClient.stop_using_player_item(username)`.
+
+This is a use-button release. Food/drink is interrupted without consumption; a
+charged bow fires with native ammo and durability rules. It always returns
+`active=False`, `item=None` and `remaining_ticks=0`. Stopping an inactive,
+completed or invalidated API session is idempotent and leaves client-owned use
+alone. Both operations are mutations and are not retried automatically.
+
+```python
+import time
+
+player.start_using_item()  # Hold a bow with arrows available.
+try:
+    time.sleep(1)
+finally:
+    player.stop_using_item()  # Release the bow.
+```
 
 </Operation>
 
@@ -314,7 +389,7 @@ mining. Protected and unbreakable targets stay intact; mining waits for the aim,
 block or tool to change. This operation only mines blocks and does not attack
 entities. The player receives arm swings and crack progress as well as observers.
 
-Call `stop_mining()` to release the hold. `attack()`, `use()`, death, disconnect, world or
+Call `stop_mining()` to release the hold. `attack()`, `use()`, `start_using_item()`, death, disconnect, world or
 game-mode changes, and a competing native mining action also end the mode.
 
 ```python

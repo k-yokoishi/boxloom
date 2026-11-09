@@ -39,6 +39,7 @@ from .models import (
     PlayerPosition,
     PlayerAttackResult,
     PlayerUseResult,
+    PlayerItemUseResult,
     PlayerMiningResult,
     TargetedBlock,
     BlockFace,
@@ -162,6 +163,39 @@ class BoxloomClient:
         if swung and not used:
             raise ProtocolError("an unused action cannot swing")
         return PlayerUseResult(used, swung, target, entity)
+
+    def start_using_player_item(self, username: str) -> PlayerItemUseResult:
+        """Start native continuous main-hand use; repeating start preserves progress."""
+
+        return self._player_item_use(username, "start")
+
+    def stop_using_player_item(self, username: str) -> PlayerItemUseResult:
+        """Release API use, including a charged bow. Inactive is a no-op."""
+
+        return self._player_item_use(username, "stop")
+
+    def _player_item_use(self, username: str, action: str) -> PlayerItemUseResult:
+        if not isinstance(username, str) or not _USERNAME.fullmatch(username):
+            raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
+        payload = self._post(f"/v1/players/{quote(username, safe='')}/item-use/{action}", {})
+        active = payload.get("active")
+        if not isinstance(active, bool):
+            raise ProtocolError("response field 'active' must be a boolean")
+        if "item" not in payload:
+            raise ProtocolError("response field 'item' is required")
+        item = payload["item"]
+        if item is not None and (not isinstance(item, str) or not item.strip()):
+            raise ProtocolError("response field 'item' must be a non-empty string or null")
+        remaining = _require_integer(payload, "remaining_ticks")
+        if remaining < 0:
+            raise ProtocolError("response field 'remaining_ticks' must not be negative")
+        if active and item is None:
+            raise ProtocolError("active item use must have an item")
+        if not active and (item is not None or remaining != 0):
+            raise ProtocolError("inactive item use must have a null item and zero remaining_ticks")
+        if action == "stop" and active:
+            raise ProtocolError("stopping item use must return active=false")
+        return PlayerItemUseResult(active, item, remaining)
 
     def start_player_mining(self, username: str) -> PlayerMiningResult:
         """Enable held mining, including when no block is currently targeted."""

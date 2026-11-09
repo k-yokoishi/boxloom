@@ -28,9 +28,18 @@ object BoxloomMod : ModInitializer {
     override fun onInitialize() {
         logger.info("Initializing boxloom")
         playerActions.register()
-        ServerTickEvents.START_SERVER_TICK.register { server -> PlayerMiningActions.tick(server) }
-        ServerPlayConnectionEvents.DISCONNECT.register { handler, _ -> PlayerMiningActions.stop(handler.player) }
-        ServerLifecycleEvents.SERVER_STOPPING.register { PlayerMiningActions.clear() }
+        ServerTickEvents.START_SERVER_TICK.register { server ->
+            PlayerItemUseActions.tick(server)
+            PlayerMiningActions.tick(server)
+        }
+        ServerPlayConnectionEvents.DISCONNECT.register { handler, _ ->
+            PlayerItemUseActions.cancel(handler.player)
+            PlayerMiningActions.stop(handler.player)
+        }
+        ServerLifecycleEvents.SERVER_STOPPING.register {
+            PlayerItemUseActions.clear()
+            PlayerMiningActions.clear()
+        }
 
         ServerLifecycleEvents.SERVER_STARTED.register { server ->
             currentServer.set(server)
@@ -110,4 +119,10 @@ object BoxloomMod : ModInitializer {
     fun publishPlayerSwing(player: ServerPlayer) {
         playerActions.swing(player)
     }
+
+    @JvmStatic
+    fun suppressApiItemRelease(player: ServerPlayer): Boolean = PlayerItemUseActions.suppressClientRelease(player)
+
+    @JvmStatic
+    fun onNativeItemUseStopped(player: ServerPlayer) = PlayerItemUseActions.onNativeStop(player)
 }

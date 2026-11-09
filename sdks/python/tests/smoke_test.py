@@ -18,6 +18,7 @@ from boxloom import (
     Player,
     PlayerMiningResult,
     PlayerUseResult,
+    PlayerItemUseResult,
     GameMode,
     PlayerGameMode,
     PlayerPosition,
@@ -88,6 +89,9 @@ assert Block("minecraft:overworld", 0, 64, 0, "minecraft:wheat", {"age": "3"}).p
 assert PlayerMiningResult(True, None, False).active
 assert PlayerUseResult(False, False, None).used is False
 assert callable(Player.use)
+assert callable(Player.start_using_item)
+assert callable(Player.stop_using_item)
+assert PlayerItemUseResult(False, None, 0).remaining_ticks == 0
 assert callable(Player.start_mining)
 assert callable(Player.stop_mining)
 assert boxloom.ChatEventStream is ChatEventStream

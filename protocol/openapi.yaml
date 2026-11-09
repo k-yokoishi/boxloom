@@ -342,8 +342,9 @@ paths:
         Fabric cancellation apply. A cancelled interaction is not retried as air use.
         Dead, spectator, already-using or otherwise unable players return PLAYER_CANNOT_USE.
         The result reports native action acceptance, not guaranteed growth or an item
-        change. Long-duration items start their native use; this operation does not
-        simulate holding and releasing a button. No automatic mutation retries.
+        change. Cancels an API-owned item-use session without releasing it. Long-duration
+        items start native use but a vanilla client can immediately release them; use
+        item-use/start and item-use/stop for controlled continuous use. No automatic mutation retries.
       parameters:
         - name: username
           in: path
@@ -405,6 +406,147 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/players/{username}/item-use/start:
+    post:
+      operationId: startUsingPlayerItem
+      summary: Start continuous main-hand item use
+      description: >-
+        Starts the main-hand item itself, without interacting with a targeted block or entity.
+        Native item ticks perform eating, drinking, charging or blocking. Only API-owned
+        use ignores client RELEASE_USE_ITEM packets; normal use is unchanged. Repeating
+        start while active preserves progress; after completion a new call starts a new use.
+        Food/drink completes once and does not repeat. Native hunger, creative rules,
+        cooldowns and Fabric UseItemCallback apply. Refusal returns active false. Empty or
+        instant-use items return ITEM_NOT_CONTINUOUSLY_USABLE without being used.
+        Dead, spectator, disconnected or already natively using players return PLAYER_CANNOT_USE.
+        Cancels API mining. Slot/stack, world or game-mode changes, death, disconnect,
+        server shutdown, API attack, single use or mining start cancel without release effects.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_]{3,16}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              maxProperties: 0
+            example: {}
+      responses:
+        '200':
+          description: The server-thread result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerItemUseResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The player is not connected or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '409':
+          description: PLAYER_CANNOT_USE or ITEM_NOT_CONTINUOUSLY_USABLE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Content-Type must be application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
+  /v1/players/{username}/item-use/stop:
+    post:
+      operationId: stopUsingPlayerItem
+      summary: Release API-owned item use
+      description: >-
+        Releases only API-owned item use. Food/drink is interrupted without consumption;
+        a sufficiently charged bow fires using native ammo, durability and creative rules.
+        An inactive, completed or invalidated session is a successful no-op. A native
+        item use owned by the Minecraft client is left unchanged. Natural completion
+        and lifecycle cancellation do not fire a bow. This mutation is not retried.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_]{3,16}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              maxProperties: 0
+            example: {}
+      responses:
+        '200':
+          description: The server-thread result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerItemUseResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The player is not connected or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Content-Type must be application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/players/{username}/mining/start:
     post:
       operationId: startPlayerMining
@@ -417,7 +559,7 @@ paths:
         Target, block-state, tool or selected-slot changes reset block progress;
         item use pauses mining. Protected and unbreakable targets remain intact and
         wait until the aim, block or tool changes. The mode ends on stop_mining,
-        attack, death, disconnect, world or game-mode changes, or a competing native
+        attack, API item-use start, death, disconnect, world or game-mode changes, or a competing native
         mining action. The response is a snapshot; broken is true only for an
         immediate creative or instant break and does not turn active off. Later
         breaks are visible through block reads. The player and observers receive
@@ -1419,6 +1561,21 @@ components:
         entity:
           $ref: '#/components/schemas/Entity'
           description: Optional entity snapshot after an entity attack attempt; omitted for block attacks and misses.
+    PlayerItemUseResult:
+      type: object
+      additionalProperties: false
+      required: [active, item, remaining_ticks]
+      properties:
+        active:
+          type: boolean
+          description: Whether an API-owned native use is active at response time. Stop always returns false.
+        item:
+          description: Namespaced item ID while active; null when inactive.
+          type: [string, 'null']
+        remaining_ticks:
+          type: integer
+          minimum: 0
+          description: Native use ticks remaining, clamped to zero. A response-time snapshot, not charge percentage. Zero when inactive.
     PlayerUseResult:
       type: object
       additionalProperties: false

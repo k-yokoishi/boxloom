@@ -1,6 +1,6 @@
 from typing import Mapping, Optional
 
-from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerUseResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players, set_block, SetBlockResult
+from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerUseResult, PlayerItemUseResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players, set_block, SetBlockResult
 from typing_extensions import assert_type
 
 player = get_player("Steve")
@@ -34,3 +34,11 @@ assert_type(set_block(0, 64, 0, "minecraft:wheat", properties={"age": "3"}), Set
 assert_type(set_block(0, 64, 0, "minecraft:wheat").properties, Mapping[str, str])
 if target is not None:
     assert_type(target.properties, Mapping[str, str])
+
+assert_type(player.start_using_item(), PlayerItemUseResult)
+assert_type(player.stop_using_item(), PlayerItemUseResult)
+assert_type(player.start_using_item().item, Optional[str])
+assert_type(player.start_using_item().remaining_ticks, int)
+client = BoxloomClient(base_url="http://localhost:28886")
+assert_type(client.start_using_player_item("Steve"), PlayerItemUseResult)
+assert_type(client.stop_using_player_item("Steve"), PlayerItemUseResult)
