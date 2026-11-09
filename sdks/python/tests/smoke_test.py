@@ -23,6 +23,7 @@ from boxloom import (
     PlayerPosition,
     blocks,
     entities,
+    items,
     fill,
     get_block,
     get_entities,
@@ -58,7 +59,12 @@ assert boxloom.GameMode is GameMode
 assert PlayerGameMode("Steve", "test-uuid", "survival").mode == "survival"
 assert blocks.DIAMOND_BLOCK == "minecraft:diamond_block"
 assert entities.ZOMBIE == "minecraft:zombie"
-assert blocks.MINECRAFT_VERSION == entities.MINECRAFT_VERSION
+assert items.BONE_MEAL == "minecraft:bone_meal"
+assert items.DIAMOND_SWORD == "minecraft:diamond_sword"
+assert items.STONE == blocks.STONE
+assert boxloom.items is items
+assert "items" in boxloom.__all__
+assert blocks.MINECRAFT_VERSION == entities.MINECRAFT_VERSION == items.MINECRAFT_VERSION
 assert blocks.MINECRAFT_VERSION
 assert not hasattr(boxloom, "setblock")
 assert callable(summon)

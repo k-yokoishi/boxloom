@@ -21,7 +21,7 @@ def render_modules(snapshot: object, expected_version: str) -> Dict[str, str]:
         )
 
     modules = {}
-    for registry in ("blocks", "entities"):
+    for registry, label in (("blocks", "block"), ("entities", "entity type"), ("items", "item")):
         identifiers = snapshot.get(registry)
         if not isinstance(identifiers, list) or not identifiers:
             raise ValueError(f"{registry} must be a non-empty list of vanilla IDs")
@@ -39,7 +39,6 @@ def render_modules(snapshot: object, expected_version: str) -> Dict[str, str]:
                 raise ValueError(f"Duplicate {registry} constant {name}: {identifier!r}")
             constants[name] = identifier
 
-        label = "block" if registry == "blocks" else "entity type"
         lines = [
             f'"""Vanilla Minecraft {expected_version} {label} IDs for editor completion.',
             "",

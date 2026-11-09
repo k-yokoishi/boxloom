@@ -13,27 +13,32 @@ Top-level functions share one process-wide client. Call `boxloom.init()` to conf
 
 Dimensions, blocks, and entities are named with namespaced IDs such as `minecraft:overworld`, `minecraft:stone`, and `minecraft:arrow`. A dimension must be loaded by the running server; a block or entity ID must exist in the server's registries. Operations that act on the world take `dimension` as a keyword argument defaulting to `minecraft:overworld`.
 
-### Block and entity constants
+### Block, entity, and item constants
 
-Use `blocks` and `entities` to select vanilla IDs with editor completion:
+Use `blocks`, `entities`, and `items` to select vanilla IDs with editor completion:
 
 ```python
-from boxloom import blocks, entities, set_block, summon
+from boxloom import blocks, entities, give_item, items, set_block, summon
 
 set_block(0, 100, 0, blocks.DIAMOND_BLOCK)
 summon(entities.PIG, 0, 101, 0)
+give_item("Steve", items.BONE_MEAL, 3)
 ```
 
-Type `blocks.` or `entities.` to browse names. These are ordinary strings, such as
+Type `blocks.`, `entities.`, or `items.` to browse names. These are ordinary strings, such as
 `blocks.DIAMOND_BLOCK == "minecraft:diamond_block"`, annotated with `Final[str]`.
 Block constants also work with `fill`; entity constants also work with
-`kill_entities`. All `BoxloomClient` methods accept them as well.
+`kill_entities`. Item constants such as `items.BONE_MEAL`, `items.DIAMOND_SWORD`,
+and `items.STONE` work with `give_item` and `Player.give_item`.
+All `BoxloomClient` methods accept them as well.
 
 Constants cover vanilla Minecraft 26.3 and are bundled with the SDK, so completion
 works without connecting to a server. `blocks.MINECRAFT_VERSION` and
-`entities.MINECRAFT_VERSION` expose their source version. Namespaced strings remain
+`entities.MINECRAFT_VERSION`, along with `items.MINECRAFT_VERSION`, expose their
+source version. Namespaced strings remain
 accepted, including IDs from installed Mods. The server validates availability and
 summonability; some registered types, such as `entities.PLAYER`, cannot be summoned.
+Likewise, `items.AIR` is registered but cannot be given.
 
 ### Coordinates and results
 
@@ -447,7 +452,8 @@ Player.give_item(item: str, count: int = 1) -> GiveItemResult
 | `item` | `str` | required | Registered item ID, such as `"minecraft:stone"` or `"minecraft:diamond_sword"`. The `minecraft:` prefix may be omitted. |
 | `count` | `int` | `1` | Positive integer, at most 100 stacks of this item: 6,400 stone, 1,600 snowballs, or 100 swords. |
 
-`blocks.STONE` can be passed because its value is also a valid item ID. World-only
+Use `items.STONE`, `items.BONE_MEAL`, or `items.DIAMOND_SWORD` for editor completion.
+`blocks.STONE` can also be passed because its value is a valid item ID. World-only
 blocks such as water have no item form. Registered mod item IDs are accepted.
 Components and NBT are not accepted. Invalid argument types raise `ValueError`
 before requesting; item existence and the item-specific count limit are checked
@@ -463,14 +469,14 @@ on the server. Requests are not retried automatically.
 | `count` | `int` | Requested amount given, including overflow handled by vanilla rules. |
 
 ```python
-from boxloom import blocks, get_player, give_item
+from boxloom import get_player, give_item, items
 
 player = get_player("Steve")
 if player is not None:
-    player.give_item(blocks.STONE, count=64)
-    player.give_item("minecraft:diamond_sword")
+    player.give_item(items.STONE, count=64)
+    player.give_item(items.DIAMOND_SWORD)
 
-result = give_item("Steve", "minecraft:bone_meal", count=16)
+result = give_item("Steve", items.BONE_MEAL, count=16)
 print(result.item, result.count)
 ```
 

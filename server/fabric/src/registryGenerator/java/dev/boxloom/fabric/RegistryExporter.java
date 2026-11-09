@@ -32,6 +32,7 @@ public final class RegistryExporter {
         snapshot.addProperty("minecraft_version", version);
         snapshot.add("blocks", identifiers(BuiltInRegistries.BLOCK));
         snapshot.add("entities", identifiers(BuiltInRegistries.ENTITY_TYPE));
+        snapshot.add("items", identifiers(BuiltInRegistries.ITEM));
         String content = new GsonBuilder().setPrettyPrinting().create().toJson(snapshot) + "\n";
         Path output = Path.of(args[0]);
 
