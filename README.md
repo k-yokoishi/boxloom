@@ -98,10 +98,11 @@ returns `changed=True`.
 Give a player blocks or items, as with `/give`:
 
 ```python
-from boxloom import blocks, give_item
+from boxloom import give_item, items
 
-give_item("Steve", blocks.STONE, count=64)
-give_item("Steve", "minecraft:diamond_sword")  # count defaults to 1
+give_item("Steve", items.STONE, count=64)
+give_item("Steve", items.BONE_MEAL, count=3)
+give_item("Steve", items.DIAMOND_SWORD)  # count defaults to 1
 ```
 
 Also available as `player.give_item(item, count=1)` on a player returned by
@@ -137,7 +138,7 @@ from boxloom import entities, summon
 summon(entities.PIG, 0, 100, 0)
 ```
 
-Type `blocks.` or `entities.` in your editor to browse vanilla IDs with completion.
+Type `blocks.`, `entities.`, or `items.` in your editor to browse vanilla IDs with completion.
 These constants are ordinary strings; namespaced strings such as `"example:custom_block"`
 are also accepted for installed Mods.
 

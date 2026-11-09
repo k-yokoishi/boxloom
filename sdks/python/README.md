@@ -58,18 +58,18 @@ swing can prevent a new swing. Event player snapshots and manually constructed
 Give blocks or items to a player, as with `/give`:
 
 ```python
-from boxloom import blocks, give_item
+from boxloom import give_item, items
 
-player.give_item(blocks.STONE, count=64)
-player.give_item("minecraft:diamond_sword")  # count defaults to 1
-result = give_item("Steve", "minecraft:bone_meal", count=16)
+player.give_item(items.STONE, count=64)
+player.give_item(items.DIAMOND_SWORD)  # count defaults to 1
+result = give_item("Steve", items.BONE_MEAL, count=16)
 print(result.item, result.count)
 ```
 
 Also available as `BoxloomClient.give_item(username, item, count=1)`. All forms
 return `GiveItemResult(username, uuid, item, count)` with a canonical namespaced
-item ID. Blocks with an item form use item IDs too; `blocks.STONE` works, while
-world-only blocks such as water cannot be given. The `minecraft:` prefix may be
+item ID. Blocks with an item form use item IDs too; both `items.STONE` and
+`blocks.STONE` work, while world-only blocks such as water cannot be given. The `minecraft:` prefix may be
 omitted. Registered mod item IDs are accepted. Item components and NBT are not
 accepted by this interface.
 
@@ -206,21 +206,27 @@ the operation uses the same API authentication as other calls. Invalid inputs
 raise `ValueError` before making a request. A disconnected player raises
 `ApiError` with status `404` and code `PLAYER_NOT_CONNECTED`.
 
-### Block and entity constants
+### Block, entity, and item constants
 
-Import `blocks` and `entities`, then type `blocks.` or `entities.` to browse IDs
+Import `blocks`, `entities`, and `items`, then type `blocks.`, `entities.`, or `items.` to browse IDs
 with editor completion. They contain vanilla IDs for Minecraft 26.3, exposed as
 ordinary strings with `Final[str]` annotations. For example,
-`blocks.DIAMOND_BLOCK == "minecraft:diamond_block"` and
+`blocks.DIAMOND_BLOCK == "minecraft:diamond_block"`,
+`items.BONE_MEAL == "minecraft:bone_meal"`, and
 `entities.ZOMBIE == "minecraft:zombie"`.
 
-Use block constants with `set_block` and `fill`, and entity constants with `summon`
-and `kill_entities`, including their `BoxloomClient` methods. Namespaced strings
+Use block constants with `set_block` and `fill`, entity constants with `summon`
+and `kill_entities`, and item constants with `give_item` and `Player.give_item`,
+including their `BoxloomClient` methods. Item constants include block items such
+as `items.STONE` and ordinary items such as `items.BONE_MEAL` and
+`items.DIAMOND_SWORD`. Namespaced strings
 are still accepted, including IDs from installed Mods. The server checks whether
 an ID exists and whether an entity type can be summoned; registry constants such
-as `entities.PLAYER` do not imply that the type is summonable.
+as `entities.PLAYER` do not imply that the type is summonable. Likewise,
+`items.AIR` is registered but cannot be given.
 
-`blocks.MINECRAFT_VERSION` and `entities.MINECRAFT_VERSION` identify the source
+`blocks.MINECRAFT_VERSION`, `entities.MINECRAFT_VERSION`, and
+`items.MINECRAFT_VERSION` identify the source
 version. The constants are bundled with the SDK, so editor completion does not
 require a running Minecraft server.
 

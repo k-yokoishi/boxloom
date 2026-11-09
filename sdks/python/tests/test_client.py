@@ -59,7 +59,8 @@ class ClientTest(unittest.TestCase):
         player = self._player(client)
         for give in (lambda item, count=1: boxloom.give_item("Steve", item, count),
                      lambda item, count=1: client.give_item("Steve", item, count), player.give_item):
-            for item, count in ((boxloom.blocks.STONE, 65), ("diamond_sword", 1)):
+            for item, count in ((boxloom.blocks.STONE, 65), (boxloom.items.BONE_MEAL, 3),
+                                (boxloom.items.DIAMOND_SWORD, 1), ("diamond_sword", 1)):
                 canonical = item if ":" in item else f"minecraft:{item}"
                 _ApiHandler.response_body = {"username": "Steve", "uuid": "test-uuid", "item": canonical, "count": count}
                 result = give(item) if count == 1 else give(item, count)

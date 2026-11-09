@@ -33,7 +33,7 @@ uv run pyright
 '''
 
 [tasks.python-generate-constants]
-description = "Export Minecraft registries and regenerate Python block and entity constants"
+description = "Export Minecraft registries and regenerate Python block, entity, and item constants"
 run = '''
 cd server
 ./gradlew :fabric:exportRegistries
