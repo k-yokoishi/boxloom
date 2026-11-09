@@ -13,6 +13,8 @@ interface PlayerOperations {
 
     fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult>
 
+    fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult>
+
     fun startMining(username: String): CompletableFuture<PlayerMiningResult>
 
     fun stopMining(username: String): CompletableFuture<PlayerMiningResult>
@@ -62,6 +64,15 @@ data class PlayerUseResult(
     val swung: Boolean,
     val target: TargetedBlock?,
     val entity: EntitySnapshot? = null,
+)
+
+data class GiveItemRequest(val item: String, val count: Int = 1)
+
+data class GiveItemResult(
+    val username: String,
+    val uuid: String,
+    val item: String,
+    val count: Int,
 )
 
 enum class GameMode(val value: String) {

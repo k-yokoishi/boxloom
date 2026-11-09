@@ -429,6 +429,53 @@ print(position)
 
 </Operation>
 
+## `give_item`
+
+<Operation id="give_item">
+
+```python
+give_item(username: str, item: str, count: int = 1) -> GiveItemResult
+BoxloomClient.give_item(username: str, item: str, count: int = 1) -> GiveItemResult
+Player.give_item(item: str, count: int = 1) -> GiveItemResult
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `username` | `str` | required | Connected player name; supplied by the bound `Player` for its method. |
+| `item` | `str` | required | Registered item ID, such as `"minecraft:stone"` or `"minecraft:diamond_sword"`. The `minecraft:` prefix may be omitted. |
+| `count` | `int` | `1` | Positive integer, at most 100 stacks of this item: 6,400 stone, 1,600 snowballs, or 100 swords. |
+
+`blocks.STONE` can be passed because its value is also a valid item ID. World-only
+blocks such as water have no item form. Registered mod item IDs are accepted.
+Components and NBT are not accepted. Invalid argument types raise `ValueError`
+before requesting; item existence and the item-specific count limit are checked
+on the server. Requests are not retried automatically.
+
+**Returns** — `GiveItemResult`
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `username` | `str` | The player's name. |
+| `uuid` | `str` | The player's UUID. |
+| `item` | `str` | Canonical namespaced item ID. |
+| `count` | `int` | Requested amount given, including overflow handled by vanilla rules. |
+
+```python
+from boxloom import blocks, get_player, give_item
+
+player = get_player("Steve")
+if player is not None:
+    player.give_item(blocks.STONE, count=64)
+    player.give_item("minecraft:diamond_sword")
+
+result = give_item("Steve", "minecraft:bone_meal", count=16)
+print(result.item, result.count)
+```
+
+</Operation>
+
 ## `set_player_gamemode`
 
 <Operation id="set_player_gamemode">

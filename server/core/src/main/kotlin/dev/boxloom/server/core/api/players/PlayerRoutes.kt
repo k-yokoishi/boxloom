@@ -2,6 +2,7 @@ package dev.boxloom.server.core.api.players
 
 import com.sun.net.httpserver.HttpExchange
 import dev.boxloom.server.core.GameMode
+import dev.boxloom.server.core.GiveItemRequest
 import dev.boxloom.server.core.EntitySnapshot
 import dev.boxloom.server.core.JsonSupport
 import dev.boxloom.server.core.PlayerOperations
@@ -31,6 +32,7 @@ internal class PlayerRoutes(
         router.get("/players/{username}/targeted-block", ::targetedBlock)
         router.post("/players/{username}/attack", ::attack)
         router.post("/players/{username}/use", ::use)
+        router.post("/players/{username}/give", ::give)
         router.post("/players/{username}/mining/start") { exchange, parameters -> mining(exchange, parameters, true) }
         router.post("/players/{username}/mining/stop") { exchange, parameters -> mining(exchange, parameters, false) }
         router.post("/players/{username}/teleport", ::teleport)
@@ -89,6 +91,25 @@ internal class PlayerRoutes(
             put("swung", result.swung)
             put("target", result.target?.toJson() ?: JsonNull)
             put("entity", result.entity?.toJson() ?: JsonNull)
+        }.toString())
+    }
+
+    private fun give(exchange: HttpExchange, parameters: RouteParameters) {
+        val username = requireUsername(parameters)
+        HttpExchangeSupport.requireOnlyQueryParameters(HttpExchangeSupport.queryParameters(exchange), emptySet())
+        HttpExchangeSupport.requireJsonContentType(exchange)
+        val body = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
+        JsonSupport.requireOnlyFields(body, setOf("item", "count"))
+        val item = JsonSupport.requireString(body, "item")
+        val count = if ("count" in body) JsonSupport.requireInteger(body, "count") else 1
+        if (count < 1) throw JsonSupport.invalid("Field 'count' must be a positive integer")
+
+        val result = operations.await(minecraft.givePlayerItem(username, GiveItemRequest(item, count)))
+        HttpExchangeSupport.sendJson(exchange, 200, buildJsonObject {
+            put("username", result.username)
+            put("uuid", result.uuid)
+            put("item", result.item)
+            put("count", result.count)
         }.toString())
     }
 

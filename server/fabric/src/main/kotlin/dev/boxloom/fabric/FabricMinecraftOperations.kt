@@ -5,6 +5,8 @@ import dev.boxloom.server.core.ApiException
 import dev.boxloom.server.core.EntitySnapshot
 import dev.boxloom.server.core.GetEntitiesRequest
 import dev.boxloom.server.core.GameMode
+import dev.boxloom.server.core.GiveItemRequest
+import dev.boxloom.server.core.GiveItemResult
 import dev.boxloom.server.core.FillRequest
 import dev.boxloom.server.core.FillResult
 import dev.boxloom.server.core.GetBlockRequest
@@ -122,6 +124,9 @@ internal class FabricMinecraftOperations(
 
     override fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult> =
         onServerThread { server -> PlayerUseActions.use(connectedPlayer(server, username)) }
+
+    override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> =
+        onServerThread { server -> PlayerInventoryActions.give(connectedPlayer(server, username), request) }
 
     override fun startMining(username: String): CompletableFuture<PlayerMiningResult> =
         onServerThread { server -> PlayerMiningActions.start(connectedPlayer(server, username)) }
