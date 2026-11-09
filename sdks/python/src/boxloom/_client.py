@@ -917,7 +917,7 @@ class BoxloomClient:
         data = None
         headers = {
             "Accept": "application/json",
-            "User-Agent": "boxloom-python/0.1.0a8",
+            "User-Agent": "boxloom-python/0.1.0a9",
         }
         if self._auth_token is not None:
             headers["Authorization"] = f"Bearer {self._auth_token}"

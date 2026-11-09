@@ -24,27 +24,28 @@ The workflow can publish only from `main`. It uses the Python version in `sdks/p
 
 TestPyPI does not allow a published distribution file to be replaced. Increment the package version before publishing another build.
 
-Python SDK `0.1.0a8` adds typed player swing, block attack, block use, and item
-use events through `watch_event()` and `subscribe_event()`, plus player game mode
-changes through `set_player_gamemode()`. It also includes background callbacks,
-Minecraft 26.3 `blocks` and `entities` constants for editor completion, loaded
-entity queries, typed player death events, world clock operations, and entity
-killing. Loopback
-connections may omit the authentication token; a Fabric mod bound to a
-non-loopback address requires a non-empty token.
+Python SDK `0.1.0a9` adds client-bound player targeting, attacks, continuous
+mining, main-hand item use, continuous item use with explicit release, and
+`give_item()`. It includes complete block-state snapshots and updates, `None`
+for disconnected player lookups, and Minecraft 26.3 `items` constants such as
+`items.BONE_MEAL` and `items.DIAMOND_SWORD` for editor completion. It retains
+typed player events, background callbacks, game mode changes, world clock
+operations, entity queries, and entity killing. Loopback connections may omit
+the authentication token; a Fabric mod bound to a non-loopback address requires
+a non-empty token.
 
 ## Verify the published package
 
 The current SDK has no third-party runtime dependencies, so it can be installed directly from TestPyPI in a clean environment:
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a8
+python -m pip install --index-url https://test.pypi.org/simple/ boxloom==0.1.0a9
 ```
 
 Then verify the installed package:
 
 ```bash
-env -u BOXLOOM_AUTH_TOKEN python -c "import boxloom; boxloom.init(); print(boxloom.__version__); print(callable(boxloom.subscribe_event)); print(boxloom.blocks.DIAMOND_BLOCK, boxloom.entities.ZOMBIE)"
+env -u BOXLOOM_AUTH_TOKEN python -c "import boxloom; boxloom.init(); print(boxloom.__version__); print(callable(boxloom.subscribe_event)); print(boxloom.blocks.DIAMOND_BLOCK, boxloom.entities.ZOMBIE, boxloom.items.BONE_MEAL)"
 ```
 
 ## Optional local publishing

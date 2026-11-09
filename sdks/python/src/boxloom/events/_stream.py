@@ -242,7 +242,7 @@ class EventStream(Iterator[_EventT]):
         headers = {
             "Accept": "text/event-stream",
             "Cache-Control": "no-cache",
-            "User-Agent": "boxloom-python/0.1.0a8",
+            "User-Agent": "boxloom-python/0.1.0a9",
         }
         if self._auth_token is not None:
             headers["Authorization"] = f"Bearer {self._auth_token}"
