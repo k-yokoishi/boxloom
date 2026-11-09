@@ -17,6 +17,7 @@ from boxloom import (
     KillResult,
     Player,
     PlayerMiningResult,
+    PlayerUseResult,
     GameMode,
     PlayerGameMode,
     PlayerPosition,
@@ -84,6 +85,8 @@ assert FillResult.__name__ == "FillResult"
 assert Block.__name__ == "Block"
 assert GetBlockResult is Block
 assert PlayerMiningResult(True, None, False).active
+assert PlayerUseResult(False, False, None).used is False
+assert callable(Player.use)
 assert callable(Player.start_mining)
 assert callable(Player.stop_mining)
 assert boxloom.ChatEventStream is ChatEventStream

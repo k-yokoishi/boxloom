@@ -178,6 +178,20 @@ export const apiOperations = {
       { status: 409, code: 'UNSUPPORTED_ATTACK_TARGET', meaning: 'The held item is a piercing weapon, which uses a separate native attack path.' },
     ],
   },
+  use: {
+    description: (
+      <p>
+        Use the main hand once on the aimed block or entity, or in the air.
+        Native item effects, consumption, creative rules, cooldowns, reach,
+        spawn protection and Fabric cancellation apply. Cancels API mining.
+        There is no automatic offhand fallback.
+      </p>
+    ),
+    errors: [
+      playerNotConnected,
+      { status: 409, code: 'PLAYER_CANNOT_USE', meaning: 'The player is dead, spectating, already using an item, or otherwise unable to interact with their held item.' },
+    ],
+  },
   start_mining: {
     description: (
       <p>

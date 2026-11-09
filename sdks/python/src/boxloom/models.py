@@ -45,6 +45,11 @@ class Player:
 
         return self._require_client().start_player_mining(self.username)
 
+    def use(self) -> "PlayerUseResult":
+        """Use the main hand once on the aimed block/entity, or in the air."""
+
+        return self._require_client().use_player_item(self.username)
+
     def stop_mining(self) -> "PlayerMiningResult":
         """Cancel this player's API mining session; safe to call when inactive."""
 
@@ -100,6 +105,16 @@ class PlayerMiningResult:
 
 
 GameMode = Literal["creative", "survival"]
+
+
+@dataclass(frozen=True)
+class PlayerUseResult:
+    """Native use acceptance; used does not guarantee growth or an item change."""
+
+    used: bool
+    swung: bool
+    target: Optional[TargetedBlock]
+    entity: Optional["Entity"] = None
 
 
 @dataclass(frozen=True)

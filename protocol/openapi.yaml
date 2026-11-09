@@ -329,6 +329,82 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/players/{username}/use:
+    post:
+      operationId: usePlayerItem
+      summary: Use the main hand on the aimed block or entity, or in the air
+      description: >-
+        Performs one main-hand use with the server's latest eye position and view.
+        Uses native block/entity interaction reach; entities occlude blocks and fluids
+        are ignored by the outer raycast. Items such as buckets use their own native
+        targeting. No automatic offhand fallback. Cancels API mining. Native item
+        consumption, creative rules, cooldowns, spawn protection, world border and
+        Fabric cancellation apply. A cancelled interaction is not retried as air use.
+        Dead, spectator, already-using or otherwise unable players return PLAYER_CANNOT_USE.
+        The result reports native action acceptance, not guaranteed growth or an item
+        change. Long-duration items start their native use; this operation does not
+        simulate holding and releasing a button. No automatic mutation retries.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_]{3,16}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              maxProperties: 0
+            example: {}
+      responses:
+        '200':
+          description: The server-thread result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerUseResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The player is not connected or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '409':
+          description: PLAYER_CANNOT_USE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: The request body exceeds 16 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Content-Type must be application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/players/{username}/mining/start:
     post:
       operationId: startPlayerMining
@@ -1341,6 +1417,27 @@ components:
         entity:
           $ref: '#/components/schemas/Entity'
           description: Optional entity snapshot after an entity attack attempt; omitted for block attacks and misses.
+    PlayerUseResult:
+      type: object
+      additionalProperties: false
+      required: [used, swung, target, entity]
+      properties:
+        used:
+          type: boolean
+          description: Whether the native interaction consumed the action; not a guarantee of growth or item consumption.
+        swung:
+          type: boolean
+          description: Whether a new interaction arm swing started; an existing swing may prevent another.
+        target:
+          description: Block snapshot before the attempt; null for entities and air. Present even when block interaction passes to in-air use.
+          oneOf:
+            - $ref: '#/components/schemas/TargetedBlock'
+            - type: 'null'
+        entity:
+          description: Entity snapshot after the attempt, including a refused attempt; null for blocks and air.
+          oneOf:
+            - $ref: '#/components/schemas/Entity'
+            - type: 'null'
     PlayerMiningResult:
       type: object
       additionalProperties: false

@@ -22,6 +22,64 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class BoxloomHttpServerTest {
     @Test
+    fun `uses a main hand item and serializes block entity and miss results`() {
+        val target = TargetedBlock("minecraft:overworld", 1, 64, 3, "minecraft:wheat", "north", 2.5)
+        val entity = EntitySnapshot(TEST_UUID, "minecraft:cow", "minecraft:overworld", 1.5, 64.0, 3.0, 0f, 0f, "Cow", 10f)
+        var result = PlayerUseResult(true, true, target)
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult> {
+                assertEquals("Steve", username)
+                return CompletableFuture.completedFuture(result)
+            }
+        }
+        withServer(authToken = "test-secret", minecraft = minecraft) { server, _ ->
+            val path = "/v1/players/Steve/use"
+            assertEquals(401, post(server, path, "{}").statusCode())
+            assertEquals(403, post(server, path, "{}", "wrong").statusCode())
+            assertEquals(405, get(server, path, "test-secret").statusCode())
+            val used = post(server, path, "{}", "test-secret")
+            assertEquals(200, used.statusCode())
+            assertContains(used.body(), "\"used\":true")
+            assertContains(used.body(), "minecraft:wheat")
+            assertContains(used.body(), "\"entity\":null")
+            result = PlayerUseResult(false, false, null)
+            assertEquals("{\"used\":false,\"swung\":false,\"target\":null,\"entity\":null}",
+                post(server, path, "{}", "test-secret").body())
+            result = PlayerUseResult(true, false, null, entity)
+            assertContains(post(server, path, "{}", "test-secret").body(), "minecraft:cow")
+            val wrongType = HttpRequest.newBuilder()
+                .uri(URI("http://127.0.0.1:${server.boundPort}$path"))
+                .header("Authorization", "Bearer test-secret")
+                .header("Content-Type", "text/plain")
+                .POST(HttpRequest.BodyPublishers.ofString("{}")).build()
+            assertEquals(415, HttpClient.newHttpClient().send(wrongType, HttpResponse.BodyHandlers.ofString()).statusCode())
+        }
+    }
+
+    @Test
+    fun `preserves use errors and cancels a timed out use`() {
+        for ((status, code) in listOf(404 to "PLAYER_NOT_CONNECTED", 409 to "PLAYER_CANNOT_USE", 503 to "WORLD_NOT_LOADED")) {
+            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+                override fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult> =
+                    CompletableFuture.failedFuture(ApiException(status, code, "Cannot use"))
+            }
+            withServer(authToken = null, minecraft = minecraft) { server, _ ->
+                val response = post(server, "/v1/players/Steve/use", "{}")
+                assertEquals(status, response.statusCode())
+                assertContains(response.body(), code)
+            }
+        }
+        val pending = CompletableFuture<PlayerUseResult>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult> = pending
+        }
+        withServer(authToken = null, minecraft = minecraft, requestTimeout = Duration.ofMillis(100)) { server, _ ->
+            assertEquals(504, post(server, "/v1/players/Steve/use", "{}").statusCode())
+            assertTrue(pending.isCancelled)
+        }
+    }
+
+    @Test
     fun `starts and stops asynchronous mining and serializes entity attacks`() {
         val target = TargetedBlock("minecraft:overworld", 1, 64, 3, "minecraft:dirt", "north", 2.5)
         var miningResult = PlayerMiningResult(true, target, false)
@@ -99,12 +157,12 @@ class BoxloomHttpServerTest {
     @Test
     fun `validates attack requests before invoking Minecraft`() {
         withServer(authToken = null) { server, _ ->
-            for (path in listOf("/targeted-block", "/attack", "/mining/start", "/mining/stop")) {
+            for (path in listOf("/targeted-block", "/attack", "/use", "/mining/start", "/mining/stop")) {
                 val response = if (path == "/targeted-block") get(server, "/v1/players/ab$path")
                     else post(server, "/v1/players/ab$path", "{}")
                 assertEquals(400, response.statusCode())
             }
-            for (path in listOf("attack", "mining/start", "mining/stop")) {
+            for (path in listOf("attack", "use", "mining/start", "mining/stop")) {
                 for (body in listOf("{\"x\":0}", "null", "[]", "")) {
                     assertEquals(400, post(server, "/v1/players/Steve/$path", body).statusCode())
                 }
@@ -1391,6 +1449,9 @@ class BoxloomHttpServerTest {
         override fun stopMining(username: String): CompletableFuture<PlayerMiningResult> =
             throw AssertionError("Unexpected stop-mining request")
 
+        override fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult> =
+            throw AssertionError("Unexpected use request")
+
         override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
             throw AssertionError("Unexpected attack request")
 
@@ -1455,6 +1516,9 @@ class BoxloomHttpServerTest {
 
         override fun stopMining(username: String): CompletableFuture<PlayerMiningResult> =
             throw AssertionError("Unexpected stop-mining request")
+
+        override fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult> =
+            throw AssertionError("Unexpected use request")
 
         override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
             throw AssertionError("Unexpected attack request")

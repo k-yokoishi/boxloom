@@ -1,6 +1,6 @@
 from typing import Optional
 
-from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players
+from boxloom import Block, BoxloomClient, Entity, Player, PlayerAttackResult, PlayerUseResult, PlayerMiningResult, TargetedBlock, get_block, get_player, get_players
 from typing_extensions import assert_type
 
 player = get_player("Steve")
@@ -9,6 +9,9 @@ assert player is not None
 assert_type(player, Player)
 assert_type(player.get_targeted_block(), Optional[TargetedBlock])
 assert_type(player.attack(), PlayerAttackResult)
+assert_type(player.use(), PlayerUseResult)
+assert_type(player.use().entity, Optional[Entity])
+assert_type(BoxloomClient(base_url="http://localhost:28886").use_player_item("Steve"), PlayerUseResult)
 assert_type(player.attack().entity, Optional[Entity])
 assert_type(player.start_mining(), PlayerMiningResult)
 assert_type(player.stop_mining(), PlayerMiningResult)
