@@ -24,6 +24,77 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class BoxloomHttpServerTest {
     @Test
+    fun `starts and releases API item use with authentication and native state snapshots`() {
+        var result = PlayerItemUseResult(true, "minecraft:apple", 32)
+        val calls = mutableListOf<String>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun startUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> {
+                calls += "start:$username"
+                return CompletableFuture.completedFuture(result)
+            }
+            override fun stopUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> {
+                calls += "stop:$username"
+                return CompletableFuture.completedFuture(PlayerItemUseResult(false, null, 0))
+            }
+        }
+        withServer(authToken = "test-secret", minecraft = minecraft) { server, _ ->
+            for (action in listOf("start", "stop")) {
+                val path = "/v1/players/Steve/item-use/$action"
+                assertEquals(401, post(server, path, "{}").statusCode())
+                assertEquals(403, post(server, path, "{}", "wrong").statusCode())
+                assertEquals(405, get(server, path, "test-secret").statusCode())
+                val request = HttpRequest.newBuilder()
+                    .uri(URI("http://127.0.0.1:${server.boundPort}$path"))
+                    .header("Authorization", "Bearer test-secret").header("Content-Type", "text/plain")
+                    .POST(HttpRequest.BodyPublishers.ofString("{}")).build()
+                assertEquals(415, HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString()).statusCode())
+            }
+            val response = post(server, "/v1/players/Steve/item-use/start", "{}", "test-secret")
+            assertEquals(200, response.statusCode())
+            assertEquals("{\"active\":true,\"item\":\"minecraft:apple\",\"remaining_ticks\":32}", response.body())
+            result = PlayerItemUseResult(false, null, 0)
+            for (action in listOf("start", "stop")) {
+                val inactive = post(server, "/v1/players/Steve/item-use/$action", "{}", "test-secret")
+                assertEquals(200, inactive.statusCode())
+                assertEquals("{\"active\":false,\"item\":null,\"remaining_ticks\":0}", inactive.body())
+            }
+        }
+        assertEquals(listOf("start:Steve", "start:Steve", "stop:Steve"), calls)
+    }
+
+    @Test
+    fun `item use endpoints preserve errors and cancel timed out futures`() {
+        for ((status, code) in listOf(404 to "PLAYER_NOT_CONNECTED", 409 to "PLAYER_CANNOT_USE",
+            409 to "ITEM_NOT_CONTINUOUSLY_USABLE", 503 to "WORLD_NOT_LOADED")) {
+            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+                override fun startUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> =
+                    CompletableFuture.failedFuture(ApiException(status, code, "Cannot use"))
+                override fun stopUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> =
+                    CompletableFuture.failedFuture(ApiException(status, code, "Cannot use"))
+            }
+            withServer(authToken = null, minecraft = minecraft) { server, _ ->
+                for (action in listOf("start", "stop")) {
+                    val response = post(server, "/v1/players/Steve/item-use/$action", "{}")
+                    assertEquals(status, response.statusCode())
+                    assertContains(response.body(), code)
+                }
+            }
+        }
+        for (action in listOf("start", "stop")) {
+            val pending = CompletableFuture<PlayerItemUseResult>()
+            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+                override fun startUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> = pending
+                override fun stopUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> = pending
+            }
+            withServer(authToken = null, minecraft = minecraft, requestTimeout = Duration.ofMillis(100)) { server, _ ->
+                assertEquals(504, post(server, "/v1/players/Steve/item-use/$action", "{}").statusCode())
+                assertTrue(pending.isCancelled)
+            }
+        }
+    }
+
+
+    @Test
     fun `gives an item with an optional count`() {
         var captured: Pair<String, GiveItemRequest>? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
@@ -212,12 +283,12 @@ class BoxloomHttpServerTest {
     @Test
     fun `validates attack requests before invoking Minecraft`() {
         withServer(authToken = null) { server, _ ->
-            for (path in listOf("/targeted-block", "/attack", "/use", "/mining/start", "/mining/stop")) {
+            for (path in listOf("/targeted-block", "/attack", "/use", "/mining/start", "/mining/stop", "/item-use/start", "/item-use/stop")) {
                 val response = if (path == "/targeted-block") get(server, "/v1/players/ab$path")
                     else post(server, "/v1/players/ab$path", "{}")
                 assertEquals(400, response.statusCode())
             }
-            for (path in listOf("attack", "use", "mining/start", "mining/stop")) {
+            for (path in listOf("attack", "use", "mining/start", "mining/stop", "item-use/start", "item-use/stop")) {
                 for (body in listOf("{\"x\":0}", "null", "[]", "")) {
                     assertEquals(400, post(server, "/v1/players/Steve/$path", body).statusCode())
                 }
@@ -1562,6 +1633,12 @@ class BoxloomHttpServerTest {
         override fun stopMining(username: String): CompletableFuture<PlayerMiningResult> =
             throw AssertionError("Unexpected stop-mining request")
 
+        override fun startUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> =
+            throw AssertionError("Unexpected start-item-use request")
+
+        override fun stopUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> =
+            throw AssertionError("Unexpected stop-item-use request")
+
         override fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult> =
             throw AssertionError("Unexpected use request")
 
@@ -1632,6 +1709,12 @@ class BoxloomHttpServerTest {
 
         override fun stopMining(username: String): CompletableFuture<PlayerMiningResult> =
             throw AssertionError("Unexpected stop-mining request")
+
+        override fun startUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> =
+            throw AssertionError("Unexpected start-item-use request")
+
+        override fun stopUsingPlayerItem(username: String): CompletableFuture<PlayerItemUseResult> =
+            throw AssertionError("Unexpected stop-item-use request")
 
         override fun usePlayerItem(username: String): CompletableFuture<PlayerUseResult> =
             throw AssertionError("Unexpected use request")

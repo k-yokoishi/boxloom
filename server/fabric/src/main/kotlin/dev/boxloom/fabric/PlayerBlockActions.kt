@@ -26,6 +26,7 @@ internal object PlayerBlockActions {
         findTargetedBlockHit(player)?.let { snapshot(player, it) }
 
     fun attack(player: ServerPlayer): PlayerAttackResult {
+        PlayerItemUseActions.cancel(player)
         requireCanAttack(player)
         PlayerMiningActions.stop(player)
         abortMining(player)
