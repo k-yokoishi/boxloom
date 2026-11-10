@@ -65,7 +65,7 @@ jobs:
         run: uv sync --locked
 
       - name: Run unit tests
-        run: uv run python -m unittest discover -s tests -v
+        run: uv run pytest -v
 
       - name: Verify generated registry constants
         run: uv run python scripts/generate_registry_constants.py --check
@@ -79,10 +79,10 @@ jobs:
         run: uv build --clear
 
       - name: Smoke test the wheel
-        run: uv run --isolated --no-project --with dist/*.whl python tests/smoke_test.py
+        run: uv run --isolated --no-project --with dist/*.whl --with pytest pytest -v tests/smoke_test.py
 
       - name: Smoke test the source distribution
-        run: uv run --isolated --no-project --with dist/*.tar.gz python tests/smoke_test.py
+        run: uv run --isolated --no-project --with dist/*.tar.gz --with pytest pytest -v tests/smoke_test.py
 
   fabric:
     name: Fabric mod

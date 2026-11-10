@@ -511,6 +511,22 @@ mise run python-check-constants
 mise run python-build
 ```
 
+Tests use pytest. From `sdks/python`, run `uv run pytest -v` for the full suite,
+`uv run pytest -k subscription` to select tests, or `uv run pytest --lf` to rerun
+the previous failures. Tests start local HTTP servers; Minecraft is not required.
+
+`tests/smoke_test.py` is run separately against each built distribution so it
+imports the installed package rather than the source checkout:
+
+```bash
+uv build --clear
+uv run --isolated --no-project --with dist/*.whl --with pytest pytest -v tests/smoke_test.py
+uv run --isolated --no-project --with dist/*.tar.gz --with pytest pytest -v tests/smoke_test.py
+```
+
+CI runs these checks on Python 3.13. Pytest is a development dependency;
+installing the SDK does not install pytest.
+
 When updating Minecraft, run `mise run python-generate-constants` from the
 repository root. This exports the version pinned in `server/gradle.properties`
 and regenerates both modules. Commit the snapshot and generated files together.

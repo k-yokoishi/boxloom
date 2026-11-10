@@ -1,10 +1,11 @@
 import json
 import queue
 import threading
-import unittest
 from concurrent.futures import ThreadPoolExecutor
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from unittest.mock import patch
+
+import pytest
 
 import boxloom
 
@@ -23,16 +24,27 @@ def _ready(cursor="session:0"):
 
 def _chat(cursor="session:1"):
     return _frame(
-        "chat.message", cursor, id=cursor, timestamp="2026-11-02T00:00:00Z",
-        message="hello", player={"username": "Steve", "uuid": "player-uuid"},
+        "chat.message",
+        cursor,
+        id=cursor,
+        timestamp="2026-11-02T00:00:00Z",
+        message="hello",
+        player={"username": "Steve", "uuid": "player-uuid"},
     )
 
 
 def _death(cursor="session:1"):
     return _frame(
-        "player.death", cursor, id=cursor, timestamp="2026-11-02T00:00:00Z",
-        message="Steve died", player={"username": "Steve", "uuid": "player-uuid"},
-        dimension="minecraft:overworld", x=1.5, y=64.0, z=-2.25,
+        "player.death",
+        cursor,
+        id=cursor,
+        timestamp="2026-11-02T00:00:00Z",
+        message="Steve died",
+        player={"username": "Steve", "uuid": "player-uuid"},
+        dimension="minecraft:overworld",
+        x=1.5,
+        y=64.0,
+        z=-2.25,
     )
 
 
@@ -55,7 +67,9 @@ class _Handler(BaseHTTPRequestHandler):
         scenario.requested.set()
         self.send_response(scenario.status)
         if scenario.status != 200:
-            body = json.dumps({"error": {"code": "UNAUTHORIZED", "message": "No token"}}).encode()
+            body = json.dumps(
+                {"error": {"code": "UNAUTHORIZED", "message": "No token"}}
+            ).encode()
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -94,29 +108,27 @@ class _Handler(BaseHTTPRequestHandler):
         pass
 
 
-class SubscriptionTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-        cls.server.daemon_threads = True
-        cls.server.scenarios = queue.Queue()
-        cls.server_thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
-        cls.server_thread.start()
-        cls.url = f"http://127.0.0.1:{cls.server.server_port}"
+@pytest.fixture(scope="module")
+def subscription_server(http_server):
+    server = http_server(_Handler)
+    server.scenarios = queue.Queue()
+    return server
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.server.shutdown()
-        cls.server.server_close()
-        cls.server_thread.join(2)
 
-    def setUp(self):
+class TestSubscription:
+    @pytest.fixture(autouse=True)
+    def configure_subscriptions(self, subscription_server, isolated_client):
+        self.server = subscription_server
+        self.url = f"http://127.0.0.1:{self.server.server_port}"
         self.scenarios = []
         self.subscriptions = []
-        self.client = boxloom.BoxloomClient(base_url=self.url, timeout=2.0, auth_token="secret")
+        self.client = boxloom.BoxloomClient(
+            base_url=self.url, timeout=2.0, auth_token="secret"
+        )
         boxloom.init(base_url=self.url, timeout=0.3, auth_token="secret")
 
-    def tearDown(self):
+        yield
+
         for subscription in self.subscriptions:
             subscription.stop()
         for scenario in self.scenarios:
@@ -136,38 +148,46 @@ class SubscriptionTest(unittest.TestCase):
         self.subscriptions.append(subscription)
         return subscription
 
-    def test_player_actions_reach_callbacks_with_optional_filter(self):
+    @pytest.mark.parametrize(
+        "event_filter",
+        (None, *("player.swing", "block.attack", "block.use", "item.use")),
+    )
+    def test_player_actions_reach_callbacks_with_optional_filter(self, event_filter):
         kinds = ("player.swing", "block.attack", "block.use", "item.use")
-        for event_filter in (None, *kinds):
-            with self.subTest(event_filter=event_filter):
-                scenario = self.scenario()
-                calls = []
-                received = threading.Event()
-                expected = list(kinds) if event_filter is None else [event_filter]
+        scenario = self.scenario()
+        calls = []
+        received = threading.Event()
+        expected = list(kinds) if event_filter is None else [event_filter]
 
-                def callback(event):
-                    calls.append(event)
-                    if len(calls) == len(expected):
-                        received.set()
+        def callback(event):
+            calls.append(event)
+            if len(calls) == len(expected):
+                received.set()
 
-                subscription = self.subscribe(event_filter, callback=callback)
-                for i, kind in enumerate(kinds, 1):
-                    fields = dict(
-                        id=f"session:{i}", timestamp="2026-11-06T00:00:00Z",
-                        player={"username": "Steve", "uuid": "player-uuid"},
-                        dimension="minecraft:overworld", x=1.0, y=64.0, z=2.0,
-                        hand="main_hand", item="minecraft:diamond_sword",
-                    )
-                    if kind.startswith("block."):
-                        fields.update(block="minecraft:stone", block_x=1, block_y=63,
-                                      block_z=2, face="up")
-                    scenario.frames.put(_frame(kind, f"session:{i}", **fields))
-                self.assertTrue(received.wait(2))
-                subscription.stop()
-                subscription.join(2)
-                subscription.raise_if_failed()
-                self.assertEqual(expected, [event.type for event in calls])
-                self.assertTrue(all(event.item == "minecraft:diamond_sword" for event in calls))
+        subscription = self.subscribe(event_filter, callback=callback)
+        for i, kind in enumerate(kinds, 1):
+            fields = dict(
+                id=f"session:{i}",
+                timestamp="2026-11-06T00:00:00Z",
+                player={"username": "Steve", "uuid": "player-uuid"},
+                dimension="minecraft:overworld",
+                x=1.0,
+                y=64.0,
+                z=2.0,
+                hand="main_hand",
+                item="minecraft:diamond_sword",
+            )
+            if kind.startswith("block."):
+                fields.update(
+                    block="minecraft:stone", block_x=1, block_y=63, block_z=2, face="up"
+                )
+            scenario.frames.put(_frame(kind, f"session:{i}", **fields))
+        assert received.wait(2)
+        subscription.stop()
+        subscription.join(2)
+        subscription.raise_if_failed()
+        assert [event.type for event in calls] == expected
+        assert all((event.item == "minecraft:diamond_sword" for event in calls))
 
     def test_callback_can_use_the_event_player_after_default_client_changes(self):
         scenario = self.scenario()
@@ -175,7 +195,12 @@ class SubscriptionTest(unittest.TestCase):
         positions = []
         errors = []
         position = boxloom.PlayerPosition(
-            "Steve", "player-uuid", "minecraft:overworld", boxloom.Vec3(1.5, 64, -2.25), 0, 0,
+            "Steve",
+            "player-uuid",
+            "minecraft:overworld",
+            boxloom.Vec3(1.5, 64, -2.25),
+            0,
+            0,
         )
 
         def callback(event):
@@ -186,17 +211,23 @@ class SubscriptionTest(unittest.TestCase):
             errors.append(error)
             received.set()
 
-        with patch.object(boxloom.BoxloomClient, "get_player_position", autospec=True,
-                          return_value=position) as get_position:
-            subscription = self.subscribe("chat.message", callback=callback, on_error=on_error)
+        with patch.object(
+            boxloom.BoxloomClient,
+            "get_player_position",
+            autospec=True,
+            return_value=position,
+        ) as get_position:
+            subscription = self.subscribe(
+                "chat.message", callback=callback, on_error=on_error
+            )
             boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
             scenario.frames.put(_chat())
-            self.assertTrue(received.wait(2))
+            assert received.wait(2)
             subscription.stop()
             subscription.join(2)
             subscription.raise_if_failed()
-            self.assertEqual([], errors)
-            self.assertEqual([position], positions)
+            assert errors == []
+            assert positions == [position]
             get_position.assert_called_once_with(self.client, "Steve")
 
     def test_registration_waits_for_ready_and_callback_runs_in_background(self):
@@ -210,21 +241,21 @@ class SubscriptionTest(unittest.TestCase):
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(self.subscribe, "player.death", callback=callback)
-            self.assertTrue(scenario.requested.wait(2))
-            self.assertFalse(future.done())
+            assert scenario.requested.wait(2)
+            assert not future.done()
             scenario.frames.put(_ready())
             subscription = future.result(2)
-        self.assertEqual("session:0", subscription.last_event_id)
-        self.assertEqual("Bearer secret", scenario.headers["Authorization"])
+        assert subscription.last_event_id == "session:0"
+        assert scenario.headers["Authorization"] == "Bearer secret"
         scenario.frames.put(_death())
-        self.assertTrue(received.wait(2))
+        assert received.wait(2)
         subscription.stop()
         subscription.join(2)
         subscription.raise_if_failed()
-        self.assertEqual("player.death", calls[0][0].type)
-        self.assertNotEqual(threading.get_ident(), calls[0][1])
-        self.assertEqual("game over", calls[0][2].message)
-        self.assertEqual("session:1", subscription.last_event_id)
+        assert calls[0][0].type == "player.death"
+        assert calls[0][1] != threading.get_ident()
+        assert calls[0][2].message == "game over"
+        assert subscription.last_event_id == "session:1"
 
     def test_callbacks_are_serial_and_main_thread_can_keep_using_api(self):
         scenario = self.scenario()
@@ -244,18 +275,18 @@ class SubscriptionTest(unittest.TestCase):
 
         subscription = self.subscribe(callback=callback)
         scenario.frames.put(_chat("session:1") + _death("session:2"))
-        self.assertTrue(entered.wait(2))
-        self.assertEqual("session:0", subscription.last_event_id)
+        assert entered.wait(2)
+        assert subscription.last_event_id == "session:0"
         try:
-            self.assertEqual("still running", self.client.say("still running").message)
-            self.assertEqual(["session:1"], calls)
+            assert self.client.say("still running").message == "still running"
+            assert calls == ["session:1"]
         finally:
             release.set()
-        self.assertTrue(finished.wait(2))
+        assert finished.wait(2)
         subscription.stop()
         subscription.join(2)
-        self.assertEqual(["session:1", "session:2"], calls)
-        self.assertEqual("session:2", subscription.last_event_id)
+        assert calls == ["session:1", "session:2"]
+        assert subscription.last_event_id == "session:2"
 
     def test_callback_failure_preserves_last_completed_cursor_and_notifies_once(self):
         scenario = self.scenario()
@@ -272,20 +303,24 @@ class SubscriptionTest(unittest.TestCase):
             errors.append(error)
             notified.set()
 
-        subscription = self.subscribe("player.death", callback=callback, on_error=on_error)
-        scenario.frames.put(
-            _chat("session:1") + _frame("future.event", "session:2")
-            + _death("session:3") + _death("session:4")
+        subscription = self.subscribe(
+            "player.death", callback=callback, on_error=on_error
         )
-        self.assertTrue(notified.wait(2))
+        scenario.frames.put(
+            _chat("session:1")
+            + _frame("future.event", "session:2")
+            + _death("session:3")
+            + _death("session:4")
+        )
+        assert notified.wait(2)
         subscription.join(2)
-        self.assertEqual([failure], errors)
-        self.assertEqual(["session:3"], calls)
-        self.assertEqual("session:2", subscription.last_event_id)
-        with self.assertRaises(ValueError) as caught:
+        assert errors == [failure]
+        assert calls == ["session:3"]
+        assert subscription.last_event_id == "session:2"
+        with pytest.raises(ValueError) as caught:
             subscription.raise_if_failed()
-        self.assertIs(failure, caught.exception)
-        with self.assertRaises(ValueError):
+        assert caught.value is failure
+        with pytest.raises(ValueError):
             with subscription:
                 pass
 
@@ -301,60 +336,68 @@ class SubscriptionTest(unittest.TestCase):
             calls.append(event.id)
             (delivered if len(calls) == 1 else finished).set()
 
-        subscription = self.subscribe(callback=callback, on_error=errors.append, reconnect=True)
+        subscription = self.subscribe(
+            callback=callback, on_error=errors.append, reconnect=True
+        )
         first.frames.put(b"retry: 1\n\n" + _chat("session:1"))
-        self.assertTrue(delivered.wait(2))
+        assert delivered.wait(2)
         first.frames.put(None)
-        self.assertTrue(second.requested.wait(2))
+        assert second.requested.wait(2)
         headers = {name.lower(): value for name, value in second.headers.items()}
-        self.assertEqual("session:1", headers["last-event-id"])
+        assert headers["last-event-id"] == "session:1"
         second.frames.put(_ready("session:1") + _death("session:2"))
-        self.assertTrue(finished.wait(2))
+        assert finished.wait(2)
         subscription.stop()
         subscription.join(2)
         subscription.raise_if_failed()
-        self.assertEqual(["session:1", "session:2"], calls)
-        self.assertEqual([], errors)
+        assert calls == ["session:1", "session:2"]
+        assert errors == []
 
     def test_initial_api_and_readiness_errors_are_raised_synchronously(self):
         self.scenario(status=401)
         errors = []
-        with self.assertRaises(boxloom.ApiError) as caught:
+        with pytest.raises(boxloom.ApiError) as caught:
             self.subscribe(callback=lambda event: None, on_error=errors.append)
-        self.assertEqual(401, caught.exception.status)
-        self.assertEqual([], errors)
+        assert caught.value.status == 401
+        assert errors == []
 
         scenario = self.scenario(ready=False)
         scenario.frames.put(_frame("stream.ready", "other:0", cursor="session:0"))
-        with self.assertRaises(boxloom.ProtocolError):
+        with pytest.raises(boxloom.ProtocolError):
             self.subscribe(callback=lambda event: None)
 
         scenario = self.scenario(ready=False)
         scenario.frames.put(_death())
-        with self.assertRaises(boxloom.ProtocolError):
+        with pytest.raises(boxloom.ProtocolError):
             self.subscribe(callback=lambda event: None)
 
-    def test_stream_reset_and_disconnect_stop_and_report_failures(self):
-        for reset in (True, False):
-            with self.subTest(reset=reset):
-                scenario = self.scenario()
-                errors = []
-                notified = threading.Event()
+    @pytest.mark.parametrize("reset", (True, False))
+    def test_stream_reset_and_disconnect_stop_and_report_failures(self, reset):
+        scenario = self.scenario()
+        errors = []
+        notified = threading.Event()
 
-                def on_error(error):
-                    errors.append(error)
-                    notified.set()
+        def on_error(error):
+            errors.append(error)
+            notified.set()
 
-                subscription = self.subscribe(callback=lambda event: None, on_error=on_error)
-                scenario.frames.put(_frame(
-                    "stream.reset", None, code="EVENT_CURSOR_EXPIRED", message="Expired",
-                ) if reset else None)
-                self.assertTrue(notified.wait(2))
-                subscription.join(2)
-                expected = boxloom.EventCursorExpiredError if reset else boxloom.ConnectionError
-                self.assertIsInstance(errors[0], expected)
-                with self.assertRaises(expected):
-                    subscription.raise_if_failed()
+        subscription = self.subscribe(callback=lambda event: None, on_error=on_error)
+        scenario.frames.put(
+            _frame(
+                "stream.reset",
+                None,
+                code="EVENT_CURSOR_EXPIRED",
+                message="Expired",
+            )
+            if reset
+            else None
+        )
+        assert notified.wait(2)
+        subscription.join(2)
+        expected = boxloom.EventCursorExpiredError if reset else boxloom.ConnectionError
+        assert isinstance(errors[0], expected)
+        with pytest.raises(expected):
+            subscription.raise_if_failed()
 
     def test_stop_is_idempotent_and_join_times_out_for_an_active_callback(self):
         scenario = self.scenario()
@@ -370,36 +413,38 @@ class SubscriptionTest(unittest.TestCase):
 
         subscription = self.subscribe(callback=callback)
         scenario.frames.put(_death("session:1") + _death("session:2"))
-        self.assertTrue(entered.wait(2))
+        assert entered.wait(2)
         try:
             subscription.stop()
             subscription.stop()
-            with self.assertRaises(TimeoutError):
+            with pytest.raises(TimeoutError):
                 subscription.join(0)
         finally:
             release.set()
         subscription.join(2)
         subscription.raise_if_failed()
-        self.assertEqual(["session:1"], calls)
-        self.assertEqual("session:1", subscription.last_event_id)
+        assert calls == ["session:1"]
+        assert subscription.last_event_id == "session:1"
 
     def test_stop_from_callback_does_not_join_its_own_thread(self):
         scenario = self.scenario()
         finished = threading.Event()
 
         def callback(event):
-            with self.assertRaises(RuntimeError):
+            with pytest.raises(RuntimeError):
                 subscription.join()
             subscription.stop()
             finished.set()
 
         subscription = self.subscribe(callback=callback)
         scenario.frames.put(_death())
-        self.assertTrue(finished.wait(2))
+        assert finished.wait(2)
         subscription.join(2)
         subscription.raise_if_failed()
 
-    def test_error_handler_failure_keeps_original_error_and_outer_exception(self):
+    def test_error_handler_failure_keeps_original_error_and_outer_exception(
+        self, caplog
+    ):
         scenario = self.scenario()
         failure = ValueError("original failure")
         notified = threading.Event()
@@ -412,34 +457,44 @@ class SubscriptionTest(unittest.TestCase):
             raise RuntimeError("error handler failure")
 
         subscription = self.subscribe(callback=callback, on_error=on_error)
-        with self.assertLogs("boxloom.events", level="ERROR"):
+        with caplog.at_level("ERROR", logger="boxloom.events"):
             scenario.frames.put(_death())
-            self.assertTrue(notified.wait(2))
+            assert notified.wait(2)
             subscription.join(2)
-        with self.assertRaises(ValueError) as caught:
+        assert any(
+            record.name == "boxloom.events" and record.levelname == "ERROR"
+            for record in caplog.records
+        )
+        with pytest.raises(ValueError) as caught:
             subscription.raise_if_failed()
-        self.assertIs(failure, caught.exception)
-        with self.assertRaisesRegex(RuntimeError, "outer failure"):
+        assert caught.value is failure
+        with pytest.raises(RuntimeError, match="outer failure"):
             with subscription:
                 raise RuntimeError("outer failure")
 
-    def test_top_level_api_and_default_error_logging(self):
+    def test_top_level_api_and_default_error_logging(self, caplog):
         scenario = self.scenario()
 
         def callback(event):
             raise RuntimeError("callback failed")
 
-        subscription = boxloom.subscribe_event("player.death", callback=callback, reconnect=False)
+        subscription = boxloom.subscribe_event(
+            "player.death", callback=callback, reconnect=False
+        )
         self.subscriptions.append(subscription)
-        with self.assertLogs("boxloom.events", level="ERROR"):
+        with caplog.at_level("ERROR", logger="boxloom.events"):
             scenario.frames.put(_death())
             subscription.join(2)
-        with self.assertRaisesRegex(RuntimeError, "callback failed"):
+        assert any(
+            record.name == "boxloom.events" and record.levelname == "ERROR"
+            for record in caplog.records
+        )
+        with pytest.raises(RuntimeError, match="callback failed"):
             subscription.raise_if_failed()
 
     def test_stop_during_silent_read_is_bounded_by_client_timeout(self):
         self.client = boxloom.BoxloomClient(base_url=self.url, timeout=0.15)
-        scenario = self.scenario(heartbeats=False)
+        self.scenario(heartbeats=False)
         subscription = self.subscribe(callback=lambda event: None)
         subscription.stop()
         subscription.join(1)
@@ -454,22 +509,20 @@ class SubscriptionTest(unittest.TestCase):
                 pass
 
         for callback in (None, 1, async_callback, AsyncCallback()):
-            with self.subTest(callback=callback):
-                with self.assertRaises(TypeError):
-                    self.subscribe(callback=callback)
-        with self.assertRaises(TypeError):
+            with pytest.raises(TypeError):
+                self.subscribe(callback=callback)
+        with pytest.raises(TypeError):
             self.subscribe(callback=lambda event: None, on_error=async_callback)
         self.scenario()
         subscription = self.subscribe(callback=lambda event: None)
         for timeout in (-1, float("inf"), float("nan"), True, "1"):
-            with self.subTest(timeout=timeout):
-                with self.assertRaises(ValueError):
-                    subscription.join(timeout)
+            with pytest.raises(ValueError):
+                subscription.join(timeout)
 
     def test_missing_readiness_times_out_even_if_heartbeats_continue(self):
         self.client = boxloom.BoxloomClient(base_url=self.url, timeout=0.15)
         self.scenario(ready=False)
-        with self.assertRaises(boxloom.ConnectionError):
+        with pytest.raises(boxloom.ConnectionError):
             self.subscribe(callback=lambda event: None)
 
     def test_awaitable_callback_result_is_closed_and_reported(self):
@@ -482,13 +535,11 @@ class SubscriptionTest(unittest.TestCase):
         def callback(event):
             return coroutine()
 
-        subscription = self.subscribe(callback=callback, on_error=lambda error: notified.set())
+        subscription = self.subscribe(
+            callback=callback, on_error=lambda error: notified.set()
+        )
         scenario.frames.put(_death())
-        self.assertTrue(notified.wait(2))
+        assert notified.wait(2)
         subscription.join(2)
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             subscription.raise_if_failed()
-
-
-if __name__ == "__main__":
-    unittest.main()
