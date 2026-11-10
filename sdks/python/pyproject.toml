@@ -46,9 +46,16 @@ include = ["tests/typing"]
 typeCheckingMode = "strict"
 reportUnnecessaryTypeIgnoreComment = true
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "--strict-config --strict-markers --import-mode=importlib"
+filterwarnings = ["error"]
+
 [dependency-groups]
 dev = [
     "mypy>=1.19.1",
     "pyright>=1.1.414",
+    "pytest>=8.4",
     "typing-extensions>=4.16.0",
 ]

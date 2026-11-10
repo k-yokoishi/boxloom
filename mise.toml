@@ -17,7 +17,7 @@ run = "uv sync"
 [tasks.python-test]
 description = "Run the Python SDK unit tests"
 dir = "sdks/python"
-run = "uv run python -m unittest discover -s tests -v"
+run = "uv run pytest -v"
 
 [tasks.python-build]
 description = "Build the Python SDK distributions"
@@ -57,7 +57,7 @@ fi
 
 uv sync --locked
 uv run python scripts/generate_registry_constants.py --check
-uv run python -m unittest discover -s tests -v
+uv run pytest -v
 uv build --clear
 uv publish --index testpypi dist/*
 '''
