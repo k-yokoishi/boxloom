@@ -210,6 +210,24 @@ Manually constructed `Player` values and event `player` snapshots are identity
 data without a client binding. Calling their methods raises `ConfigurationError`;
 resolve them with the appropriate client's `get_player(event.player.username)`.
 
+### `Player.get_position`
+
+```python
+player.get_position() -> PlayerPosition
+```
+
+Read the player's latest position, dimension, and look direction through its
+originating client. Each call requests a fresh snapshot from the server.
+Returns the same [`PlayerPosition`](#get_player_position) as
+`get_player_position(player.username)`, including `position` (`Vec3`),
+`dimension`, `yaw`, and `pitch`.
+
+```python
+state = player.get_position()
+print(state.position.x, state.position.y, state.position.z)
+print(state.position.to_block_pos())
+```
+
 ### `Player.get_targeted_block`
 
 <Operation id="get_targeted_block">
@@ -460,6 +478,9 @@ without a target or already inactive. It is safe to call from `finally`.
 ```python
 get_player_position(username: str) -> PlayerPosition
 ```
+
+When you already have a `Player`, use [`player.get_position()`](#playerget_position)
+to read the same state without passing its username.
 
 **Parameters**
 

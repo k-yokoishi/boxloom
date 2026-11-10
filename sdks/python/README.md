@@ -42,6 +42,18 @@ when connected, or `None` when that player is not connected. The same applies to
 `BoxloomClient.get_player(username)`. Invalid names raise `ValueError`; connection,
 authentication and other API errors raise their usual exceptions.
 
+Read the player's latest position and look direction:
+
+```python
+state = player.get_position()
+print(state.position.x, state.position.y, state.position.z)
+print(state.dimension, state.yaw, state.pitch)
+```
+
+Each call reads a fresh `PlayerPosition` from the server through the player's
+original client. `get_player_position(player.username)` remains available and
+returns the same type.
+
 Players from `get_players()` also expose these methods and retain their original
 client connection. Targeting uses the server's latest view and block interaction
 reach, ignores fluids, and stops at intervening entities. `None` means no block

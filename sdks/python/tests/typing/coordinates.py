@@ -45,6 +45,8 @@ def check_coordinates(client: BoxloomClient, event: BlockAttackEvent) -> None:
     assert_type(event.block_position, BlockPos)
     player = client.get_player("Steve")
     if player is not None:
+        assert_type(player.get_position(), PlayerPosition)
+        assert_type(player.get_position().position, Vec3)
         target = player.get_targeted_block()
         if target is not None:
             assert_type(target.position, BlockPos)
