@@ -2,7 +2,7 @@ import socket
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Iterator, List, Literal, Mapping, Optional, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, Iterator, List, Literal, Mapping, Optional, TypeVar, Union, cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -35,6 +35,9 @@ from ..models import (
     _EVENT_CLASSES,
     _EVENT_TYPES,
 )
+
+if TYPE_CHECKING:
+    from .._client import BoxloomClient
 
 
 @dataclass(frozen=True)
@@ -97,6 +100,7 @@ class EventStream(Iterator[_EventT]):
         last_event_id: Optional[str],
         reconnect: bool,
         event_type: Optional[EventType] = None,
+        client: Optional["BoxloomClient"] = None,
     ) -> None:
         if event_type is not None and event_type not in _EVENT_TYPES:
             raise ValueError(f"event_type must be one of {_EVENT_TYPES!r}, or None")
@@ -118,6 +122,7 @@ class EventStream(Iterator[_EventT]):
         self._last_event_id = last_event_id
         self._reconnect = reconnect
         self._event_name = event_type
+        self._client = client
         self._retry_seconds = 1.0
         self._response: Any = None
         self._closed = threading.Event()
@@ -216,7 +221,7 @@ class EventStream(Iterator[_EventT]):
                 0.001,
                 min(frame.retry_milliseconds / 1000.0, 30.0),
             )
-        event = _decode_boxloom_event(frame)
+        event = _decode_boxloom_event(frame, self._client)
         if isinstance(event, _StreamResetEvent):
             if event.code == "EVENT_CURSOR_EXPIRED":
                 raise EventCursorExpiredError(event.message)
@@ -325,6 +330,7 @@ class ChatEventStream(EventStream[ChatEvent]):
         timeout: float,
         last_event_id: Optional[str],
         reconnect: bool,
+        client: Optional["BoxloomClient"] = None,
     ) -> None:
         super().__init__(
             base_url=base_url,
@@ -333,10 +339,13 @@ class ChatEventStream(EventStream[ChatEvent]):
             last_event_id=last_event_id,
             reconnect=reconnect,
             event_type="chat.message",
+            client=client,
         )
 
 
-def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
+def _decode_boxloom_event(
+    frame: _SseFrame, client: Optional["BoxloomClient"] = None,
+) -> Optional[_BoxloomEvent]:
     if frame.data is None:
         return None
     if frame.event_name not in {
@@ -363,12 +372,12 @@ def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
             raise ProtocolError("stream ready cursor must match the SSE event id")
         return _StreamReadyEvent(cursor=cursor)
     if frame.event_name == "chat.message":
-        return _decode_chat_event(payload, frame.event_id)
+        return _decode_chat_event(payload, frame.event_id, client)
     if frame.event_name == "player.death":
-        return _decode_player_death_event(payload, frame.event_id)
+        return _decode_player_death_event(payload, frame.event_id, client)
 
     if frame.event_name in {"player.swing", "block.attack", "block.use", "item.use"}:
-        return _decode_player_action_event(payload, frame.event_id, frame.event_name)
+        return _decode_player_action_event(payload, frame.event_id, frame.event_name, client)
 
     code = _require_string(payload, "code")
     message = _require_string(payload, "message")
@@ -380,6 +389,7 @@ def _decode_boxloom_event(frame: _SseFrame) -> Optional[_BoxloomEvent]:
 def _decode_chat_event(
     payload: Mapping[str, Any],
     event_id: Optional[str],
+    client: Optional["BoxloomClient"],
 ) -> ChatEvent:
     payload_id = _require_string(payload, "id")
     if event_id is None or event_id != payload_id:
@@ -395,6 +405,7 @@ def _decode_chat_event(
         player=Player(
             username=_require_string(player_value, "username"),
             uuid=_require_string(player_value, "uuid"),
+            _client=client,
         ),
     )
 
@@ -402,6 +413,7 @@ def _decode_chat_event(
 def _decode_player_death_event(
     payload: Mapping[str, Any],
     event_id: Optional[str],
+    client: Optional["BoxloomClient"],
 ) -> PlayerDeathEvent:
     payload_id = _require_string(payload, "id")
     if event_id is None or event_id != payload_id:
@@ -417,6 +429,7 @@ def _decode_player_death_event(
         player=Player(
             username=_require_string(player_value, "username"),
             uuid=_require_string(player_value, "uuid"),
+            _client=client,
         ),
         dimension=_require_string(payload, "dimension"),
         position=_require_vec3(payload),
@@ -430,6 +443,7 @@ def _decode_player_action_event(
     payload: Mapping[str, Any],
     event_id: Optional[str],
     event_name: str,
+    client: Optional["BoxloomClient"],
 ) -> _ActionEvent:
     payload_id = _require_string(payload, "id")
     if event_id is None or event_id != payload_id:
@@ -449,6 +463,7 @@ def _decode_player_action_event(
         Player(
             username=_require_string(player_value, "username"),
             uuid=_require_string(player_value, "uuid"),
+            _client=client,
         ),
         _require_string(payload, "dimension"),
         _require_vec3(payload),

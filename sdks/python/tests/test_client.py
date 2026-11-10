@@ -945,6 +945,44 @@ class ClientTest(unittest.TestCase):
             with self.assertRaises(boxloom.ProtocolError):
                 next(events)
 
+    def test_event_players_refresh_positions_through_the_originating_client(self):
+        frames = [
+            ("chat.message", _chat_sse("session:1", "chicken")),
+            ("player.death", _death_sse("session:2")),
+            *[(kind, _action_sse(kind, f"session:{i}")) for i, kind in enumerate(
+                ("player.swing", "block.attack", "block.use", "item.use"), 3,
+            )],
+        ]
+        sources = [(None, b"".join(frame for _, frame in frames), len(frames))]
+        sources.extend((kind, frame, 1) for kind, frame in frames)
+        sources.append(("watch_chat", frames[0][1], 1))
+        client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="event-secret")
+        for api in (boxloom, client):
+            for kind, source, count in sources:
+                with self.subTest(api=api, kind=kind):
+                    boxloom.init(base_url=self.base_url, auth_token="event-secret")
+                    _ApiHandler.stream_responses = [(200, "text/event-stream", source)]
+                    stream = (api.watch_chat(reconnect=False) if kind == "watch_chat"
+                              else api.watch_event(kind, reconnect=False))
+                    boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
+                    before = len(_ApiHandler.requests)
+                    with stream:
+                        events = [next(stream) for _ in range(count)]
+                    self.assertEqual(before + 1, len(_ApiHandler.requests))
+                    for event in events:
+                        for y in (70.25, 71.5):
+                            _ApiHandler.response_body = {
+                                "username": event.player.username, "uuid": event.player.uuid,
+                                "dimension": "minecraft:the_nether", "x": 1.5, "y": y,
+                                "z": -2.25, "yaw": 90, "pitch": -12.5,
+                            }
+                            state = event.player.get_position()
+                            self.assertEqual(boxloom.Vec3(1.5, y, -2.25), state.position)
+                            self.assertEqual("minecraft:the_nether", state.dimension)
+                            path, headers, _ = _ApiHandler.requests[-1]
+                            self.assertEqual("/v1/players/Player_123/position", path)
+                            self.assertEqual("Bearer event-secret", headers["Authorization"])
+
     def test_watch_event_returns_mixed_events_with_type_discriminators(self):
         _ApiHandler.stream_responses = [
             (200, "text/event-stream",

@@ -4,6 +4,7 @@ import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest.mock import patch
 
 import boxloom
 
@@ -167,6 +168,36 @@ class SubscriptionTest(unittest.TestCase):
                 subscription.raise_if_failed()
                 self.assertEqual(expected, [event.type for event in calls])
                 self.assertTrue(all(event.item == "minecraft:diamond_sword" for event in calls))
+
+    def test_callback_can_use_the_event_player_after_default_client_changes(self):
+        scenario = self.scenario()
+        received = threading.Event()
+        positions = []
+        errors = []
+        position = boxloom.PlayerPosition(
+            "Steve", "player-uuid", "minecraft:overworld", boxloom.Vec3(1.5, 64, -2.25), 0, 0,
+        )
+
+        def callback(event):
+            positions.append(event.player.get_position())
+            received.set()
+
+        def on_error(error):
+            errors.append(error)
+            received.set()
+
+        with patch.object(boxloom.BoxloomClient, "get_player_position", autospec=True,
+                          return_value=position) as get_position:
+            subscription = self.subscribe("chat.message", callback=callback, on_error=on_error)
+            boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
+            scenario.frames.put(_chat())
+            self.assertTrue(received.wait(2))
+            subscription.stop()
+            subscription.join(2)
+            subscription.raise_if_failed()
+            self.assertEqual([], errors)
+            self.assertEqual([position], positions)
+            get_position.assert_called_once_with(self.client, "Steve")
 
     def test_registration_waits_for_ready_and_callback_runs_in_background(self):
         scenario = self.scenario(ready=False)
