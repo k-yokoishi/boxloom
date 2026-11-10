@@ -524,7 +524,7 @@ uv run --isolated --no-project --with dist/*.whl --with pytest pytest -v tests/s
 uv run --isolated --no-project --with dist/*.tar.gz --with pytest pytest -v tests/smoke_test.py
 ```
 
-CI runs these checks on Python 3.9 and 3.13. Pytest is a development dependency;
+CI runs these checks on Python 3.13. Pytest is a development dependency;
 installing the SDK does not install pytest.
 
 When updating Minecraft, run `mise run python-generate-constants` from the

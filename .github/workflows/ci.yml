@@ -40,14 +40,9 @@ jobs:
         run: npm run build
 
   python:
-    name: Python SDK (${{ matrix.python-version }})
+    name: Python SDK
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      matrix:
-        python-version: ["3.9", "3.13"]
-    env:
-      UV_PYTHON: ${{ matrix.python-version }}
     defaults:
       run:
         working-directory: sdks/python
@@ -64,7 +59,7 @@ jobs:
           enable-cache: true
 
       - name: Install Python
-        run: uv python install ${{ matrix.python-version }}
+        run: uv python install
 
       - name: Synchronize the locked environment
         run: uv sync --locked
