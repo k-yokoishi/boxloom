@@ -19,7 +19,7 @@ from boxloom import (
     PlayerGameMode,
     PlayerItemUseResult,
     PlayerMiningResult,
-    PlayerPosition,
+    PlayerLocation,
     PlayerUseResult,
     Vec3,
     blocks,
@@ -28,7 +28,7 @@ from boxloom import (
     get_block,
     get_entities,
     get_player,
-    get_player_position,
+    get_player_location,
     get_players,
     init,
     items,
@@ -59,7 +59,7 @@ class _ApiHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.__class__.path = self.path
         self.__class__.authorization = self.headers.get("Authorization")
-        missing = self.path.endswith("/position")
+        missing = self.path.endswith("/location")
         payload = (
             {"error": {"code": "PLAYER_NOT_CONNECTED", "message": "offline"}}
             if missing
@@ -84,7 +84,7 @@ class _ApiHandler(BaseHTTPRequestHandler):
         fill,
         get_block,
         get_entities,
-        get_player_position,
+        get_player_location,
         get_players,
         set_block,
         set_player_gamemode,
@@ -166,7 +166,7 @@ def test_environment_configures_the_installed_client(http_server, monkeypatch):
     assert _ApiHandler.path == "/v1/players"
     assert _ApiHandler.authorization is None
     assert get_player("Missing") is None
-    assert _ApiHandler.path == "/v1/players/Missing/position"
+    assert _ApiHandler.path == "/v1/players/Missing/location"
 
 
 def test_models_and_event_streams():
@@ -175,7 +175,7 @@ def test_models_and_event_streams():
         uuid="00000000-0000-0000-0000-000000000000",
     )
     assert player.username == "Player"
-    position = PlayerPosition(
+    position = PlayerLocation(
         username="Player",
         uuid="00000000-0000-0000-0000-000000000000",
         dimension="minecraft:overworld",

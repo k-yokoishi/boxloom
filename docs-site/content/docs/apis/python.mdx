@@ -54,12 +54,12 @@ accepts finite numeric scales, while `BlockPos` accepts only integer scales.
 Arithmetic that produces non-finite or out-of-range components raises `ValueError`.
 
 ```python
-from boxloom import BlockPos, Vec3, blocks, get_player_position, set_block, teleport_player
+from boxloom import BlockPos, Vec3, blocks, get_player_location, set_block, teleport_player
 
-state = get_player_position("Steve")
-teleport_player("Steve", state.position + Vec3(0, 10, 0))
-origin = state.position.to_block_pos()
-set_block(origin + BlockPos(1, -1, 0), blocks.DIAMOND_BLOCK, dimension=state.dimension)
+location = get_player_location("Steve")
+teleport_player("Steve", location.position + Vec3(0, 10, 0))
+origin = location.position.to_block_pos()
+set_block(origin + BlockPos(1, -1, 0), blocks.DIAMOND_BLOCK, dimension=location.dimension)
 ```
 
 `Vec3.to_block_pos()` uses floor on each component: `Vec3(-0.2, 64.8, 3.9)`
@@ -207,28 +207,28 @@ print(result.swung, result.broken)
 ```
 
 Players received through `watch_event()`, `watch_chat()`, and `subscribe_event()`
-also retain the receiving client. You can call `event.player.get_position()` and
+also retain the receiving client. You can call `event.player.get_location()` and
 other player methods directly, including after `boxloom.init()` changes the
 default client. Manually constructed `Player` values have no client binding;
 calling their methods raises `ConfigurationError`. Resolve them with the
 appropriate client's `get_player(username)` first.
 
-### `Player.get_position`
+### `Player.get_location`
 
 ```python
-player.get_position() -> PlayerPosition
+player.get_location() -> PlayerLocation
 ```
 
 Read the player's latest position, dimension, and look direction through its
 originating client. Each call requests a fresh snapshot from the server.
-Returns the same [`PlayerPosition`](#get_player_position) as
-`get_player_position(player.username)`, including `position` (`Vec3`),
+Returns the same [`PlayerLocation`](#get_player_location) as
+`get_player_location(player.username)`, including `position` (`Vec3`),
 `dimension`, `yaw`, and `pitch`.
 
 ```python
-state = player.get_position()
-print(state.position.x, state.position.y, state.position.z)
-print(state.position.to_block_pos())
+location = player.get_location()
+print(location.position.x, location.position.y, location.position.z)
+print(location.position.to_block_pos())
 ```
 
 ### `Player.get_targeted_block`
@@ -474,16 +474,16 @@ without a target or already inactive. It is safe to call from `finally`.
 
 </Operation>
 
-## `get_player_position`
+## `get_player_location`
 
-<Operation id="get_player_position">
+<Operation id="get_player_location">
 
 ```python
-get_player_position(username: str) -> PlayerPosition
+get_player_location(username: str) -> PlayerLocation
 ```
 
-When you already have a `Player`, use [`player.get_position()`](#playerget_position)
-to read the same state without passing its username.
+When you already have a `Player`, use [`player.get_location()`](#playerget_location)
+to read the same location without passing its username.
 
 **Parameters**
 
@@ -491,7 +491,7 @@ to read the same state without passing its username.
 | --- | --- | --- | --- |
 | `username` | `str` | required | 3–16 characters from `A-Z`, `a-z`, `0-9`, and `_`. |
 
-**Returns** — `PlayerPosition`
+**Returns** — `PlayerLocation`
 
 | Attribute | Type | Description |
 | --- | --- | --- |
@@ -502,16 +502,17 @@ to read the same state without passing its username.
 | `yaw` | `float` | Horizontal rotation in degrees. |
 | `pitch` | `float` | Vertical rotation in degrees. |
 
-`PlayerPosition.position.to_block_pos()` returns the `BlockPos` containing the player's feet, using floor on each component.
+`PlayerLocation.position.to_block_pos()` returns the `BlockPos` containing the player's feet, using floor on each component.
 
 **Example**
 
 ```python
-from boxloom import get_player_position
+from boxloom import get_player_location
 
-position = get_player_position("Steve")
-print(position.position)
-print(position.position.to_block_pos())
+location = get_player_location("Steve")
+print(location.position)
+print(location.position.to_block_pos())
+print(location.dimension, location.yaw, location.pitch)
 ```
 
 </Operation>
@@ -528,7 +529,7 @@ teleport_player(
     dimension: Optional[str] = None,
     yaw: Optional[float] = None,
     pitch: Optional[float] = None,
-) -> PlayerPosition
+) -> PlayerLocation
 ```
 
 **Parameters**
@@ -541,7 +542,7 @@ teleport_player(
 | `yaw` | `Optional[float]` | `None` | Horizontal rotation in degrees, wrapped into `[-180, 180)`. `None` keeps the current yaw. |
 | `pitch` | `Optional[float]` | `None` | Vertical rotation in degrees, wrapped into `[-180, 180)`. `None` keeps the current pitch. |
 
-**Returns** — `PlayerPosition` describing the player after the teleport, with the same attributes as [`get_player_position`](#get_player_position).
+**Returns** — `PlayerLocation` describing the player after the teleport, with the same attributes as [`get_player_location`](#get_player_location).
 
 **Example**
 
@@ -1236,7 +1237,7 @@ Overloads return `EventStream[ChatEvent]` for `"chat.message"` and
 each action event. These types are included in the
 installed package through its `py.typed` marker.
 
-`event.player.get_position()` reads a fresh `PlayerPosition` through the stream's
+`event.player.get_location()` reads a fresh `PlayerLocation` through the stream's
 original client. Its `.position` is a `Vec3` and its `.dimension` identifies the
 player's current world. Death and action events' own `position` and `dimension`
 fields remain snapshots from when the event occurred.

@@ -340,11 +340,11 @@ will not leave the block queued to break later.
 
 </Operation>
 
-## `get_player_position`
+## `get_player_location`
 
-<Operation id="get_player_position">
+<Operation id="get_player_location">
 
-<ApiEndpoint method="GET" path="/v1/players/{username}/position" />
+<ApiEndpoint method="GET" path="/v1/players/{username}/location" />
 
 **Path parameters**
 
@@ -368,7 +368,7 @@ will not leave the block queued to break later.
 ```bash
 curl --fail-with-body \
   -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
-  "$BOXLOOM_BASE_URL/v1/players/Steve/position"
+  "$BOXLOOM_BASE_URL/v1/players/Steve/location"
 ```
 
 ```json
@@ -407,7 +407,7 @@ curl --fail-with-body \
 | `yaw` | number | no | Horizontal rotation in degrees, wrapped into `[-180, 180)`. Omit to keep the current yaw. |
 | `pitch` | number | no | Vertical rotation in degrees, wrapped into `[-180, 180)`. Omit to keep the current pitch. |
 
-**Response** — `200 application/json`, the player's position after the teleport, with the same fields as [`get_player_position`](#get_player_position).
+**Response** — `200 application/json`, the player's location after the teleport, with the same fields as [`get_player_location`](#get_player_location).
 
 **Example**
 

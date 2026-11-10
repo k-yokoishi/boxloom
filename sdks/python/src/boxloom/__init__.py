@@ -40,7 +40,7 @@ from .models import (
     KillResult,
     Player,
     PlayerGameMode,
-    PlayerPosition,
+    PlayerLocation,
     PlayerAttackResult,
     PlayerUseResult,
     PlayerItemUseResult,
@@ -83,7 +83,7 @@ __all__ = [
     "BlockAttackEvent",
     "BlockUseEvent",
     "ItemUseEvent",
-    "PlayerPosition",
+    "PlayerLocation",
     "PlayerAttackResult",
     "PlayerUseResult",
     "PlayerItemUseResult",
@@ -100,7 +100,7 @@ __all__ = [
     "fill",
     "get_block",
     "get_entities",
-    "get_player_position",
+    "get_player_location",
     "get_player",
     "get_players",
     "get_time",
@@ -163,10 +163,10 @@ def say(message: str) -> SayResult:
     return _default_client().say(message)
 
 
-def get_player_position(username: str) -> PlayerPosition:
-    """Read a connected player's position and look direction."""
+def get_player_location(username: str) -> PlayerLocation:
+    """Read a connected player's position, dimension, and look direction."""
 
-    return _default_client().get_player_position(username)
+    return _default_client().get_player_location(username)
 
 
 def get_players() -> List[Player]:
@@ -206,7 +206,7 @@ def teleport_player(
     dimension: Optional[str] = None,
     yaw: Optional[float] = None,
     pitch: Optional[float] = None,
-) -> PlayerPosition:
+) -> PlayerLocation:
     """Teleport a connected player to absolute coordinates."""
 
     return _default_client().teleport_player(
