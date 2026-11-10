@@ -26,7 +26,7 @@ class SayResult:
 
 @dataclass(frozen=True)
 class Player:
-    """A player identity, bound to its originating client when fetched by that client."""
+    """A player identity, bound to the client that fetched it or received its event."""
 
     username: str
     uuid: str

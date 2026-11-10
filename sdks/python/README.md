@@ -63,9 +63,11 @@ attacks return an `entity` snapshot after the attempt and respect native attack
 reach, damage cooldowns, PvP and Fabric cancellation. Walls occlude enemies.
 Native protections and tools apply; survival blocks requiring sustained mining
 do not break from one click. Piercing weapons are unsupported. An existing
-swing can prevent a new swing. Event player snapshots and manually constructed
-`Player` values are not bound; resolve them with the appropriate client's
-`get_player()` before calling methods.
+swing can prevent a new swing. Players received through `watch_event()`,
+`watch_chat()`, and `subscribe_event()` also retain the receiving client, so
+`event.player.get_position()` and other player methods work directly. Manually
+constructed `Player` values are not bound; resolve them with the appropriate
+client's `get_player()` before calling methods.
 
 Give blocks or items to a player, as with `/give`:
 
@@ -331,6 +333,12 @@ with watch_event() as events:
 Filtering happens in the SDK; all types share the `GET /v1/events` stream and
 its combined history of 1,024 events. Unknown event names are skipped. Existing
 `watch_chat()` callers continue to receive only chat messages.
+
+`event.player.get_position()` reads the player's latest `PlayerPosition` through
+the stream's original client, even after `boxloom.init()` changes the default
+client. Use its `.position` (`Vec3`) for coordinates and `.dimension` for world
+operations. Death and action events' own `position` and `dimension` fields remain
+snapshots from when the event occurred.
 
 `EventType` includes `"chat.message"`, `"player.death"`, `"player.swing"`,
 `"block.attack"`, `"block.use"`, and `"item.use"`. Type checkers reject

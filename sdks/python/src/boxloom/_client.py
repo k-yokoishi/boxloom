@@ -397,6 +397,7 @@ class BoxloomClient:
             timeout=self._timeout,
             last_event_id=last_event_id,
             reconnect=reconnect,
+            client=self,
         )
 
     @overload
@@ -478,6 +479,7 @@ class BoxloomClient:
             last_event_id=last_event_id,
             reconnect=reconnect,
             event_type=event_type,
+            client=self,
         )
 
     @overload

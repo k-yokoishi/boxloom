@@ -206,9 +206,12 @@ result = player.attack()
 print(result.swung, result.broken)
 ```
 
-Manually constructed `Player` values and event `player` snapshots are identity
-data without a client binding. Calling their methods raises `ConfigurationError`;
-resolve them with the appropriate client's `get_player(event.player.username)`.
+Players received through `watch_event()`, `watch_chat()`, and `subscribe_event()`
+also retain the receiving client. You can call `event.player.get_position()` and
+other player methods directly, including after `boxloom.init()` changes the
+default client. Manually constructed `Player` values have no client binding;
+calling their methods raises `ConfigurationError`. Resolve them with the
+appropriate client's `get_player(username)` first.
 
 ### `Player.get_position`
 
@@ -1232,6 +1235,11 @@ Overloads return `EventStream[ChatEvent]` for `"chat.message"` and
 `EventStream[PlayerDeathEvent]` for `"player.death"`, with equivalent overloads for
 each action event. These types are included in the
 installed package through its `py.typed` marker.
+
+`event.player.get_position()` reads a fresh `PlayerPosition` through the stream's
+original client. Its `.position` is a `Vec3` and its `.dimension` identifies the
+player's current world. Death and action events' own `position` and `dimension`
+fields remain snapshots from when the event occurred.
 
 This function also exists on `BoxloomClient`. Filtering happens in the SDK over
 the same `GET /v1/events` connection; skipped events still advance the cursor.
