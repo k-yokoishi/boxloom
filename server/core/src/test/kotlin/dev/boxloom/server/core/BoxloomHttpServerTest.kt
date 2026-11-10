@@ -11,7 +11,6 @@ import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -21,6 +20,11 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.EnumSource
+import org.junit.jupiter.params.provider.MethodSource
 
 class BoxloomHttpServerTest {
     @Test
@@ -52,20 +56,13 @@ class BoxloomHttpServerTest {
         assertEquals(listOf(0, 8, 8), calls)
     }
 
-    @Test
-    fun `rejects invalid select-slot requests before invoking Minecraft`() {
+    @ParameterizedTest
+    @MethodSource("invalidSelectSlotRequests")
+    fun `rejects invalid select-slot requests before invoking Minecraft`(path: String, body: String) {
         withServer(authToken = null) { server, _ ->
-            val invalid = listOf("{}", "[]", "null", "", """{"slot":0,"item":"stone"}""") +
-                listOf("-1", "9", "40", "true", "null", "1.5", "0.0", "\"1\"", "2147483648").map {
-                    """{"slot":$it}"""
-                }
-            for (body in invalid) {
-                val response = post(server, "/v1/players/Steve/select-slot", body)
-                assertEquals(400, response.statusCode(), body)
-                assertContains(response.body(), "INVALID_REQUEST")
-            }
-            assertEquals(400, post(server, "/v1/players/ab/select-slot", """{"slot":0}""").statusCode())
-            assertEquals(400, post(server, "/v1/players/Steve/select-slot?slot=1", """{"slot":0}""").statusCode())
+            val response = post(server, path, body)
+            assertEquals(400, response.statusCode(), "$path: $body")
+            assertContains(response.body(), "INVALID_REQUEST")
         }
     }
 
@@ -163,8 +160,9 @@ class BoxloomHttpServerTest {
     }
 
 
-    @Test
-    fun `gives an item with an optional count`() {
+    @ParameterizedTest
+    @MethodSource("giveRequests")
+    fun `gives an item with an optional count`(body: String, count: Int) {
         var captured: Pair<String, GiveItemRequest>? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
             override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> {
@@ -174,48 +172,36 @@ class BoxloomHttpServerTest {
             }
         }
         withServer(authToken = null, minecraft = minecraft) { server, _ ->
-            for ((body, count) in listOf("""{"item":"stone"}""" to 1, """{"item":"stone","count":65}""" to 65)) {
-                val response = post(server, "/v1/players/Steve/give", body)
-                assertEquals(200, response.statusCode())
-                assertEquals("Steve" to GiveItemRequest("stone", count), captured)
-                val slotsJson = if (count == 1) "\"slot\":null,\"slots\":[]" else
-                    "\"slot\":2,\"slots\":[{\"slot\":2,\"count\":4},{\"slot\":9,\"count\":61}]"
-                assertEquals("""{"username":"Steve","uuid":"$TEST_UUID","item":"minecraft:stone","count":$count,$slotsJson}""", response.body())
-            }
+            val response = post(server, "/v1/players/Steve/give", body)
+            assertEquals(200, response.statusCode())
+            assertEquals("Steve" to GiveItemRequest("stone", count), captured)
+            val slotsJson = if (count == 1) "\"slot\":null,\"slots\":[]" else
+                "\"slot\":2,\"slots\":[{\"slot\":2,\"count\":4},{\"slot\":9,\"count\":61}]"
+            assertEquals("""{"username":"Steve","uuid":"$TEST_UUID","item":"minecraft:stone","count":$count,$slotsJson}""", response.body())
         }
     }
 
-    @Test
-    fun `validates give requests before invoking Minecraft`() {
+    @ParameterizedTest
+    @MethodSource("invalidGiveRequests")
+    fun `validates give requests before invoking Minecraft`(path: String, body: String) {
         withServer(authToken = null) { server, _ ->
-            val invalid = listOf(
-                "{}", "null", "[]", "", """{"item":null}""", """{"item":1}""", """{"item":" "}""",
-                """{"item":"stone","slot":0}""",
-            ) + listOf("0", "-1", "1.5", "true", "null", "\"2\"", "2147483648").map {
-                """{"item":"stone","count":$it}"""
-            }
-            for (body in invalid) {
-                val response = post(server, "/v1/players/Steve/give", body)
-                assertEquals(400, response.statusCode(), body)
-                assertContains(response.body(), "INVALID_REQUEST")
-            }
-            assertEquals(400, post(server, "/v1/players/ab/give", """{"item":"stone"}""").statusCode())
-            assertEquals(400, post(server, "/v1/players/Steve/give?slot=0", """{"item":"stone"}""").statusCode())
+            val response = post(server, path, body)
+            assertEquals(400, response.statusCode(), "$path: $body")
+            assertContains(response.body(), "INVALID_REQUEST")
         }
     }
 
-    @Test
-    fun `propagates give errors without changing their codes`() {
-        for ((status, code) in listOf(400 to "INVALID_ITEM", 400 to "INVALID_COUNT", 404 to "PLAYER_NOT_CONNECTED")) {
-            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
-                override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> =
-                    CompletableFuture.failedFuture(ApiException(status, code, "Cannot give item"))
-            }
-            withServer(authToken = null, minecraft = minecraft) { server, _ ->
-                val response = post(server, "/v1/players/Steve/give", """{"item":"stone"}""")
-                assertEquals(status, response.statusCode())
-                assertContains(response.body(), code)
-            }
+    @ParameterizedTest
+    @MethodSource("giveErrors")
+    fun `propagates give errors without changing their codes`(status: Int, code: String) {
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun givePlayerItem(username: String, request: GiveItemRequest): CompletableFuture<GiveItemResult> =
+                CompletableFuture.failedFuture(ApiException(status, code, "Cannot give item"))
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val response = post(server, "/v1/players/Steve/give", """{"item":"stone"}""")
+            assertEquals(status, response.statusCode())
+            assertContains(response.body(), code)
         }
     }
 
@@ -571,8 +557,9 @@ class BoxloomHttpServerTest {
         )
     }
 
-    @Test
-    fun `sets either player game mode and returns the player snapshot`() {
+    @ParameterizedTest
+    @EnumSource(GameMode::class)
+    fun `sets either player game mode and returns the player snapshot`(mode: GameMode) {
         val requests = mutableListOf<Pair<String, SetPlayerGameModeRequest>>()
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
             override fun setPlayerGameMode(
@@ -584,45 +571,35 @@ class BoxloomHttpServerTest {
             }
         }
         withServer(authToken = "test-secret", minecraft = minecraft) { server, _ ->
-            for (mode in GameMode.entries) {
-                val response = post(
-                    server, "/v1/players/steve/gamemode", """{"mode":"${mode.value}"}""", "test-secret",
-                )
-                assertEquals(200, response.statusCode())
-                assertEquals("steve" to SetPlayerGameModeRequest(mode), requests.last())
-                assertEquals(
-                    """{"username":"Steve","uuid":"$TEST_UUID","mode":"${mode.value}"}""",
-                    response.body(),
-                )
-            }
+            val response = post(
+                server, "/v1/players/steve/gamemode", """{"mode":"${mode.value}"}""", "test-secret",
+            )
+            assertEquals(200, response.statusCode())
+            assertEquals("steve" to SetPlayerGameModeRequest(mode), requests.last())
+            assertEquals(
+                """{"username":"Steve","uuid":"$TEST_UUID","mode":"${mode.value}"}""",
+                response.body(),
+            )
         }
     }
 
-    @Test
-    fun `rejects invalid game mode bodies before calling Minecraft`() {
+    @ParameterizedTest
+    @MethodSource("invalidGameModeBodies")
+    fun `rejects invalid game mode bodies before calling Minecraft`(body: String) {
         withServer(authToken = null) { server, _ ->
-            for (body in listOf(
-                "", "{", "[]", "null", "{}", """{"mode":null}""", """{"mode":1}""",
-                """{"mode":true}""", """{"mode":[]}""", """{"mode":""}""",
-                """{"mode":"CREATIVE"}""", """{"mode":" survival"}""",
-                """{"mode":"spectator"}""", """{"mode":"adventure"}""",
-                """{"mode":"creative","extra":true}""",
-            )) {
-                val response = post(server, "/v1/players/Steve/gamemode", body)
-                assertEquals(400, response.statusCode(), body)
-                assertContains(response.body(), "INVALID_REQUEST")
-            }
+            val response = post(server, "/v1/players/Steve/gamemode", body)
+            assertEquals(400, response.statusCode(), body)
+            assertContains(response.body(), "INVALID_REQUEST")
         }
     }
 
-    @Test
-    fun `rejects invalid game mode usernames before calling Minecraft`() {
+    @ParameterizedTest
+    @MethodSource("invalidGameModeUsernames")
+    fun `rejects invalid game mode usernames before calling Minecraft`(username: String) {
         withServer(authToken = null) { server, _ ->
-            for (username in listOf("ab", "a".repeat(17), "has-dash", "%40a", "Steve%2Fkill")) {
-                val response = post(server, "/v1/players/$username/gamemode", """{"mode":"creative"}""")
-                assertEquals(400, response.statusCode(), username)
-                assertContains(response.body(), "INVALID_REQUEST")
-            }
+            val response = post(server, "/v1/players/$username/gamemode", """{"mode":"creative"}""")
+            assertEquals(400, response.statusCode(), username)
+            assertContains(response.body(), "INVALID_REQUEST")
         }
     }
 
@@ -648,23 +625,20 @@ class BoxloomHttpServerTest {
         }
     }
 
-    @Test
-    fun `preserves structured game mode operation errors`() {
-        for ((status, code) in listOf(
-            404 to "PLAYER_NOT_CONNECTED", 409 to "GAME_MODE_CHANGE_FAILED", 503 to "WORLD_NOT_LOADED",
-        )) {
-            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
-                override fun setPlayerGameMode(
-                    username: String,
-                    request: SetPlayerGameModeRequest,
-                ): CompletableFuture<PlayerGameMode> =
-                    CompletableFuture.failedFuture(ApiException(status, code, "Cannot change mode"))
-            }
-            withServer(authToken = null, minecraft = minecraft) { server, _ ->
-                val response = post(server, "/v1/players/Steve/gamemode", """{"mode":"survival"}""")
-                assertEquals(status, response.statusCode())
-                assertContains(response.body(), code)
-            }
+    @ParameterizedTest
+    @MethodSource("gameModeErrors")
+    fun `preserves structured game mode operation errors`(status: Int, code: String) {
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun setPlayerGameMode(
+                username: String,
+                request: SetPlayerGameModeRequest,
+            ): CompletableFuture<PlayerGameMode> =
+                CompletableFuture.failedFuture(ApiException(status, code, "Cannot change mode"))
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val response = post(server, "/v1/players/Steve/gamemode", """{"mode":"survival"}""")
+            assertEquals(status, response.statusCode())
+            assertContains(response.body(), code)
         }
     }
 
@@ -685,8 +659,9 @@ class BoxloomHttpServerTest {
         }
     }
 
-    @Test
-    fun `reads a world clock with default or explicit clock and 64 bit ticks`() {
+    @ParameterizedTest
+    @MethodSource("clockQueries")
+    fun `reads a world clock with default or explicit clock and 64 bit ticks`(path: String, clock: String) {
         val requests = mutableListOf<GetTimeRequest>()
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
             override fun getTime(request: GetTimeRequest): CompletableFuture<TimeResult> {
@@ -695,23 +670,19 @@ class BoxloomHttpServerTest {
             }
         }
         withServer(authToken = null, minecraft = minecraft) { server, _ ->
-            for ((path, clock) in listOf(
-                "/v1/world/time" to "minecraft:overworld",
-                "/v1/world/time?clock=minecraft%3Athe_end" to "minecraft:the_end",
-            )) {
-                val response = get(server, path)
-                assertEquals(200, response.statusCode())
-                assertEquals(
-                    """{"clock":"$clock","ticks":3000000000}""",
-                    response.body(),
-                )
-                assertEquals(GetTimeRequest(clock), requests.last())
-            }
+            val response = get(server, path)
+            assertEquals(200, response.statusCode())
+            assertEquals(
+                """{"clock":"$clock","ticks":3000000000}""",
+                response.body(),
+            )
+            assertEquals(GetTimeRequest(clock), requests.last())
         }
     }
 
-    @Test
-    fun `sets time from a marker or total ticks`() {
+    @ParameterizedTest
+    @MethodSource("setTimeRequests")
+    fun `sets time from a marker or total ticks`(body: String, expected: SetTimeRequest) {
         val requests = mutableListOf<SetTimeRequest>()
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
             override fun setTime(request: SetTimeRequest): CompletableFuture<TimeResult> {
@@ -720,22 +691,13 @@ class BoxloomHttpServerTest {
             }
         }
         withServer(authToken = null, minecraft = minecraft) { server, _ ->
-            for ((body, expected) in listOf(
-                """{"time":"day"}""" to SetTimeRequest("minecraft:overworld", TimeValue.Marker("day")),
-                """{"clock":"example:clock","time":"example:dawn"}""" to
-                    SetTimeRequest("example:clock", TimeValue.Marker("example:dawn")),
-                """{"time":0}""" to SetTimeRequest("minecraft:overworld", TimeValue.Ticks(0)),
-                """{"time":2147483647}""" to
-                    SetTimeRequest("minecraft:overworld", TimeValue.Ticks(Int.MAX_VALUE)),
-            )) {
-                val response = post(server, "/v1/world/time", body)
-                assertEquals(200, response.statusCode())
-                assertEquals(expected, requests.last())
-                assertEquals(
-                    """{"clock":"${expected.clock}","ticks":25000}""",
-                    response.body(),
-                )
-            }
+            val response = post(server, "/v1/world/time", body)
+            assertEquals(200, response.statusCode())
+            assertEquals(expected, requests.last())
+            assertEquals(
+                """{"clock":"${expected.clock}","ticks":25000}""",
+                response.body(),
+            )
         }
     }
 
@@ -861,17 +823,14 @@ class BoxloomHttpServerTest {
         }
     }
 
-    @Test
-    fun `rejects malformed block properties before invoking Minecraft`() {
+    @ParameterizedTest
+    @MethodSource("invalidBlockProperties")
+    fun `rejects malformed block properties before invoking Minecraft`(properties: String) {
         withServer(authToken = null) { server, _ ->
-            for (properties in listOf("null", "[]", "3", "true", "\"age=3\"",
-                """{"age":3}""", """{"lit":true}""", """{"age":null}""", """{"age":{}}""",
-                """{"age":[]}""", """{"":"3"}""", """{"age":""}""")) {
-                val body = """{"dimension":"minecraft:overworld","x":1,"y":64,"z":2,"block":"minecraft:wheat","properties":$properties}"""
-                val response = post(server, "/v1/world/blocks", body)
-                assertEquals(400, response.statusCode(), body)
-                assertContains(response.body(), "INVALID_REQUEST")
-            }
+            val body = """{"dimension":"minecraft:overworld","x":1,"y":64,"z":2,"block":"minecraft:wheat","properties":$properties}"""
+            val response = post(server, "/v1/world/blocks", body)
+            assertEquals(400, response.statusCode(), body)
+            assertContains(response.body(), "INVALID_REQUEST")
         }
     }
 
@@ -1164,23 +1123,13 @@ class BoxloomHttpServerTest {
         ), captured)
     }
 
-    @Test
-    fun `rejects malformed entity queries before calling Minecraft`() {
+    @ParameterizedTest
+    @MethodSource("invalidEntityQueries")
+    fun `rejects malformed entity queries before calling Minecraft`(query: String) {
         withServer(authToken = null) { server, _ ->
-            val invalid = listOf(
-                "", "dimension=", "dimension=minecraft:overworld&dimension=minecraft:the_nether",
-                "dimension=minecraft:overworld&unknown=1", "dimension=minecraft:overworld&entity=",
-            ) + listOf(
-                "x=0", "x=0&y=64", "radius=20", "sort=nearest", "sort=furthest", "sort=", "sort=random",
-                "x=0&y=64&z=0&radius=-1", "x=NaN&y=64&z=0", "x=Infinity&y=64&z=0",
-                "x=0&y=64&z=0&radius=1e309", "x=true&y=64&z=0", "x=&y=64&z=0",
-                "limit=0", "limit=-1", "limit=1.5", "limit=true", "limit=2147483648", "limit=",
-            ).map { "dimension=minecraft:overworld&$it" }
-            for (query in invalid) {
-                val response = get(server, "/v1/world/entities?$query")
-                assertEquals(400, response.statusCode(), query)
-                assertContains(response.body(), "INVALID_REQUEST")
-            }
+            val response = get(server, "/v1/world/entities?$query")
+            assertEquals(400, response.statusCode(), query)
+            assertContains(response.body(), "INVALID_REQUEST")
         }
     }
 
@@ -1835,6 +1784,103 @@ class BoxloomHttpServerTest {
     }
 
     companion object {
+        @JvmStatic
+        fun invalidSelectSlotRequests(): List<Arguments> {
+            val bodies = listOf("{}", "[]", "null", "", """{"slot":0,"item":"stone"}""") +
+                listOf("-1", "9", "40", "true", "null", "1.5", "0.0", "\"1\"", "2147483648").map {
+                    """{"slot":$it}"""
+                }
+            return bodies.map { Arguments.of("/v1/players/Steve/select-slot", it) } + listOf(
+                Arguments.of("/v1/players/ab/select-slot", """{"slot":0}"""),
+                Arguments.of("/v1/players/Steve/select-slot?slot=1", """{"slot":0}"""),
+            )
+        }
+
+        @JvmStatic
+        fun giveRequests(): List<Arguments> = listOf(
+            Arguments.of("""{"item":"stone"}""", 1),
+            Arguments.of("""{"item":"stone","count":65}""", 65),
+        )
+
+        @JvmStatic
+        fun invalidGiveRequests(): List<Arguments> {
+            val bodies = listOf(
+                "{}", "null", "[]", "", """{"item":null}""", """{"item":1}""", """{"item":" "}""",
+                """{"item":"stone","slot":0}""",
+            ) + listOf("0", "-1", "1.5", "true", "null", "\"2\"", "2147483648").map {
+                """{"item":"stone","count":$it}"""
+            }
+            return bodies.map { Arguments.of("/v1/players/Steve/give", it) } + listOf(
+                Arguments.of("/v1/players/ab/give", """{"item":"stone"}"""),
+                Arguments.of("/v1/players/Steve/give?slot=0", """{"item":"stone"}"""),
+            )
+        }
+
+        @JvmStatic
+        fun giveErrors(): List<Arguments> = listOf(
+            Arguments.of(400, "INVALID_ITEM"),
+            Arguments.of(400, "INVALID_COUNT"),
+            Arguments.of(404, "PLAYER_NOT_CONNECTED"),
+        )
+
+        @JvmStatic
+        fun invalidGameModeBodies(): List<String> = listOf(
+            "", "{", "[]", "null", "{}", """{"mode":null}""", """{"mode":1}""",
+            """{"mode":true}""", """{"mode":[]}""", """{"mode":""}""",
+            """{"mode":"CREATIVE"}""", """{"mode":" survival"}""",
+            """{"mode":"spectator"}""", """{"mode":"adventure"}""",
+            """{"mode":"creative","extra":true}""",
+        )
+
+        @JvmStatic
+        fun invalidGameModeUsernames(): List<String> =
+            listOf("ab", "a".repeat(17), "has-dash", "%40a", "Steve%2Fkill")
+
+        @JvmStatic
+        fun gameModeErrors(): List<Arguments> = listOf(
+            Arguments.of(404, "PLAYER_NOT_CONNECTED"),
+            Arguments.of(409, "GAME_MODE_CHANGE_FAILED"),
+            Arguments.of(503, "WORLD_NOT_LOADED"),
+        )
+
+        @JvmStatic
+        fun clockQueries(): List<Arguments> = listOf(
+            Arguments.of("/v1/world/time", "minecraft:overworld"),
+            Arguments.of("/v1/world/time?clock=minecraft%3Athe_end", "minecraft:the_end"),
+        )
+
+        @JvmStatic
+        fun setTimeRequests(): List<Arguments> = listOf(
+            Arguments.of("""{"time":"day"}""", SetTimeRequest("minecraft:overworld", TimeValue.Marker("day"))),
+            Arguments.of(
+                """{"clock":"example:clock","time":"example:dawn"}""",
+                SetTimeRequest("example:clock", TimeValue.Marker("example:dawn")),
+            ),
+            Arguments.of("""{"time":0}""", SetTimeRequest("minecraft:overworld", TimeValue.Ticks(0))),
+            Arguments.of(
+                """{"time":2147483647}""",
+                SetTimeRequest("minecraft:overworld", TimeValue.Ticks(Int.MAX_VALUE)),
+            ),
+        )
+
+        @JvmStatic
+        fun invalidBlockProperties(): List<String> = listOf(
+            "null", "[]", "3", "true", "\"age=3\"",
+            """{"age":3}""", """{"lit":true}""", """{"age":null}""", """{"age":{}}""",
+            """{"age":[]}""", """{"":"3"}""", """{"age":""}""",
+        )
+
+        @JvmStatic
+        fun invalidEntityQueries(): List<String> = listOf(
+            "", "dimension=", "dimension=minecraft:overworld&dimension=minecraft:the_nether",
+            "dimension=minecraft:overworld&unknown=1", "dimension=minecraft:overworld&entity=",
+        ) + listOf(
+            "x=0", "x=0&y=64", "radius=20", "sort=nearest", "sort=furthest", "sort=", "sort=random",
+            "x=0&y=64&z=0&radius=-1", "x=NaN&y=64&z=0", "x=Infinity&y=64&z=0",
+            "x=0&y=64&z=0&radius=1e309", "x=true&y=64&z=0", "x=&y=64&z=0",
+            "limit=0", "limit=-1", "limit=1.5", "limit=true", "limit=2147483648", "limit=",
+        ).map { "dimension=minecraft:overworld&$it" }
+
         private const val TEST_UUID = "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af"
         private const val OTHER_UUID = "9ec7c42e-b767-4a47-b8c8-a68dc65bbde7"
     }
