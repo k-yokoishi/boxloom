@@ -229,6 +229,14 @@ mise run docs-build
 
 The Fabric mod JAR is written to `server/fabric/build/libs/`.
 
+The Kotlin core tests use JUnit 6 (Jupiter) with `kotlin.test` assertions. From
+`server`, run `./gradlew :core:test` for the unit and HTTP integration tests, or
+`./gradlew :core:test --tests 'dev.boxloom.server.core.BoxloomHttpServerTest'`
+to run the HTTP tests. Invalid request tables are reported as individual test
+cases, and configuration tests use JUnit-managed temporary directories.
+Minecraft GameTests also run as part of `build`; use `./gradlew :fabric:runGameTest`
+to run only those tests.
+
 After updating the supported Minecraft version, run `mise run python-generate-constants`
 to refresh the registry snapshot and Python constants. See
 [`data/minecraft/README.md`](data/minecraft/README.md) for the generation workflow.

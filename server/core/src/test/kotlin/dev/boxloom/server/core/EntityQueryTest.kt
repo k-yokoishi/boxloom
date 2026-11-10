@@ -1,7 +1,9 @@
 package dev.boxloom.server.core
 
-import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 
 class EntityQueryTest {
     private val origin = EntityQueryCenter(0.0, 64.0, 0.0)
@@ -32,14 +34,13 @@ class EntityQueryTest {
         assertEquals(listOf(center, item), request.copy(sort = EntitySort.NEAREST).select(entities.asSequence()))
     }
 
-    @Test
-    fun `equal distances use uuid as a stable tiebreaker in either direction`() {
+    @ParameterizedTest
+    @EnumSource(value = EntitySort::class, names = ["NEAREST", "FURTHEST"])
+    fun `equal distances use uuid as a stable tiebreaker in either direction`(sort: EntitySort) {
         val a = snapshot("a", "minecraft:pig", -1.0)
         val b = snapshot("b", "minecraft:pig", 1.0)
-        for (sort in listOf(EntitySort.NEAREST, EntitySort.FURTHEST)) {
-            val request = GetEntitiesRequest("minecraft:overworld", center = origin, sort = sort)
-            assertEquals(listOf(a, b), request.select(sequenceOf(b, a)))
-        }
+        val request = GetEntitiesRequest("minecraft:overworld", center = origin, sort = sort)
+        assertEquals(listOf(a, b), request.select(sequenceOf(b, a)))
     }
 
     @Test

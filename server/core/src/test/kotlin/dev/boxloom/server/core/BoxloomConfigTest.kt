@@ -1,16 +1,18 @@
 package dev.boxloom.server.core
 
 import java.nio.file.Files
-import kotlin.io.path.createTempDirectory
-import kotlin.test.Test
+import java.nio.file.Path
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 class BoxloomConfigTest {
     @Test
-    fun `creates and loads the default loopback config`() = withConfigPath { configPath ->
+    fun `creates and loads the default loopback config`(@TempDir directory: Path) {
+        val configPath = directory.resolve("boxloom.json")
         val config = BoxloomConfig.load(configPath, emptyMap())
 
         assertTrue(Files.exists(configPath))
@@ -21,7 +23,8 @@ class BoxloomConfigTest {
     }
 
     @Test
-    fun `loads authenticated settings from the config file`() = withConfigPath { configPath ->
+    fun `loads authenticated settings from the config file`(@TempDir directory: Path) {
+        val configPath = directory.resolve("boxloom.json")
         Files.writeString(
             configPath,
             """
@@ -44,7 +47,8 @@ class BoxloomConfigTest {
     }
 
     @Test
-    fun `environment variables override config file values`() = withConfigPath { configPath ->
+    fun `environment variables override config file values`(@TempDir directory: Path) {
+        val configPath = directory.resolve("boxloom.json")
         Files.writeString(
             configPath,
             """
@@ -74,7 +78,8 @@ class BoxloomConfigTest {
     }
 
     @Test
-    fun `rejects an unauthenticated non-loopback listener`() = withConfigPath { configPath ->
+    fun `rejects an unauthenticated non-loopback listener`(@TempDir directory: Path) {
+        val configPath = directory.resolve("boxloom.json")
         Files.writeString(
             configPath,
             """
@@ -92,15 +97,5 @@ class BoxloomConfigTest {
         }
 
         assertTrue(exception.message.orEmpty().contains("authToken is required"))
-    }
-
-    private fun withConfigPath(block: (java.nio.file.Path) -> Unit) {
-        val directory = createTempDirectory("boxloom-config-test")
-
-        try {
-            block(directory.resolve("boxloom.json"))
-        } finally {
-            directory.toFile().deleteRecursively()
-        }
     }
 }
