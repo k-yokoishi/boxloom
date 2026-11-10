@@ -256,6 +256,13 @@ class ClientTest(unittest.TestCase):
         _ApiHandler.response_body = {"players": [{"username": "Steve", "uuid": "test-uuid"}]}
         player = boxloom.get_players()[0]
         self.assertEqual(boxloom.Player("Steve", "test-uuid"), player)
+        _ApiHandler.response_body = {
+            "username": "Steve", "uuid": "test-uuid", "dimension": "minecraft:overworld",
+            "x": 1.5, "y": 64, "z": -2.25, "yaw": 90, "pitch": -12.5,
+        }
+        self.assertEqual(boxloom.PlayerPosition(
+            "Steve", "test-uuid", "minecraft:overworld", boxloom.Vec3(1.5, 64, -2.25), 90, -12.5,
+        ), player.get_position())
         _ApiHandler.response_body = {"target": None}
         self.assertIsNone(player.get_targeted_block())
         _ApiHandler.response_body = {"swung": True, "target": None, "broken": False}
@@ -263,7 +270,7 @@ class ClientTest(unittest.TestCase):
 
     def test_snapshot_players_require_an_explicit_client_binding(self):
         player = boxloom.Player("Steve", "test-uuid")
-        for operation in (player.get_targeted_block, player.attack, player.use, player.start_mining, player.stop_mining, player.start_using_item, player.stop_using_item):
+        for operation in (player.get_position, player.get_targeted_block, player.attack, player.use, player.start_mining, player.stop_mining, player.start_using_item, player.stop_using_item):
             with self.assertRaises(boxloom.ConfigurationError):
                 operation()
         self.assertEqual([], _ApiHandler.requests)
@@ -472,7 +479,7 @@ class ClientTest(unittest.TestCase):
 
     def test_player_actions_propagate_api_errors(self):
         player = self._player()
-        for operation in (player.get_targeted_block, player.attack):
+        for operation in (player.get_position, player.get_targeted_block, player.attack):
             _ApiHandler.response_status = 404
             _ApiHandler.response_body = {"error": {"code": "PLAYER_NOT_CONNECTED", "message": "offline"}}
             with self.assertRaises(boxloom.ApiError) as raised:
@@ -541,6 +548,32 @@ class ClientTest(unittest.TestCase):
         self.assertEqual("/v1/players/Player_123/position", path)
         self.assertEqual("Bearer unit-test-secret", headers["Authorization"])
         self.assertIsNone(body)
+
+    def test_player_get_position_refreshes_through_its_originating_client(self):
+        client = boxloom.BoxloomClient(base_url=self.base_url, auth_token="position-secret")
+        player = self._player(client)
+        boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
+
+        for y in (70.25, 71.5):
+            with self.subTest(y=y):
+                _ApiHandler.response_body = {
+                    "username": player.username, "uuid": player.uuid,
+                    "dimension": "minecraft:the_nether", "x": -0.2, "y": y, "z": -3.2,
+                    "yaw": 90, "pitch": -12.5,
+                }
+                before = len(_ApiHandler.requests)
+
+                result = player.get_position()
+
+                self.assertEqual(boxloom.PlayerPosition(
+                    player.username, player.uuid, "minecraft:the_nether",
+                    boxloom.Vec3(-0.2, y, -3.2), 90, -12.5,
+                ), result)
+                self.assertEqual(before + 1, len(_ApiHandler.requests))
+                path, headers, body = _ApiHandler.requests[-1]
+                self.assertEqual("/v1/players/Steve/position", path)
+                self.assertEqual("Bearer position-secret", headers["Authorization"])
+                self.assertIsNone(body)
 
     def test_coordinate_types_are_checked_before_network_io(self):
         vector = boxloom.Vec3(0, 64, 0)

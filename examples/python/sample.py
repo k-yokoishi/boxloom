@@ -3,7 +3,6 @@ from boxloom import (
     blocks,
     fill,
     get_block,
-    get_player_position,
     get_players,
     say,
     set_block,
@@ -16,7 +15,7 @@ def main() -> None:
         raise RuntimeError("No players are connected to the Minecraft server")
 
     player = players[0]
-    position = get_player_position(player.username)
+    position = player.get_position()
     origin = position.position.to_block_pos()
     target = origin + BlockPos(1, -1, 0)
 
