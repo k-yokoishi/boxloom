@@ -2181,6 +2181,47 @@ class TestClient:
 
         assert _ApiHandler.requests[0][2]["dimension"] == "minecraft:overworld"
 
+    @pytest.mark.parametrize("mode", ["replace", "destroy", "keep", "outline", "hollow", "strict"])
+    @pytest.mark.parametrize("use_client", [False, True])
+    def test_fill_modes_and_state_options(self, mode, use_client):
+        _ApiHandler.response_body = {
+            "changedBlocks": 1, "dimension": "minecraft:overworld",
+            "x1": 0, "y1": 64, "z1": 0, "x2": 0, "y2": 64, "z2": 0,
+            "block": "minecraft:oak_log",
+        }
+        from types import MappingProxyType
+        options = {"mode": mode, "properties": MappingProxyType({"axis": "x"})}
+        if mode != "keep":
+            options.update(replace=boxloom.blocks.OAK_LOG, replace_properties={"axis": "y"})
+        api = boxloom.BoxloomClient(base_url=self.base_url) if use_client else boxloom
+        result = api.fill(boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(0, 64, 0),
+                          boxloom.blocks.OAK_LOG, **options)
+        body = _ApiHandler.requests[-1][2]
+        assert body.get("mode", "replace") == mode
+        assert body["properties"] == {"axis": "x"}
+        if mode != "keep":
+            assert body["replace"] == boxloom.blocks.OAK_LOG
+            assert body["replaceProperties"] == {"axis": "y"}
+        assert result.changed_blocks == 1
+
+    @pytest.mark.parametrize("options", [
+        {"mode": "break"}, {"mode": None}, {"mode": []},
+        {"replace": ""}, {"replace": 3},
+        {"mode": "keep", "replace": "minecraft:stone"},
+        {"replace_properties": {}}, {"replace_properties": {"axis": "x"}},
+        {"properties": []}, {"properties": {"axis": 1}},
+        {"properties": {"": "x"}}, {"properties": {"axis": " "}},
+        {"replace": "minecraft:oak_log", "replace_properties": {"axis": False}},
+        {"replace": "minecraft:oak_log", "replace_properties": []},
+    ])
+    @pytest.mark.parametrize("use_client", [False, True])
+    def test_fill_rejects_invalid_options_before_request(self, options, use_client):
+        api = boxloom.BoxloomClient(base_url=self.base_url) if use_client else boxloom
+        with pytest.raises((TypeError, ValueError)):
+            api.fill(boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(0, 64, 0),
+                     boxloom.blocks.AIR, **options)
+        assert _ApiHandler.requests == []
+
     def test_fill_rejects_invalid_or_oversized_regions_before_request(self):
         with pytest.raises(TypeError):
             boxloom.fill(

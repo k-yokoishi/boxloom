@@ -10,6 +10,7 @@ import dev.boxloom.server.core.GiveItemResult
 import dev.boxloom.server.core.SelectSlotRequest
 import dev.boxloom.server.core.SelectSlotResult
 import dev.boxloom.server.core.FillRequest
+import dev.boxloom.server.core.FillMode
 import dev.boxloom.server.core.FillResult
 import dev.boxloom.server.core.GetBlockRequest
 import dev.boxloom.server.core.GetBlockResult
@@ -72,6 +73,8 @@ import net.minecraft.world.entity.Relative
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.GameType
 import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.Blocks
+import net.minecraft.world.level.levelgen.structure.BoundingBox
 import net.minecraft.world.level.block.state.BlockState
 import java.util.Locale
 import java.util.concurrent.CompletableFuture
@@ -342,17 +345,38 @@ internal class FabricMinecraftOperations(
                 )
             }
 
-            val blockInput = BlockInput(block.defaultBlockState(), emptySet(), null)
+            // Resolve both states before touching the world, including unmatched filters.
+            val blockInput = BlockStates.input(block, request.properties)
+            val replaceInput = request.replace?.let { name ->
+                val id = parseIdentifier(name, "block")
+                val replacement = BuiltInRegistries.BLOCK.getOptional(id).orElseThrow {
+                    ApiException(400, "INVALID_BLOCK", "Block '$name' does not exist")
+                }
+                BlockStates.input(replacement, request.replaceProperties)
+            }
+            val bounds = BoundingBox.fromCorners(first, second)
+            val strict = request.mode == FillMode.STRICT
+            val flags = Block.UPDATE_CLIENTS or if (strict) {
+                Block.UPDATE_SKIP_ALL_SIDEEFFECTS
+            } else {
+                Block.UPDATE_SKIP_BLOCK_ENTITY_SIDEEFFECTS
+            }
+            val air = BlockInput(Blocks.AIR.defaultBlockState(), emptySet(), null)
             val changedPositions = mutableListOf<Pair<BlockPos, BlockState>>()
+            var changedBlocks = 0
             for (position in BlockPos.betweenClosed(first, second)) {
+                if (replaceInput != null && !replaceInput.test(level, position)) continue
                 val oldState = level.getBlockState(position)
-                if (
-                    blockInput.place(
-                        level,
-                        position,
-                        Block.UPDATE_CLIENTS or Block.UPDATE_SKIP_BLOCK_ENTITY_SIDEEFFECTS,
-                    )
-                ) {
+                if (request.mode == FillMode.KEEP && !oldState.isAir) continue
+                val boundary = position.x == bounds.minX() || position.x == bounds.maxX() ||
+                    position.y == bounds.minY() || position.y == bounds.maxY() ||
+                    position.z == bounds.minZ() || position.z == bounds.maxZ()
+                if (request.mode == FillMode.OUTLINE && !boundary) continue
+                val input = if (request.mode == FillMode.HOLLOW && !boundary) air else blockInput
+                val destroyed = request.mode == FillMode.DESTROY && level.destroyBlock(position, true)
+                val placed = input.place(level, position, flags)
+                if (destroyed || placed) changedBlocks++
+                if (placed && !strict) {
                     changedPositions.add(position.immutable() to oldState)
                 }
             }
@@ -361,7 +385,7 @@ internal class FabricMinecraftOperations(
             }
 
             FillResult(
-                changedPositions.size,
+                changedBlocks,
                 dimensionKey.identifier().toString(),
                 request.x1,
                 request.y1,

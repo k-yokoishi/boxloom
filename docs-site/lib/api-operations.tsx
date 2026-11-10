@@ -356,14 +356,16 @@ export const apiOperations = {
       <p>
         Fill the inclusive cuboid between two block positions. The corners may be
         given in either order, and one call may cover at most 32,768 blocks. The
-        result reports how many blocks actually changed.
+        result counts positions placed or destroyed once each. Choose replace,
+        destroy, keep, outline, hollow, or strict, and optionally filter the old
+        block ID and properties. Destination properties start from block defaults.
       </p>
     ),
     errors: [
       {
         status: 400,
         code: 'INVALID_REQUEST',
-        meaning: 'The region covers more than 32,768 blocks.',
+        meaning: 'The region covers more than 32,768 blocks, a mode is invalid, keep is combined with replace, or replaceProperties has no replace block.',
       },
       invalidDimension,
       invalidBlock,
@@ -374,6 +376,7 @@ export const apiOperations = {
           "A corner is outside Minecraft's spawnable bounds or the dimension's build height.",
       },
       dimensionNotFound,
+      { status: 400, code: 'INVALID_BLOCK_PROPERTY', meaning: 'A destination or filter property is unknown or has an invalid string value. The world is not changed.' },
     ],
   },
   get_entities: {

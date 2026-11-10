@@ -54,6 +54,11 @@ data class SetBlockResult(
     val properties: Map<String, String> = emptyMap(),
 )
 
+enum class FillMode(val value: String) {
+    REPLACE("replace"), DESTROY("destroy"), KEEP("keep"),
+    OUTLINE("outline"), HOLLOW("hollow"), STRICT("strict"),
+}
+
 data class FillRequest(
     val dimension: String,
     val x1: Int,
@@ -63,7 +68,20 @@ data class FillRequest(
     val y2: Int,
     val z2: Int,
     val block: String,
-)
+    val mode: FillMode = FillMode.REPLACE,
+    val replace: String? = null,
+    val properties: Map<String, String> = emptyMap(),
+    val replaceProperties: Map<String, String> = emptyMap(),
+) {
+    init {
+        if (mode == FillMode.KEEP && replace != null) {
+            throw JsonSupport.invalid("Field 'replace' cannot be used with mode 'keep'")
+        }
+        if (replace == null && replaceProperties.isNotEmpty()) {
+            throw JsonSupport.invalid("Field 'replaceProperties' requires 'replace'")
+        }
+    }
+}
 
 data class FillResult(
     val changedBlocks: Int,

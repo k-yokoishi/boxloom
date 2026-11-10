@@ -257,6 +257,34 @@ result = fill(BlockPos(0, 100, 0), BlockPos(4, 100, 4), blocks.GOLD_BLOCK)
 print(result.changed_blocks)
 ```
 
+Choose a placement mode or restrict which existing blocks are affected:
+
+```python
+start, end = BlockPos(0, 100, 0), BlockPos(4, 104, 4)
+fill(start, end, blocks.AIR, mode="destroy")  # Break blocks and produce native drops.
+fill(start, end, blocks.STONE, replace=blocks.DIRT)  # Replace only dirt.
+fill(start, end, blocks.AIR, replace=blocks.STONE, mode="destroy")
+fill(start, end, blocks.GLASS, mode="keep")  # Place only in air.
+fill(start, end, blocks.GLASS, mode="outline")  # Boundary only; preserve the interior.
+fill(start, end, blocks.GLASS, mode="hollow")  # Boundary, with an air interior.
+fill(start, end, blocks.OAK_LOG, properties={"axis": "x"},
+     replace=blocks.OAK_LOG, replace_properties={"axis": "y"})
+```
+
+`mode` is a `FillMode` literal: `"replace"` (default), `"destroy"`, `"keep"`,
+`"outline"`, `"hollow"`, or `"strict"`. Strict mode skips placement side effects,
+shape updates, and neighbor notifications. All modes except keep can use
+`replace`; keep with a filter raises `ValueError`. `replace_properties` requires
+`replace` and matches only the specified string properties, while destination
+`properties` start from block defaults. IDs and state values are checked before
+any world change. Block tags and command strings are not accepted as filters.
+
+Destroy uses Minecraft's native block loot and block-drop game rule, without a
+player's held tool or enchantments. `changed_blocks` counts positions placed or
+destroyed once each, including a destroyed block replaced with air or the same
+block type. A no-op returns zero. The 32,768-block limit applies to the entire
+cuboid before filtering. Existing calls and `FillResult` are unchanged.
+
 Switch a connected player between Creative and Survival:
 
 ```python
