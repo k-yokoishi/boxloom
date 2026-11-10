@@ -1571,6 +1571,36 @@ class TestClient:
             with pytest.raises(boxloom.ProtocolError):
                 next(events)
 
+    @pytest.mark.parametrize(
+        "event_filter, wire_name, event_class",
+        (
+            (boxloom.events.CHAT_MESSAGE, "chat.message", boxloom.ChatEvent),
+            (boxloom.events.PLAYER_DEATH, "player.death", boxloom.PlayerDeathEvent),
+            (boxloom.events.PLAYER_SWING, "player.swing", boxloom.PlayerSwingEvent),
+            (boxloom.events.BLOCK_ATTACK, "block.attack", boxloom.BlockAttackEvent),
+            (boxloom.events.BLOCK_USE, "block.use", boxloom.BlockUseEvent),
+            (boxloom.events.ITEM_USE, "item.use", boxloom.ItemUseEvent),
+        ),
+    )
+    def test_watch_event_accepts_named_event_filters(self, event_filter, wire_name, event_class):
+        source = (
+            _chat_sse("session:1", "hello")
+            + _death_sse("session:2")
+            + b"".join(
+                _action_sse(kind, f"session:{index}")
+                for index, kind in enumerate(
+                    ("player.swing", "block.attack", "block.use", "item.use"), 3
+                )
+            )
+        )
+        for api in (boxloom, boxloom.BoxloomClient(base_url=self.base_url)):
+            _ApiHandler.stream_responses = [(200, "text/event-stream", source)]
+            with api.watch_event(event_filter, reconnect=False) as stream:
+                event = next(stream)
+                assert isinstance(event, event_class)
+                assert event.type == wire_name
+                assert stream.last_event_id == event.id
+
     def test_watch_event_filters_chat_by_keyword(self):
         _ApiHandler.stream_responses = [
             (

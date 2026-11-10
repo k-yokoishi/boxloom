@@ -2,13 +2,13 @@
 
 from time import sleep
 
-from boxloom import Event, subscribe_event
+from boxloom import Event, events, subscribe_event
 
 
 def on_event(event: Event) -> None:
-    if event.type == "chat.message":
+    if event.type == events.CHAT_MESSAGE:
         print(f"<{event.player.username}> {event.message}")
-    elif event.type == "player.death":
+    elif event.type == events.PLAYER_DEATH:
         print(
             f"{event.player.username} died in {event.dimension} "
             f"at ({event.position.x}, {event.position.y}, {event.position.z}): {event.message}"
