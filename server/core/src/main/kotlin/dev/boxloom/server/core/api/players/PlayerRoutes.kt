@@ -6,7 +6,7 @@ import dev.boxloom.server.core.GiveItemRequest
 import dev.boxloom.server.core.EntitySnapshot
 import dev.boxloom.server.core.JsonSupport
 import dev.boxloom.server.core.PlayerOperations
-import dev.boxloom.server.core.PlayerPosition
+import dev.boxloom.server.core.PlayerLocation
 import dev.boxloom.server.core.SetPlayerGameModeRequest
 import dev.boxloom.server.core.SelectSlotRequest
 import dev.boxloom.server.core.TeleportPlayerRequest
@@ -29,7 +29,7 @@ internal class PlayerRoutes(
 ) {
     fun register(router: Router) {
         router.get("/players") { exchange, _ -> list(exchange) }
-        router.get("/players/{username}/position", ::position)
+        router.get("/players/{username}/location", ::location)
         router.get("/players/{username}/targeted-block", ::targetedBlock)
         router.post("/players/{username}/attack", ::attack)
         router.post("/players/{username}/use", ::use)
@@ -59,10 +59,10 @@ internal class PlayerRoutes(
         HttpExchangeSupport.sendJson(exchange, 200, response)
     }
 
-    private fun position(exchange: HttpExchange, parameters: RouteParameters) {
+    private fun location(exchange: HttpExchange, parameters: RouteParameters) {
         val username = requireUsername(parameters)
-        val playerPosition = operations.await(minecraft.playerPosition(username))
-        sendPlayerPosition(exchange, playerPosition)
+        val playerLocation = operations.await(minecraft.playerLocation(username))
+        sendPlayerLocation(exchange, playerLocation)
     }
 
     private fun targetedBlock(exchange: HttpExchange, parameters: RouteParameters) {
@@ -214,8 +214,8 @@ internal class PlayerRoutes(
             JsonSupport.optionalFiniteDouble(objectValue, "yaw"),
             JsonSupport.optionalFiniteDouble(objectValue, "pitch"),
         )
-        val playerPosition = operations.await(minecraft.teleportPlayer(username, request))
-        sendPlayerPosition(exchange, playerPosition)
+        val playerLocation = operations.await(minecraft.teleportPlayer(username, request))
+        sendPlayerLocation(exchange, playerLocation)
     }
 
     private fun requireUsername(parameters: RouteParameters): String {
@@ -246,16 +246,16 @@ internal class PlayerRoutes(
         HttpExchangeSupport.sendJson(exchange, 200, response)
     }
 
-    private fun sendPlayerPosition(exchange: HttpExchange, position: PlayerPosition) {
+    private fun sendPlayerLocation(exchange: HttpExchange, location: PlayerLocation) {
         val response = buildJsonObject {
-            put("username", position.username)
-            put("uuid", position.uuid)
-            put("dimension", position.dimension)
-            put("x", position.x)
-            put("y", position.y)
-            put("z", position.z)
-            put("yaw", position.yaw)
-            put("pitch", position.pitch)
+            put("username", location.username)
+            put("uuid", location.uuid)
+            put("dimension", location.dimension)
+            put("x", location.x)
+            put("y", location.y)
+            put("z", location.z)
+            put("yaw", location.yaw)
+            put("pitch", location.pitch)
         }.toString()
 
         HttpExchangeSupport.sendJson(exchange, 200, response)

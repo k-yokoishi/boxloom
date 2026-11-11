@@ -21,7 +21,7 @@ import dev.boxloom.server.core.MinecraftOperations
 import dev.boxloom.server.core.NbtValue
 import dev.boxloom.server.core.Player
 import dev.boxloom.server.core.PlayerGameMode
-import dev.boxloom.server.core.PlayerPosition
+import dev.boxloom.server.core.PlayerLocation
 import dev.boxloom.server.core.TargetedBlock
 import dev.boxloom.server.core.PlayerAttackResult
 import dev.boxloom.server.core.PlayerUseResult
@@ -98,7 +98,7 @@ internal class FabricMinecraftOperations(
             }
         }
 
-    override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
+    override fun playerLocation(username: String): CompletableFuture<PlayerLocation> =
         onServerThread { server ->
             val player = server.playerList.getPlayerByName(username)
                 ?: throw ApiException(
@@ -107,7 +107,7 @@ internal class FabricMinecraftOperations(
                     "Player '$username' is not connected",
                 )
 
-            PlayerPosition(
+            PlayerLocation(
                 player.name.string,
                 player.uuid.toString(),
                 player.level().dimension().identifier().toString(),
@@ -153,7 +153,7 @@ internal class FabricMinecraftOperations(
     override fun teleportPlayer(
         username: String,
         request: TeleportPlayerRequest,
-    ): CompletableFuture<PlayerPosition> =
+    ): CompletableFuture<PlayerLocation> =
         onServerThread { server ->
             val player = server.playerList.getPlayerByName(username)
                 ?: throw ApiException(
@@ -208,7 +208,7 @@ internal class FabricMinecraftOperations(
                 player.setOnGround(true)
             }
 
-            PlayerPosition(
+            PlayerLocation(
                 player.name.string,
                 player.uuid.toString(),
                 player.level().dimension().identifier().toString(),

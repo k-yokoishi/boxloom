@@ -458,6 +458,35 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `reads a connected player location with authentication and rotation`() {
+        val usernames = mutableListOf<String>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun playerLocation(username: String): CompletableFuture<PlayerLocation> {
+                usernames += username
+                return CompletableFuture.completedFuture(
+                    PlayerLocation("Steve", TEST_UUID, "minecraft:the_nether", -0.2, 70.25, -3.2, 90f, -12.5f),
+                )
+            }
+        }
+        withServer(authToken = "test-secret", minecraft = minecraft) { server, _ ->
+            val path = "/v1/players/Steve/location"
+            assertEquals(401, get(server, path).statusCode())
+            assertTrue(usernames.isEmpty())
+
+            val response = get(server, path, "test-secret")
+            assertEquals(200, response.statusCode())
+            assertEquals(
+                """{"username":"Steve","uuid":"$TEST_UUID","dimension":"minecraft:the_nether","x":-0.2,"y":70.25,"z":-3.2,"yaw":90.0,"pitch":-12.5}""",
+                response.body(),
+            )
+            assertEquals(listOf("Steve"), usernames)
+
+            assertEquals(400, get(server, "/v1/players/ab/location", "test-secret").statusCode())
+            assertEquals(listOf("Steve"), usernames)
+        }
+    }
+
+    @Test
     fun `teleports a player with optional destination fields`() {
         var capturedUsername: String? = null
         var capturedRequest: TeleportPlayerRequest? = null
@@ -465,11 +494,11 @@ class BoxloomHttpServerTest {
             override fun teleportPlayer(
                 username: String,
                 request: TeleportPlayerRequest,
-            ): CompletableFuture<PlayerPosition> {
+            ): CompletableFuture<PlayerLocation> {
                 capturedUsername = username
                 capturedRequest = request
                 return CompletableFuture.completedFuture(
-                    PlayerPosition(
+                    PlayerLocation(
                         "Player_123",
                         TEST_UUID,
                         "minecraft:the_nether",
@@ -524,10 +553,10 @@ class BoxloomHttpServerTest {
             override fun teleportPlayer(
                 username: String,
                 request: TeleportPlayerRequest,
-            ): CompletableFuture<PlayerPosition> {
+            ): CompletableFuture<PlayerLocation> {
                 capturedRequest = request
                 return CompletableFuture.completedFuture(
-                    PlayerPosition(
+                    PlayerLocation(
                         username,
                         TEST_UUID,
                         "minecraft:overworld",
@@ -1669,8 +1698,8 @@ class BoxloomHttpServerTest {
         override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
             throw AssertionError("Unexpected attack request")
 
-        override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
-            throw AssertionError("Unexpected position request")
+        override fun playerLocation(username: String): CompletableFuture<PlayerLocation> =
+            throw AssertionError("Unexpected location request")
 
         override fun setPlayerGameMode(
             username: String,
@@ -1681,7 +1710,7 @@ class BoxloomHttpServerTest {
         override fun teleportPlayer(
             username: String,
             request: TeleportPlayerRequest,
-        ): CompletableFuture<PlayerPosition> =
+        ): CompletableFuture<PlayerLocation> =
             throw AssertionError("Unexpected teleport request")
 
         override fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult> =
@@ -1749,8 +1778,8 @@ class BoxloomHttpServerTest {
         override fun attackPlayer(username: String): CompletableFuture<PlayerAttackResult> =
             throw AssertionError("Unexpected attack request")
 
-        override fun playerPosition(username: String): CompletableFuture<PlayerPosition> =
-            throw AssertionError("Unexpected position request")
+        override fun playerLocation(username: String): CompletableFuture<PlayerLocation> =
+            throw AssertionError("Unexpected location request")
 
         override fun setPlayerGameMode(
             username: String,
@@ -1761,7 +1790,7 @@ class BoxloomHttpServerTest {
         override fun teleportPlayer(
             username: String,
             request: TeleportPlayerRequest,
-        ): CompletableFuture<PlayerPosition> =
+        ): CompletableFuture<PlayerLocation> =
             throw AssertionError("Unexpected teleport request")
 
         override fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult> =
