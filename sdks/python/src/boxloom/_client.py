@@ -42,7 +42,7 @@ from .models import (
     BlockAttackEvent,
     BlockUseEvent,
     ItemUseEvent,
-    PlayerPosition,
+    PlayerLocation,
     PlayerAttackResult,
     PlayerUseResult,
     PlayerItemUseResult,
@@ -95,14 +95,16 @@ class BoxloomClient:
             raise ProtocolError("response field 'recipients' must not be negative")
         return SayResult(message=returned_message, recipients=recipients)
 
-    def get_player_position(self, username: str) -> PlayerPosition:
+    def get_player_location(self, username: str) -> PlayerLocation:
+        """Read a connected player's position, dimension, and look direction."""
+
         if not isinstance(username, str) or not _USERNAME.fullmatch(username):
             raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
 
         payload = self._get(
-            f"/v1/players/{quote(username, safe='')}/position",
+            f"/v1/players/{quote(username, safe='')}/location",
         )
-        return PlayerPosition(
+        return PlayerLocation(
             username=_require_string(payload, "username"),
             uuid=_require_string(payload, "uuid"),
             dimension=_require_string(payload, "dimension"),
@@ -115,12 +117,12 @@ class BoxloomClient:
         """Resolve a connected player bound to this client, or None if not connected."""
 
         try:
-            position = self.get_player_position(username)
+            location = self.get_player_location(username)
         except ApiError as error:
             if error.status == 404 and error.code == "PLAYER_NOT_CONNECTED":
                 return None
             raise
-        return Player(position.username, position.uuid, self)
+        return Player(location.username, location.uuid, self)
 
     def get_player_targeted_block(self, username: str) -> Optional[TargetedBlock]:
         """Read a block within interaction reach using the server's latest view."""
@@ -325,7 +327,7 @@ class BoxloomClient:
         dimension: Optional[str] = None,
         yaw: Optional[float] = None,
         pitch: Optional[float] = None,
-    ) -> PlayerPosition:
+    ) -> PlayerLocation:
         if not isinstance(username, str) or not _USERNAME.fullmatch(username):
             raise ValueError("username must contain 3 to 16 letters, digits, or underscores")
         if not isinstance(position, Vec3):
@@ -355,7 +357,7 @@ class BoxloomClient:
             f"/v1/players/{quote(username, safe='')}/teleport",
             body,
         )
-        return PlayerPosition(
+        return PlayerLocation(
             username=_require_string(payload, "username"),
             uuid=_require_string(payload, "uuid"),
             dimension=_require_string(payload, "dimension"),

@@ -174,10 +174,10 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
-  /v1/players/{username}/position:
+  /v1/players/{username}/location:
     get:
-      operationId: getPlayerPosition
-      summary: Read a connected player's position and look direction
+      operationId: getPlayerLocation
+      summary: Read a connected player's position, dimension, and look direction
       parameters:
         - name: username
           in: path
@@ -187,11 +187,11 @@ paths:
             pattern: '^[A-Za-z0-9_]{3,16}$'
       responses:
         '200':
-          description: The player position
+          description: The player's location, including position, dimension, and look direction
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlayerPosition'
+                $ref: '#/components/schemas/PlayerLocation'
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '401':
@@ -719,7 +719,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlayerPosition'
+                $ref: '#/components/schemas/PlayerLocation'
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '401':
@@ -1886,8 +1886,9 @@ components:
           format: uuid
         mode:
           $ref: '#/components/schemas/GameMode'
-    PlayerPosition:
+    PlayerLocation:
       type: object
+      description: A snapshot of a connected player's position, dimension, and look direction.
       additionalProperties: false
       required:
         - username

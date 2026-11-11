@@ -42,17 +42,17 @@ when connected, or `None` when that player is not connected. The same applies to
 `BoxloomClient.get_player(username)`. Invalid names raise `ValueError`; connection,
 authentication and other API errors raise their usual exceptions.
 
-Read the player's latest position and look direction:
+Read the player's latest position, dimension, and look direction:
 
 ```python
-state = player.get_position()
-print(state.position.x, state.position.y, state.position.z)
-print(state.dimension, state.yaw, state.pitch)
+location = player.get_location()
+print(location.position.x, location.position.y, location.position.z)
+print(location.dimension, location.yaw, location.pitch)
 ```
 
-Each call reads a fresh `PlayerPosition` from the server through the player's
-original client. `get_player_position(player.username)` remains available and
-returns the same type.
+Each call reads a fresh `PlayerLocation` from the server through the player's
+original client. You can also call `get_player_location(player.username)` to
+read the same location.
 
 Players from `get_players()` also expose these methods and retain their original
 client connection. Targeting uses the server's latest view and block interaction
@@ -65,7 +65,7 @@ Native protections and tools apply; survival blocks requiring sustained mining
 do not break from one click. Piercing weapons are unsupported. An existing
 swing can prevent a new swing. Players received through `watch_event()`,
 `watch_chat()`, and `subscribe_event()` also retain the receiving client, so
-`event.player.get_position()` and other player methods work directly. Manually
+`event.player.get_location()` and other player methods work directly. Manually
 constructed `Player` values are not bound; resolve them with the appropriate
 client's `get_player()` before calling methods.
 
@@ -204,13 +204,13 @@ Booleans are rejected. Arithmetic that produces invalid components raises
 `ValueError`.
 
 ```python
-from boxloom import BlockPos, Vec3, blocks, get_player_position, set_block, teleport_player
+from boxloom import BlockPos, Vec3, blocks, get_player_location, set_block, teleport_player
 
-state = get_player_position("Steve")
-teleport_player("Steve", state.position + Vec3(0, 10, 0))
+location = get_player_location("Steve")
+teleport_player("Steve", location.position + Vec3(0, 10, 0))
 
-origin = state.position.to_block_pos()
-set_block(origin + BlockPos(1, -1, 0), blocks.DIAMOND_BLOCK, dimension=state.dimension)
+origin = location.position.to_block_pos()
+set_block(origin + BlockPos(1, -1, 0), blocks.DIAMOND_BLOCK, dimension=location.dimension)
 ```
 
 `Vec3.to_block_pos()` floors each component: `Vec3(-0.2, 64.8, 3.9)` becomes
@@ -347,7 +347,7 @@ Filtering happens in the SDK; all types share the `GET /v1/events` stream and
 its combined history of 1,024 events. Unknown event names are skipped. Existing
 `watch_chat()` callers continue to receive only chat messages.
 
-`event.player.get_position()` reads the player's latest `PlayerPosition` through
+`event.player.get_location()` reads the player's latest `PlayerLocation` through
 the stream's original client, even after `boxloom.init()` changes the default
 client. Use its `.position` (`Vec3`) for coordinates and `.dimension` for world
 operations. Death and action events' own `position` and `dimension` fields remain

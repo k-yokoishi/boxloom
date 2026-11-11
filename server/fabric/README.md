@@ -6,7 +6,7 @@ The mod exposes Minecraft operations and a live player event stream:
 
 - Broadcast a system message to connected players
 - List connected players
-- Read a connected player's position and look direction
+- Read a connected player's position, dimension, and look direction
 - Read the block under a player's server-side crosshair, within interaction reach
 - Perform one native block or entity attack or miss, including a swing sent to the player and observers
 - Use the main hand on the aimed block or entity, or in the air (including bone meal)
@@ -232,12 +232,12 @@ curl --fail-with-body \
   http://127.0.0.1:28886/v1/chat/messages
 ```
 
-After joining the server with Minecraft Java Edition 26.3, get a player position:
+After joining the server with Minecraft Java Edition 26.3, get a player's location:
 
 ```bash
 curl --fail-with-body \
   -H 'Authorization: Bearer boxloom-local-poc-token' \
-  http://127.0.0.1:28886/v1/players/example/position
+  http://127.0.0.1:28886/v1/players/example/location
 ```
 
 List connected players:

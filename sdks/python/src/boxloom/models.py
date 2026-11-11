@@ -32,10 +32,10 @@ class Player:
     uuid: str
     _client: Optional["BoxloomClient"] = field(default=None, repr=False, compare=False)
 
-    def get_position(self) -> "PlayerPosition":
+    def get_location(self) -> "PlayerLocation":
         """Read the player's latest position, dimension, and look direction."""
 
-        return self._require_client().get_player_position(self.username)
+        return self._require_client().get_player_location(self.username)
 
     def get_targeted_block(self) -> Optional["TargetedBlock"]:
         """Read the block under the server-side crosshair, within interaction reach."""
@@ -297,8 +297,8 @@ _EVENT_TYPES = tuple(event.type for event in _EVENT_CLASSES)
 
 
 @dataclass(frozen=True)
-class PlayerPosition:
-    """A connected player's position and look direction."""
+class PlayerLocation:
+    """An immutable snapshot of a connected player's position, dimension, and look direction."""
 
     username: str
     uuid: str

@@ -4,8 +4,8 @@ from typing_extensions import assert_type
 
 from boxloom import (
     Block, BlockAttackEvent, BlockPos, BoxloomClient, Entity, FillResult,
-    PlayerDeathEvent, PlayerPosition, SetBlockResult, SummonResult, Vec3,
-    blocks, entities, fill, get_block, get_entities, get_player_position,
+    PlayerDeathEvent, PlayerLocation, SetBlockResult, SummonResult, Vec3,
+    blocks, entities, fill, get_block, get_entities, get_player_location,
     kill_entities, set_block, summon, teleport_player,
 )
 
@@ -27,8 +27,8 @@ def check_coordinates(client: BoxloomClient, event: BlockAttackEvent) -> None:
     assert_type(block * 2, BlockPos)
     assert_type(2 * block, BlockPos)
     assert_type(-block, BlockPos)
-    assert_type(get_player_position("Steve").position, Vec3)
-    assert_type(teleport_player("Steve", position), PlayerPosition)
+    assert_type(get_player_location("Steve").position, Vec3)
+    assert_type(teleport_player("Steve", position), PlayerLocation)
     assert_type(client.teleport_player("Steve", position).position, Vec3)
     assert_type(get_block(block), Block)
     assert_type(client.get_block(block).position, BlockPos)
@@ -45,8 +45,8 @@ def check_coordinates(client: BoxloomClient, event: BlockAttackEvent) -> None:
     assert_type(event.block_position, BlockPos)
     player = client.get_player("Steve")
     if player is not None:
-        assert_type(player.get_position(), PlayerPosition)
-        assert_type(player.get_position().position, Vec3)
+        assert_type(player.get_location(), PlayerLocation)
+        assert_type(player.get_location().position, Vec3)
         target = player.get_targeted_block()
         if target is not None:
             assert_type(target.position, BlockPos)
