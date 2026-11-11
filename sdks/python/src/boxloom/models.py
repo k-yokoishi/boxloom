@@ -333,6 +333,9 @@ class FillResult:
     block: str
 
 
+FillMode = Literal["replace", "destroy", "keep", "outline", "hollow", "strict"]
+
+
 @dataclass(frozen=True)
 class Entity:
     """A snapshot of a loaded, alive entity, including players and dropped items."""

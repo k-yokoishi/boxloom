@@ -8,6 +8,7 @@
       "dev.boxloom.fabric.PlayerBlockActionsGameTest",
       "dev.boxloom.fabric.PlayerUseActionsGameTest",
       "dev.boxloom.fabric.BlockPropertiesGameTest",
+      "dev.boxloom.fabric.FillGameTest",
       "dev.boxloom.fabric.PlayerItemUseActionsGameTest",
       "dev.boxloom.fabric.PlayerInventoryActionsGameTest"
     ]

@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -983,6 +984,69 @@ class BoxloomHttpServerTest {
             ),
             capturedRequest,
         )
+    }
+
+    @ParameterizedTest
+    @EnumSource(FillMode::class)
+    fun `accepts fill modes and block state filters`(mode: FillMode) {
+        var captured: FillRequest? = null
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun fill(request: FillRequest): CompletableFuture<FillResult> {
+                captured = request
+                return CompletableFuture.completedFuture(FillResult(
+                    0, request.dimension, request.x1, request.y1, request.z1,
+                    request.x2, request.y2, request.z2, request.block,
+                ))
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            val body = buildJsonObject {
+                put("dimension", "minecraft:overworld")
+                put("x1", 0); put("y1", 64); put("z1", 0)
+                put("x2", 1); put("y2", 64); put("z2", 0)
+                put("block", "minecraft:oak_log")
+                put("mode", mode.value)
+                put("properties", buildJsonObject { put("axis", "x") })
+                if (mode != FillMode.KEEP) {
+                    put("replace", "minecraft:oak_log")
+                    put("replaceProperties", buildJsonObject { put("axis", "y") })
+                }
+            }
+            assertEquals(200, post(server, "/v1/world/blocks/fill", body.toString()).statusCode())
+        }
+        assertEquals(mode, captured?.mode)
+        assertEquals(mapOf("axis" to "x"), captured?.properties)
+        assertEquals(if (mode == FillMode.KEEP) null else "minecraft:oak_log", captured?.replace)
+        assertEquals(if (mode == FillMode.KEEP) emptyMap() else mapOf("axis" to "y"), captured?.replaceProperties)
+    }
+
+    @Test
+    fun `rejects invalid fill options before dispatch`() {
+        val invalidOptions = listOf(
+            """{"mode":"break"}""", """{"mode":null}""", """{"mode":3}""",
+            """{"mode":""}""", """{"mode":"DESTROY"}""", """{"mode":[]}""",
+            """{"mode":"keep","replace":"minecraft:stone"}""",
+            """{"replace":null}""", """{"replace":""}""", """{"replace":true}""",
+            """{"replaceProperties":{}}""", """{"replaceProperties":{"axis":"x"}}""",
+            """{"properties":null}""", """{"properties":[]}""", """{"properties":{"age":3}}""",
+            """{"properties":{"":"x"}}""", """{"properties":{"axis":" "}}""",
+            """{"replace":"minecraft:oak_log","replaceProperties":{"axis":false}}""",
+            """{"replace":"minecraft:oak_log","replaceProperties":[]}""",
+        )
+        withServer(authToken = null) { server, _ ->
+            for (options in invalidOptions) {
+                val body = buildJsonObject {
+                    put("dimension", "minecraft:overworld")
+                    put("x1", 0); put("y1", 64); put("z1", 0)
+                    put("x2", 1); put("y2", 64); put("z2", 0)
+                    put("block", "minecraft:air")
+                    Json.parseToJsonElement(options).jsonObject.forEach { (key, value) -> put(key, value) }
+                }
+                val response = post(server, "/v1/world/blocks/fill", body.toString())
+                assertEquals(400, response.statusCode(), options)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+        }
     }
 
     @Test

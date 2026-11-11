@@ -37,6 +37,9 @@ def check_coordinates(client: BoxloomClient, event: BlockAttackEvent) -> None:
     assert_type(fill(block, block + BlockPos(2, 0, 0), blocks.STONE), FillResult)
     assert_type(client.fill(block, block, blocks.STONE).start, BlockPos)
     assert_type(client.fill(block, block, blocks.STONE).end, BlockPos)
+    assert_type(fill(block, block, blocks.AIR, mode="destroy", replace=blocks.STONE), FillResult)
+    assert_type(client.fill(block, block, blocks.OAK_LOG, properties={"axis": "x"},
+                            replace=blocks.OAK_LOG, replace_properties={"axis": "y"}), FillResult)
     assert_type(summon(entities.PIG, position), SummonResult)
     assert_type(client.summon(entities.PIG, position).position, Vec3)
     assert_type(get_entities(center=position)[0].position, Vec3)
@@ -61,6 +64,7 @@ def check_death(event: PlayerDeathEvent) -> None:
 def check_invalid_usage(client: BoxloomClient) -> None:
     vector = Vec3(0, 64, 0)
     block = BlockPos(0, 64, 0)
+    fill(block, block, blocks.AIR, mode="break")  # type: ignore[arg-type]
     get_block(vector)  # type: ignore[arg-type]
     client.set_block(vector, blocks.STONE)  # type: ignore[arg-type]
     fill(block, vector, blocks.STONE)  # type: ignore[arg-type]

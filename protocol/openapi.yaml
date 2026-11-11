@@ -2043,12 +2043,37 @@ components:
           type: string
         properties:
           $ref: '#/components/schemas/BlockProperties'
+    FillMode:
+      type: string
+      enum: [replace, destroy, keep, outline, hollow, strict]
+      default: replace
+      description: >-
+        replace sets matching positions without breaking blocks. destroy first
+        breaks matching blocks using native drops. keep sets only air and cannot
+        be combined with replace. outline sets only the cuboid boundary. hollow
+        sets the boundary and clears matching interior positions to air. strict
+        skips placement side effects, shape updates, and neighbor notifications.
     FillRequest:
       type: object
       description: >-
         The two corners are inclusive and may be supplied in either order. The
-        resulting cuboid must contain at most 32,768 blocks.
+        resulting cuboid must contain at most 32,768 blocks, before filtering.
+        Destination and filter IDs and properties are validated before any world
+        change. The optional replace filter matches an exact block ID, not a tag,
+        and only the properties supplied in replaceProperties. Omitted destination
+        properties use the block defaults. A no-op succeeds with changedBlocks 0.
       additionalProperties: false
+      dependentRequired:
+        replaceProperties: [replace]
+      allOf:
+        - if:
+            required: [mode]
+            properties:
+              mode:
+                const: keep
+          then:
+            not:
+              required: [replace]
       required:
         - dimension
         - x1
@@ -2085,6 +2110,20 @@ components:
           type: string
           examples:
             - minecraft:stone
+        mode:
+          $ref: '#/components/schemas/FillMode'
+        replace:
+          type: string
+          minLength: 1
+          description: Only affect positions containing this registered block ID.
+          examples:
+            - minecraft:dirt
+        properties:
+          $ref: '#/components/schemas/BlockProperties'
+          description: Destination block-state properties, starting from defaults.
+        replaceProperties:
+          $ref: '#/components/schemas/BlockProperties'
+          description: Partial state filter. Requires replace; unspecified properties match any value.
     FillResult:
       type: object
       additionalProperties: false
@@ -2104,6 +2143,10 @@ components:
           format: int32
           minimum: 0
           maximum: 32768
+          description: >-
+            Positions successfully placed or destroyed, counted once per position.
+            Destroying a block counts even if placing air is then a no-op or the
+            same block type is recreated. Not a drop or final-state difference count.
         dimension:
           type: string
         x1:

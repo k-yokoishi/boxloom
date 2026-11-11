@@ -5,6 +5,7 @@ import dev.boxloom.server.core.EntityKillRange
 import dev.boxloom.server.core.EntityQueryCenter
 import dev.boxloom.server.core.EntitySort
 import dev.boxloom.server.core.FillRequest
+import dev.boxloom.server.core.FillMode
 import dev.boxloom.server.core.GetBlockRequest
 import dev.boxloom.server.core.GetEntitiesRequest
 import dev.boxloom.server.core.JsonSupport
@@ -155,6 +156,14 @@ internal class WorldRoutes(
         val objectValue = JsonSupport.parseObject(HttpExchangeSupport.readRequestBody(exchange))
         JsonSupport.requireOnlyFields(objectValue, FILL_FIELDS)
 
+        val mode = JsonSupport.optionalString(objectValue, "mode")?.let { value ->
+            FillMode.entries.firstOrNull { it.value == value }
+                ?: throw JsonSupport.invalid("Field 'mode' must be replace, destroy, keep, outline, hollow, or strict")
+        } ?: FillMode.REPLACE
+        if ("replaceProperties" in objectValue && "replace" !in objectValue) {
+            throw JsonSupport.invalid("Field 'replaceProperties' requires 'replace'")
+        }
+
         val request = FillRequest(
             JsonSupport.requireString(objectValue, "dimension"),
             JsonSupport.requireInteger(objectValue, "x1"),
@@ -164,6 +173,10 @@ internal class WorldRoutes(
             JsonSupport.requireInteger(objectValue, "y2"),
             JsonSupport.requireInteger(objectValue, "z2"),
             JsonSupport.requireString(objectValue, "block"),
+            mode,
+            JsonSupport.optionalString(objectValue, "replace"),
+            JsonSupport.optionalStringMap(objectValue, "properties"),
+            JsonSupport.optionalStringMap(objectValue, "replaceProperties"),
         )
         requireFillWithinLimit(request)
 
@@ -276,6 +289,7 @@ internal class WorldRoutes(
             "y2",
             "z2",
             "block",
+            "mode", "replace", "properties", "replaceProperties",
         )
         private val SUMMON_FIELDS = setOf("dimension", "entity", "x", "y", "z", "nbt")
         private val KILL_ENTITY_FIELDS = setOf("dimension")

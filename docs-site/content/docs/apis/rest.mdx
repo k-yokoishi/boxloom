@@ -685,7 +685,7 @@ curl --fail-with-body \
 
 <ApiEndpoint method="POST" path="/v1/world/blocks/fill" />
 
-**Request body** — all fields required.
+**Request body** — dimension, coordinates, and block are required.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -693,12 +693,16 @@ curl --fail-with-body \
 | `x1`, `y1`, `z1` | integer | First corner, inclusive. |
 | `x2`, `y2`, `z2` | integer | Second corner, inclusive. |
 | `block` | string | Namespaced ID of a registered block. |
+| `mode` | string | Optional: `replace` (default), `destroy`, `keep`, `outline`, `hollow`, or `strict`. |
+| `replace` | string | Optional existing block ID to match; block tags and command strings are unsupported. Cannot be combined with `keep`. |
+| `properties` | object | Optional string properties for the destination block, starting from defaults. |
+| `replaceProperties` | object | Optional partial state filter; requires `replace`. Unspecified properties match any value. |
 
 **Response** — `200 application/json`
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `changedBlocks` | integer | How many blocks changed, from 0 to 32,768. |
+| `changedBlocks` | integer | Positions placed or destroyed, counted once each, from 0 to 32,768. |
 | `dimension` | string | Resolved namespaced dimension ID. |
 | `x1`, `y1`, `z1`, `x2`, `y2`, `z2` | integer | The requested corners. |
 | `block` | string | Resolved namespaced block ID. |
@@ -736,6 +740,19 @@ curl --fail-with-body \
   "block": "minecraft:gold_block"
 }
 ```
+
+For example, add `"mode":"destroy","replace":"minecraft:stone"` with
+`"block":"minecraft:air"` to break only stone. Destroy uses native block loot
+and the block-drop game rule, without a player's held tool or enchantments.
+
+`outline` sets only the matching cuboid boundary. `hollow` also clears matching
+interior positions to air. `keep` places only in air. `strict` skips placement
+side effects, shape updates, and neighbor notifications. Filters are applied
+before mode-specific changes, including hollow's interior clearing.
+
+Both destination and filter properties are validated before any world change.
+The 32,768-block limit applies before filtering. A no-op returns zero; destroying
+a block counts even if air placement is a no-op or the same block is recreated.
 
 </Operation>
 

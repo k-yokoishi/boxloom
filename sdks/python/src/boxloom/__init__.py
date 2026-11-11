@@ -33,6 +33,7 @@ from .models import (
     Block,
     Entity,
     FillResult,
+    FillMode,
     GameMode,
     GiveItemResult,
     GivenItemSlot,
@@ -71,6 +72,7 @@ __all__ = [
     "EventSubscription",
     "EventType",
     "FillResult",
+    "FillMode",
     "GameMode",
     "GiveItemResult",
     "GivenItemSlot",
@@ -455,14 +457,22 @@ def fill(
     end: BlockPos,
     block: str,
     *,
+    mode: FillMode = "replace",
+    replace: Optional[str] = None,
+    properties: Optional[Mapping[str, str]] = None,
+    replace_properties: Optional[Mapping[str, str]] = None,
     dimension: str = "minecraft:overworld",
 ) -> FillResult:
-    """Fill an inclusive block region in a loaded Minecraft dimension."""
+    """Fill a region, optionally filtering old blocks and choosing a placement mode."""
 
     return _default_client().fill(
         start,
         end,
         block,
+        mode=mode,
+        replace=replace,
+        properties=properties,
+        replace_properties=replace_properties,
         dimension=dimension,
     )
 

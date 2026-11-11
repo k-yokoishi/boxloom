@@ -339,6 +339,21 @@ curl --fail-with-body \
   http://127.0.0.1:28886/v1/world/blocks/fill
 ```
 
+Optional `mode` selects `replace` (default), `destroy`, `keep`, `outline`,
+`hollow`, or `strict`. `replace` restricts the existing block ID, and
+`replaceProperties` matches only the supplied string state properties.
+`properties` sets destination state properties from the block defaults.
+For example, `"block":"minecraft:air","mode":"destroy","replace":"minecraft:stone"`
+breaks only stone and creates native loot. Destroy respects the block-drop game
+rule and does not use a player's tool or enchantments. Keep cannot be combined
+with replace; replaceProperties requires replace. Both states are validated
+before world changes. The cuboid limit applies before filtering.
+
+Outline preserves the interior; hollow clears matching interior positions to
+air. Strict suppresses placement side effects, shape updates, and neighbor
+notifications. The count includes destroyed positions even when the destination
+is air or the same block, once per position. No-op fills return zero.
+
 Both corners are included and may be supplied in either order. A single request can change a region containing at most 32,768 blocks.
 
 Summon an entity with optional NBT:

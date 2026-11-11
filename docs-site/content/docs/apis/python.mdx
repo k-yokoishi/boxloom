@@ -796,6 +796,10 @@ fill(
     end: BlockPos,
     block: str,
     *,
+    mode: FillMode = "replace",
+    replace: Optional[str] = None,
+    properties: Optional[Mapping[str, str]] = None,
+    replace_properties: Optional[Mapping[str, str]] = None,
     dimension: str = "minecraft:overworld",
 ) -> FillResult
 ```
@@ -807,13 +811,17 @@ fill(
 | `start` | `BlockPos` | required | First corner, inclusive. |
 | `end` | `BlockPos` | required | Second corner, inclusive. |
 | `block` | `str` | required | Namespaced ID of a registered block. |
+| `mode` | `FillMode` | `"replace"` | Placement mode from the table below. |
+| `replace` | `Optional[str]` | `None` | Only affect this existing block ID. No block tags or command syntax. |
+| `properties` | `Optional[Mapping[str, str]]` | `None` | Destination block properties, starting from defaults. |
+| `replace_properties` | `Optional[Mapping[str, str]]` | `None` | Partial state filter; requires `replace`. Unspecified properties match any value. |
 | `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
 
 **Returns** — `FillResult`
 
 | Attribute | Type | Description |
 | --- | --- | --- |
-| `changed_blocks` | `int` | How many blocks changed, from 0 to 32,768. |
+| `changed_blocks` | `int` | Positions placed or destroyed, counted once each, from 0 to 32,768. |
 | `dimension` | `str` | Resolved namespaced dimension ID. |
 | `start`, `end` | `BlockPos` | The requested corners. |
 | `block` | `str` | Resolved namespaced block ID. |
@@ -826,6 +834,33 @@ from boxloom import BlockPos, blocks, fill
 result = fill(BlockPos(0, 100, 0), BlockPos(4, 100, 4), blocks.GOLD_BLOCK)
 print(result.changed_blocks)
 ```
+
+```python
+start, end = BlockPos(0, 100, 0), BlockPos(4, 104, 4)
+fill(start, end, blocks.AIR, mode="destroy")
+fill(start, end, blocks.STONE, replace=blocks.DIRT)
+fill(start, end, blocks.AIR, mode="destroy", replace=blocks.STONE)
+fill(start, end, blocks.GLASS, mode="hollow")
+fill(start, end, blocks.OAK_LOG, properties={"axis": "x"},
+     replace=blocks.OAK_LOG, replace_properties={"axis": "y"})
+```
+
+| Mode | Behavior |
+| --- | --- |
+| `"replace"` | Set all matching positions without breaking the original blocks. |
+| `"destroy"` | Break matching blocks with native drops before placing the destination. |
+| `"keep"` | Set only air. Cannot be combined with `replace`. |
+| `"outline"` | Set matching boundary positions; preserve the interior. |
+| `"hollow"` | Set the matching boundary and clear matching interior positions to air. |
+| `"strict"` | Place without placement side effects, shape updates, or neighbor notifications. |
+
+`FillMode` is exported from `boxloom` for annotations and editor completion.
+Invalid modes and combinations raise `ValueError` before making a request.
+Destination and filter properties are validated before any world change.
+Destroy uses Minecraft's block loot and block-drop game rule, without the
+player's held tool or enchantments. A destroyed position counts even if the
+destination is air or the same block type; the result is not an item count.
+No-op fills succeed with zero. The size limit applies before filtering.
 
 </Operation>
 

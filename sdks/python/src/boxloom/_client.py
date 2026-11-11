@@ -29,6 +29,7 @@ from .models import (
     Entity,
     Event,
     FillResult,
+    FillMode,
     Block,
     GameMode,
     GiveItemResult,
@@ -631,15 +632,7 @@ class BoxloomClient:
             "dimension": dimension, "x": x, "y": y, "z": z, "block": block,
         }
         if properties is not None:
-            if not isinstance(properties, Mapping):
-                raise TypeError("properties must be a mapping of strings to strings")
-            snapshot = dict(properties)
-            for name, property_value in snapshot.items():
-                if not isinstance(name, str) or not isinstance(property_value, str):
-                    raise TypeError("properties must contain only string keys and values")
-                if not name.strip() or not property_value.strip():
-                    raise ValueError("properties keys and values must not be empty")
-            body["properties"] = snapshot
+            body["properties"] = _property_map(properties, "properties")
         payload = self._post("/v1/world/blocks", body)
         changed = payload.get("changed")
         if not isinstance(changed, bool):
@@ -687,6 +680,10 @@ class BoxloomClient:
         end: BlockPos,
         block: str,
         *,
+        mode: FillMode = "replace",
+        replace: Optional[str] = None,
+        properties: Optional[Mapping[str, str]] = None,
+        replace_properties: Optional[Mapping[str, str]] = None,
         dimension: str = "minecraft:overworld",
     ) -> FillResult:
         if not isinstance(start, BlockPos) or not isinstance(end, BlockPos):
@@ -698,6 +695,16 @@ class BoxloomClient:
         if not isinstance(dimension, str) or not dimension.strip():
             raise ValueError("dimension must be a non-empty namespaced ID")
 
+        if mode not in ("replace", "destroy", "keep", "outline", "hollow", "strict"):
+            raise ValueError("mode must be replace, destroy, keep, outline, hollow, or strict")
+        if replace is not None:
+            if not isinstance(replace, str) or not replace.strip():
+                raise ValueError("replace must be a non-empty namespaced block ID or None")
+            if mode == "keep":
+                raise ValueError("replace cannot be used with mode='keep'")
+        if replace_properties is not None and replace is None:
+            raise ValueError("replace_properties requires replace")
+
         volume = (
             (abs(x2 - x1) + 1)
             * (abs(y2 - y1) + 1)
@@ -708,19 +715,21 @@ class BoxloomClient:
                 f"fill region must contain at most {_MAX_FILL_BLOCKS} blocks"
             )
 
-        payload = self._post(
-            "/v1/world/blocks/fill",
-            {
-                "dimension": dimension,
-                "x1": x1,
-                "y1": y1,
-                "z1": z1,
-                "x2": x2,
-                "y2": y2,
-                "z2": z2,
-                "block": block,
-            },
-        )
+        body: Dict[str, Any] = {
+            "dimension": dimension,
+            "x1": x1, "y1": y1, "z1": z1,
+            "x2": x2, "y2": y2, "z2": z2,
+            "block": block,
+        }
+        if mode != "replace":
+            body["mode"] = mode
+        if replace is not None:
+            body["replace"] = replace
+        if properties is not None:
+            body["properties"] = _property_map(properties, "properties")
+        if replace_properties is not None:
+            body["replaceProperties"] = _property_map(replace_properties, "replace_properties")
+        payload = self._post("/v1/world/blocks/fill", body)
         changed_blocks = _require_integer(payload, "changedBlocks")
         if not 0 <= changed_blocks <= volume:
             raise ProtocolError(
@@ -1038,6 +1047,18 @@ def _entity_snapshot(value: Any) -> Entity:
         name=_require_string(value, "name"),
         health=None if value["health"] is None else _require_number(value, "health"),
     )
+
+
+def _property_map(value: Mapping[str, str], field: str) -> Dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{field} must be a mapping of strings to strings")
+    snapshot = dict(value)
+    for name, property_value in snapshot.items():
+        if not isinstance(name, str) or not isinstance(property_value, str):
+            raise TypeError(f"{field} must contain only string keys and values")
+        if not name.strip() or not property_value.strip():
+            raise ValueError(f"{field} keys and values must not be empty")
+    return snapshot
 
 
 def _block_properties(payload: Mapping[str, Any]) -> Mapping[str, str]:
