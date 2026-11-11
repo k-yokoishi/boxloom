@@ -1152,6 +1152,28 @@ watch_event(
 ) -> EventStream[Event]
 ```
 
+Import `events` from `boxloom` to use named event filters. These constants work
+with `watch_event()`, `subscribe_event()`, and comparisons against `event.type`.
+They preserve the corresponding event type in mypy and Pyright. String filters
+are also supported.
+
+| Constant | Event name | Event class |
+| --- | --- | --- |
+| `events.CHAT_MESSAGE` | `"chat.message"` | `ChatEvent` |
+| `events.PLAYER_DEATH` | `"player.death"` | `PlayerDeathEvent` |
+| `events.PLAYER_SWING` | `"player.swing"` | `PlayerSwingEvent` |
+| `events.BLOCK_ATTACK` | `"block.attack"` | `BlockAttackEvent` |
+| `events.BLOCK_USE` | `"block.use"` | `BlockUseEvent` |
+| `events.ITEM_USE` | `"item.use"` | `ItemUseEvent` |
+
+```python
+from boxloom import events, watch_event
+
+with watch_event(events.CHAT_MESSAGE) as chats:
+    for chat in chats:  # Inferred as ChatEvent.
+        print(chat.player.username, chat.message)
+```
+
 **Parameters**
 
 | Name | Type | Default | Description |
@@ -1204,9 +1226,9 @@ is observed as `block.use`; `item.use` observes the separate item-use path.
 Spectator actions are excluded. No client mod is required.
 
 ```python
-from boxloom import watch_event
+from boxloom import events, watch_event
 
-with watch_event("player.swing") as swings:
+with watch_event(events.PLAYER_SWING) as swings:
     for event in swings:  # Inferred as PlayerSwingEvent.
         if event.item == "minecraft:diamond_sword":
             print(event.player.username, "swung a diamond sword")
@@ -1215,17 +1237,17 @@ with watch_event("player.swing") as swings:
 **Example**
 
 ```python
-from boxloom import watch_event
+from boxloom import events, watch_event
 
-with watch_event() as events:
-    for event in events:
-        if event.type == "chat.message":
+with watch_event() as stream:
+    for event in stream:
+        if event.type == events.CHAT_MESSAGE:
             print(f"<{event.player.username}> {event.message}")
-        elif event.type == "player.death":
+        elif event.type == events.PLAYER_DEATH:
             print(event.player.username, event.dimension, event.position.x, event.position.y, event.position.z)
 
-# A literal filter selects the yielded type without an additional branch:
-with watch_event("player.death") as deaths:
+# A named filter selects the yielded type without an additional branch:
+with watch_event(events.PLAYER_DEATH) as deaths:
     for death in deaths:
         print(death.position.x)  # Inferred as PlayerDeathEvent by mypy and Pyright.
 ```
@@ -1297,7 +1319,7 @@ coroutine callbacks are rejected.
 
 ```python
 from threading import Event as Signal
-from boxloom import PlayerDeathEvent, subscribe_event
+from boxloom import PlayerDeathEvent, events, subscribe_event
 
 game_over = Signal()
 
@@ -1310,7 +1332,7 @@ def on_error(error: Exception) -> None:
     game_over.set()
 
 with subscribe_event(
-    "player.death", callback=on_death, on_error=on_error, reconnect=False,
+    events.PLAYER_DEATH, callback=on_death, on_error=on_error, reconnect=False,
 ) as subscription:
     while not game_over.wait(1.0):
         subscription.raise_if_failed()

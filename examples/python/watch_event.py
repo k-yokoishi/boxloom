@@ -1,13 +1,13 @@
-from boxloom import EventCursorExpiredError, watch_event
+from boxloom import EventCursorExpiredError, events, watch_event
 
 
 def main() -> None:
     try:
-        with watch_event() as events:
-            for event in events:
-                if event.type == "chat.message":
+        with watch_event() as stream:
+            for event in stream:
+                if event.type == events.CHAT_MESSAGE:
                     print(f"<{event.player.username}> {event.message}")
-                elif event.type == "player.death":
+                elif event.type == events.PLAYER_DEATH:
                     print(
                         f"{event.player.username} died in {event.dimension} "
                         f"at ({event.position.x}, {event.position.y}, {event.position.z}): {event.message}"

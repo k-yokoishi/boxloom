@@ -4,7 +4,7 @@ import os
 import threading
 from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Union, overload
 
-from . import blocks, entities, items
+from . import blocks, entities, events, items
 from ._client import BoxloomClient
 from .errors import (
     ApiError,
@@ -97,6 +97,7 @@ __all__ = [
     "add_time",
     "blocks",
     "entities",
+    "events",
     "fill",
     "get_block",
     "get_entities",

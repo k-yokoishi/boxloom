@@ -2,7 +2,7 @@
 
 from time import sleep
 
-from boxloom import PlayerSwingEvent, subscribe_event
+from boxloom import PlayerSwingEvent, events, subscribe_event
 
 
 def on_swing(event: PlayerSwingEvent) -> None:
@@ -11,7 +11,7 @@ def on_swing(event: PlayerSwingEvent) -> None:
 
 def main() -> None:
     try:
-        with subscribe_event("player.swing", callback=on_swing) as subscription:
+        with subscribe_event(events.PLAYER_SWING, callback=on_swing) as subscription:
             print("Listening for attack swings, including misses. Press Ctrl+C to stop.")
             while True:
                 subscription.raise_if_failed()

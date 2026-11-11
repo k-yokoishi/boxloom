@@ -24,6 +24,7 @@ from boxloom import (
     Vec3,
     blocks,
     entities,
+    events,
     fill,
     get_block,
     get_entities,
@@ -121,6 +122,18 @@ def test_public_api_exports():
     assert items.STONE == blocks.STONE
     assert boxloom.items is items
     assert "items" in boxloom.__all__
+    assert boxloom.events is events
+    assert "events" in boxloom.__all__
+    for constant, wire_name in (
+        ("CHAT_MESSAGE", "chat.message"),
+        ("PLAYER_DEATH", "player.death"),
+        ("PLAYER_SWING", "player.swing"),
+        ("BLOCK_ATTACK", "block.attack"),
+        ("BLOCK_USE", "block.use"),
+        ("ITEM_USE", "item.use"),
+    ):
+        assert constant in events.__all__
+        assert getattr(events, constant) == wire_name
     assert (
         blocks.MINECRAFT_VERSION
         == entities.MINECRAFT_VERSION
