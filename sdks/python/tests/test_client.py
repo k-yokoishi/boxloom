@@ -360,7 +360,7 @@ class TestClient:
         }
         for lookup in (client.get_player, boxloom.get_player):
             assert lookup("Steve") is None
-            assert _ApiHandler.requests[-1][0] == "/v1/players/Steve/position"
+            assert _ApiHandler.requests[-1][0] == "/v1/players/Steve/location"
         assert _ApiHandler.requests[0][1]["Authorization"] == "Bearer lookup-secret"
 
     @pytest.mark.parametrize(
@@ -449,7 +449,7 @@ class TestClient:
             "yaw": 90,
             "pitch": -12.5,
         }
-        assert player.get_position() == boxloom.PlayerPosition(
+        assert player.get_location() == boxloom.PlayerLocation(
             "Steve",
             "test-uuid",
             "minecraft:overworld",
@@ -465,7 +465,7 @@ class TestClient:
     @pytest.mark.parametrize(
         "operation",
         (
-            boxloom.Player("Steve", "test-uuid").get_position,
+            boxloom.Player("Steve", "test-uuid").get_location,
             boxloom.Player("Steve", "test-uuid").get_targeted_block,
             boxloom.Player("Steve", "test-uuid").attack,
             boxloom.Player("Steve", "test-uuid").use,
@@ -828,7 +828,7 @@ class TestClient:
     def test_player_actions_propagate_api_errors(self):
         player = self._player()
         for operation in (
-            player.get_position,
+            player.get_location,
             player.get_targeted_block,
             player.attack,
         ):
@@ -861,7 +861,7 @@ class TestClient:
         assert result == boxloom.SayResult("Local", 1)
         assert "Authorization" not in _ApiHandler.requests[0][1]
 
-    def test_get_player_position_reads_authenticated_position(self):
+    def test_get_player_location_reads_authenticated_location(self):
         _ApiHandler.response_body = {
             "username": "Player_123",
             "uuid": "58f6e634-15d9-4d4c-8ca0-8a4b23fe38af",
@@ -873,19 +873,21 @@ class TestClient:
             "pitch": -12.5,
         }
 
-        result = boxloom.get_player_position("Player_123")
+        result = boxloom.get_player_location("Player_123")
 
         assert result.username == "Player_123"
         assert result.dimension == "minecraft:the_nether"
+        assert result.yaw == 90
+        assert result.pitch == -12.5
         assert result.position.to_block_pos() == boxloom.BlockPos(-1, 64, -4)
         path, headers, body = _ApiHandler.requests[0]
-        assert path == "/v1/players/Player_123/position"
+        assert path == "/v1/players/Player_123/location"
         assert headers["Authorization"] == "Bearer unit-test-secret"
         assert body is None
 
-    def test_player_get_position_refreshes_through_its_originating_client(self):
+    def test_player_get_location_refreshes_through_its_originating_client(self):
         client = boxloom.BoxloomClient(
-            base_url=self.base_url, auth_token="position-secret"
+            base_url=self.base_url, auth_token="location-secret"
         )
         player = self._player(client)
         boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
@@ -903,9 +905,9 @@ class TestClient:
             }
             before = len(_ApiHandler.requests)
 
-            result = player.get_position()
+            result = player.get_location()
 
-            assert result == boxloom.PlayerPosition(
+            assert result == boxloom.PlayerLocation(
                 player.username,
                 player.uuid,
                 "minecraft:the_nether",
@@ -915,8 +917,8 @@ class TestClient:
             )
             assert len(_ApiHandler.requests) == before + 1
             path, headers, body = _ApiHandler.requests[-1]
-            assert path == "/v1/players/Steve/position"
-            assert headers["Authorization"] == "Bearer position-secret"
+            assert path == "/v1/players/Steve/location"
+            assert headers["Authorization"] == "Bearer location-secret"
             assert body is None
 
     def test_coordinate_types_are_checked_before_network_io(self):
@@ -961,7 +963,7 @@ class TestClient:
         for value in (True, None, "1", float("nan"), float("inf"), 10**1000):
             _ApiHandler.response_body = {**player, axis: value}
             with pytest.raises(boxloom.ProtocolError):
-                boxloom.get_player_position("Steve")
+                boxloom.get_player_location("Steve")
         for value in (True, None, "1", 1.5, 2**31, -(2**31) - 1):
             _ApiHandler.response_body = {**block, axis: value}
             with pytest.raises(boxloom.ProtocolError):
@@ -1383,7 +1385,7 @@ class TestClient:
             with pytest.raises(boxloom.ProtocolError):
                 next(events)
 
-    def test_event_players_refresh_positions_through_the_originating_client(self):
+    def test_event_players_refresh_locations_through_the_originating_client(self):
         frames = [
             ("chat.message", _chat_sse("session:1", "chicken")),
             ("player.death", _death_sse("session:2")),
@@ -1427,11 +1429,11 @@ class TestClient:
                             "yaw": 90,
                             "pitch": -12.5,
                         }
-                        state = event.player.get_position()
+                        state = event.player.get_location()
                         assert state.position == boxloom.Vec3(1.5, y, -2.25)
                         assert state.dimension == "minecraft:the_nether"
                         path, headers, _ = _ApiHandler.requests[-1]
-                        assert path == "/v1/players/Player_123/position"
+                        assert path == "/v1/players/Player_123/location"
                         assert headers["Authorization"] == "Bearer event-secret"
 
     def test_watch_event_returns_mixed_events_with_type_discriminators(self):
@@ -1570,6 +1572,36 @@ class TestClient:
         with boxloom.watch_event("player.swing", reconnect=False) as events:
             with pytest.raises(boxloom.ProtocolError):
                 next(events)
+
+    @pytest.mark.parametrize(
+        "event_filter, wire_name, event_class",
+        (
+            (boxloom.events.CHAT_MESSAGE, "chat.message", boxloom.ChatEvent),
+            (boxloom.events.PLAYER_DEATH, "player.death", boxloom.PlayerDeathEvent),
+            (boxloom.events.PLAYER_SWING, "player.swing", boxloom.PlayerSwingEvent),
+            (boxloom.events.BLOCK_ATTACK, "block.attack", boxloom.BlockAttackEvent),
+            (boxloom.events.BLOCK_USE, "block.use", boxloom.BlockUseEvent),
+            (boxloom.events.ITEM_USE, "item.use", boxloom.ItemUseEvent),
+        ),
+    )
+    def test_watch_event_accepts_named_event_filters(self, event_filter, wire_name, event_class):
+        source = (
+            _chat_sse("session:1", "hello")
+            + _death_sse("session:2")
+            + b"".join(
+                _action_sse(kind, f"session:{index}")
+                for index, kind in enumerate(
+                    ("player.swing", "block.attack", "block.use", "item.use"), 3
+                )
+            )
+        )
+        for api in (boxloom, boxloom.BoxloomClient(base_url=self.base_url)):
+            _ApiHandler.stream_responses = [(200, "text/event-stream", source)]
+            with api.watch_event(event_filter, reconnect=False) as stream:
+                event = next(stream)
+                assert isinstance(event, event_class)
+                assert event.type == wire_name
+                assert stream.last_event_id == event.id
 
     def test_watch_event_filters_chat_by_keyword(self):
         _ApiHandler.stream_responses = [
@@ -1784,9 +1816,9 @@ class TestClient:
             with pytest.raises(boxloom.EventCursorExpiredError):
                 next(events)
 
-    def test_get_player_position_rejects_invalid_username(self):
+    def test_get_player_location_rejects_invalid_username(self):
         with pytest.raises(ValueError):
-            boxloom.get_player_position("not/a/player")
+            boxloom.get_player_location("not/a/player")
 
         assert _ApiHandler.requests == []
 

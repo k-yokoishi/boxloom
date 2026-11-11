@@ -147,7 +147,7 @@ export const apiOperations = {
       </p>
     ),
   },
-  get_player_position: {
+  get_player_location: {
     description: (
       <p>Read a connected player&apos;s position, dimension, and look direction.</p>
     ),

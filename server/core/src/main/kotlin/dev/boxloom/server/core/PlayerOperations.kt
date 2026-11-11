@@ -5,7 +5,7 @@ import java.util.concurrent.CompletableFuture
 interface PlayerOperations {
     fun players(): CompletableFuture<List<Player>>
 
-    fun playerPosition(username: String): CompletableFuture<PlayerPosition>
+    fun playerLocation(username: String): CompletableFuture<PlayerLocation>
 
     fun targetedBlock(username: String): CompletableFuture<TargetedBlock?>
 
@@ -28,7 +28,7 @@ interface PlayerOperations {
     fun teleportPlayer(
         username: String,
         request: TeleportPlayerRequest,
-    ): CompletableFuture<PlayerPosition>
+    ): CompletableFuture<PlayerLocation>
 
     fun setPlayerGameMode(
         username: String,
@@ -109,7 +109,7 @@ data class PlayerGameMode(
     val mode: GameMode,
 )
 
-data class PlayerPosition(
+data class PlayerLocation(
     val username: String,
     val uuid: String,
     val dimension: String,

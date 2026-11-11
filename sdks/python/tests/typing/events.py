@@ -16,6 +16,7 @@ from boxloom import (
     BlockAttackEvent,
     BlockUseEvent,
     ItemUseEvent,
+    events,
     watch_chat,
     watch_event,
     subscribe_event,
@@ -58,23 +59,44 @@ def check_client(client: BoxloomClient, kind: Optional[EventType]) -> None:
         assert_type(next(chats), ChatEvent)
 
 
+def check_constant_filters(client: BoxloomClient) -> None:
+    assert_type(events.CHAT_MESSAGE, Literal["chat.message"])
+    assert_type(events.PLAYER_DEATH, Literal["player.death"])
+    assert_type(events.PLAYER_SWING, Literal["player.swing"])
+    assert_type(events.BLOCK_ATTACK, Literal["block.attack"])
+    assert_type(events.BLOCK_USE, Literal["block.use"])
+    assert_type(events.ITEM_USE, Literal["item.use"])
+    assert_type(watch_event(events.CHAT_MESSAGE), EventStream[ChatEvent])
+    assert_type(watch_event(events.PLAYER_DEATH), EventStream[PlayerDeathEvent])
+    assert_type(watch_event(events.PLAYER_SWING), EventStream[PlayerSwingEvent])
+    assert_type(watch_event(events.BLOCK_ATTACK), EventStream[BlockAttackEvent])
+    assert_type(watch_event(events.BLOCK_USE), EventStream[BlockUseEvent])
+    assert_type(watch_event(events.ITEM_USE), EventStream[ItemUseEvent])
+    assert_type(client.watch_event(events.CHAT_MESSAGE), EventStream[ChatEvent])
+    assert_type(client.watch_event(events.PLAYER_DEATH), EventStream[PlayerDeathEvent])
+    assert_type(client.watch_event(events.PLAYER_SWING), EventStream[PlayerSwingEvent])
+    assert_type(client.watch_event(events.BLOCK_ATTACK), EventStream[BlockAttackEvent])
+    assert_type(client.watch_event(events.BLOCK_USE), EventStream[BlockUseEvent])
+    assert_type(client.watch_event(events.ITEM_USE), EventStream[ItemUseEvent])
+
+
 def check_type_discriminator(event: Event) -> None:
-    if event.type == "player.death":
+    if event.type == events.PLAYER_DEATH:
         assert_type(event, PlayerDeathEvent)
         assert_type(event.dimension, str)
         assert_type(event.position.x, float)
-    elif event.type == "chat.message":
+    elif event.type == events.CHAT_MESSAGE:
         assert_type(event, ChatEvent)
         assert_type(event.message, str)
         event.position.x  # type: ignore[attr-defined]
-    elif event.type == "player.swing":
+    elif event.type == events.PLAYER_SWING:
         assert_type(event, PlayerSwingEvent)
         assert_type(event.item, Optional[str])
         assert_type(event.hand, Literal["main_hand", "off_hand"])
-    elif event.type == "block.attack":
+    elif event.type == events.BLOCK_ATTACK:
         assert_type(event, BlockAttackEvent)
         assert_type(event.block_position.x, int)
-    elif event.type == "block.use":
+    elif event.type == events.BLOCK_USE:
         assert_type(event, BlockUseEvent)
         assert_type(event.block, str)
     else:
@@ -120,6 +142,18 @@ def check_subscriptions(client: BoxloomClient, kind: Optional[EventType]) -> Non
     assert_type(subscribe_event(callback=on_any), EventSubscription)
     assert_type(client.subscribe_event("player.death", callback=on_death), EventSubscription)
     assert_type(client.subscribe_event("chat.message", callback=on_chat), EventSubscription)
+    assert_type(subscribe_event(events.CHAT_MESSAGE, callback=on_chat), EventSubscription)
+    assert_type(client.subscribe_event(events.CHAT_MESSAGE, callback=on_chat), EventSubscription)
+    assert_type(subscribe_event(events.PLAYER_DEATH, callback=on_death), EventSubscription)
+    assert_type(client.subscribe_event(events.PLAYER_DEATH, callback=on_death), EventSubscription)
+    assert_type(subscribe_event(events.PLAYER_SWING, callback=on_player_swing), EventSubscription)
+    assert_type(client.subscribe_event(events.PLAYER_SWING, callback=on_player_swing), EventSubscription)
+    assert_type(subscribe_event(events.BLOCK_ATTACK, callback=on_block_attack), EventSubscription)
+    assert_type(client.subscribe_event(events.BLOCK_ATTACK, callback=on_block_attack), EventSubscription)
+    assert_type(subscribe_event(events.BLOCK_USE, callback=on_block_use), EventSubscription)
+    assert_type(client.subscribe_event(events.BLOCK_USE, callback=on_block_use), EventSubscription)
+    assert_type(subscribe_event(events.ITEM_USE, callback=on_item_use), EventSubscription)
+    assert_type(client.subscribe_event(events.ITEM_USE, callback=on_item_use), EventSubscription)
     assert_type(client.subscribe_event(kind, callback=on_any), EventSubscription)
     assert_type(subscribe_event("player.swing", callback=on_player_swing), EventSubscription)
     assert_type(client.subscribe_event("player.swing", callback=on_player_swing), EventSubscription)
@@ -132,6 +166,8 @@ def check_subscriptions(client: BoxloomClient, kind: Optional[EventType]) -> Non
     subscribe_event("player.deth", callback=on_any)  # type: ignore[call-overload]
     subscribe_event("player.swing", callback=on_death)  # type: ignore[call-overload]
     subscribe_event("chat.message", callback=on_death)  # type: ignore[call-overload]
+    subscribe_event(events.CHAT_MESSAGE, callback=on_death)  # type: ignore[arg-type]
+    client.subscribe_event(events.PLAYER_DEATH, callback=on_chat)  # type: ignore[arg-type]
     client.subscribe_event(callback=on_death)  # type: ignore[arg-type]
 
     async def async_callback(event: PlayerDeathEvent) -> None:

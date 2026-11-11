@@ -150,7 +150,13 @@ class TestSubscription:
 
     @pytest.mark.parametrize(
         "event_filter",
-        (None, *("player.swing", "block.attack", "block.use", "item.use")),
+        (
+            None,
+            boxloom.events.PLAYER_SWING,
+            boxloom.events.BLOCK_ATTACK,
+            boxloom.events.BLOCK_USE,
+            boxloom.events.ITEM_USE,
+        ),
     )
     def test_player_actions_reach_callbacks_with_optional_filter(self, event_filter):
         kinds = ("player.swing", "block.attack", "block.use", "item.use")
@@ -194,7 +200,7 @@ class TestSubscription:
         received = threading.Event()
         positions = []
         errors = []
-        position = boxloom.PlayerPosition(
+        position = boxloom.PlayerLocation(
             "Steve",
             "player-uuid",
             "minecraft:overworld",
@@ -204,7 +210,7 @@ class TestSubscription:
         )
 
         def callback(event):
-            positions.append(event.player.get_position())
+            positions.append(event.player.get_location())
             received.set()
 
         def on_error(error):
@@ -213,12 +219,12 @@ class TestSubscription:
 
         with patch.object(
             boxloom.BoxloomClient,
-            "get_player_position",
+            "get_player_location",
             autospec=True,
             return_value=position,
-        ) as get_position:
+        ) as get_location:
             subscription = self.subscribe(
-                "chat.message", callback=callback, on_error=on_error
+                boxloom.events.CHAT_MESSAGE, callback=callback, on_error=on_error
             )
             boxloom.init(base_url="http://127.0.0.1:1", auth_token="other-secret")
             scenario.frames.put(_chat())
@@ -228,7 +234,7 @@ class TestSubscription:
             subscription.raise_if_failed()
             assert errors == []
             assert positions == [position]
-            get_position.assert_called_once_with(self.client, "Steve")
+            get_location.assert_called_once_with(self.client, "Steve")
 
     def test_registration_waits_for_ready_and_callback_runs_in_background(self):
         scenario = self.scenario(ready=False)
