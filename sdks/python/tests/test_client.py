@@ -2153,6 +2153,119 @@ class TestClient:
 
         assert _ApiHandler.requests == []
 
+    @pytest.mark.parametrize("use_client", [False, True])
+    def test_get_blocks_reads_region_air_and_properties_in_one_request(self, use_client):
+        dimension = "minecraft:the_nether"
+        _ApiHandler.response_body = {"blocks": [
+            {"dimension": dimension, "x": x, "y": y, "z": z,
+             "block": "minecraft:oak_log" if (x, y, z) == (-1, 64, -1) else "minecraft:air",
+             "properties": {"axis": "x"} if (x, y, z) == (-1, 64, -1) else {}}
+            for z in range(-1, 1) for y in range(64, 66) for x in range(-1, 1)
+        ]}
+        get_blocks = (boxloom.BoxloomClient(base_url=self.base_url, auth_token="unit-test-secret").get_blocks
+                      if use_client else boxloom.get_blocks)
+        result = get_blocks(boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(-1, 65, -1), dimension=dimension)
+        assert len(result) == 8
+        assert [block.position for block in result] == [
+            boxloom.BlockPos(x, y, z)
+            for z in range(-1, 1) for y in range(64, 66) for x in range(-1, 1)
+        ]
+        assert result[0] == boxloom.Block(dimension, boxloom.BlockPos(-1, 64, -1), "minecraft:oak_log", {"axis": "x"})
+        assert all(block.block == "minecraft:air" for block in result[1:])
+        assert all(block.dimension == dimension for block in result)
+        with pytest.raises(TypeError):
+            result[0].properties["axis"] = "y"
+        _ApiHandler.response_body["blocks"][0]["properties"]["axis"] = "z"
+        assert result[0].properties == {"axis": "x"}
+        assert len(_ApiHandler.requests) == 1
+        path, headers, body = _ApiHandler.requests[0]
+        assert urlsplit(path).path == "/v1/world/blocks/region"
+        assert parse_qs(urlsplit(path).query) == {
+            "dimension": [dimension], "x1": ["0"], "y1": ["64"], "z1": ["0"],
+            "x2": ["-1"], "y2": ["65"], "z2": ["-1"],
+        }
+        assert headers["Authorization"] == "Bearer unit-test-secret"
+        assert body is None
+
+    def test_get_blocks_defaults_to_overworld_and_supports_a_single_block(self):
+        block = {"dimension": "minecraft:overworld", "x": 0, "y": 64, "z": 0,
+                 "block": "minecraft:stone", "properties": {}}
+        _ApiHandler.response_body = {"blocks": [block]}
+        result = boxloom.get_blocks(boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(0, 64, 0))
+        assert result == [boxloom.Block("minecraft:overworld", boxloom.BlockPos(0, 64, 0), "minecraft:stone")]
+        assert parse_qs(urlsplit(_ApiHandler.requests[0][0]).query)["dimension"] == ["minecraft:overworld"]
+
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_get_blocks_accepts_the_volume_limit(self, reverse):
+        _ApiHandler.response_body = {"blocks": [
+            {"dimension": "minecraft:overworld", "x": x, "y": 64, "z": 0,
+             "block": "minecraft:air", "properties": {}} for x in range(32768)
+        ]}
+        start, end = boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(32767, 64, 0)
+        result = boxloom.get_blocks(end, start) if reverse else boxloom.get_blocks(start, end)
+        assert len(result) == 32768
+        assert result[0].position == start
+        assert result[-1].position == end
+        assert len(_ApiHandler.requests) == 1
+
+    @pytest.mark.parametrize("start,end,error", [
+        (boxloom.Vec3(0, 64, 0), boxloom.BlockPos(0, 64, 0), TypeError),
+        (boxloom.BlockPos(0, 64, 0), (0, 64, 0), TypeError),
+        (boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(32768, 64, 0), ValueError),
+        (boxloom.BlockPos(0, 0, 0), boxloom.BlockPos(32, 32, 32), ValueError),
+        (boxloom.BlockPos(-2**31, -2**31, -2**31), boxloom.BlockPos(2**31-1, 2**31-1, 2**31-1), ValueError),
+    ])
+    def test_get_blocks_rejects_invalid_regions_before_request(self, start, end, error):
+        with pytest.raises(error):
+            boxloom.get_blocks(start, end)
+        assert not _ApiHandler.requests
+
+    @pytest.mark.parametrize("dimension", ["", " ", None, 42])
+    def test_get_blocks_rejects_invalid_dimension_before_request(self, dimension):
+        with pytest.raises(ValueError):
+            boxloom.get_blocks(boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(0, 64, 0), dimension=dimension)
+        assert not _ApiHandler.requests
+
+    @pytest.mark.parametrize("change", [
+        {}, {"blocks": None}, {"blocks": {}}, {"blocks": []}, {"blocks": [None]},
+        {"blocks": [{"dimension": "minecraft:overworld", "x": 0, "y": 64, "z": 0, "block": 42, "properties": {}}]},
+        {"blocks": [{"dimension": "minecraft:overworld", "x": 0, "y": 64, "z": 0, "block": "minecraft:air"}]},
+    ])
+    def test_get_blocks_rejects_malformed_response(self, change):
+        _ApiHandler.response_body = change
+        with pytest.raises(boxloom.ProtocolError):
+            boxloom.get_blocks(boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(0, 64, 0))
+
+    @pytest.mark.parametrize("malformation", ["duplicate", "order", "outside", "dimension", "properties", "coordinate"])
+    def test_get_blocks_rejects_incorrect_snapshot_content(self, malformation):
+        values = [
+            {"dimension": "minecraft:overworld", "x": x, "y": 64, "z": 0,
+             "block": "minecraft:air", "properties": {}} for x in range(2)
+        ]
+        if malformation == "duplicate":
+            values[1] = values[0]
+        elif malformation == "order":
+            values.reverse()
+        elif malformation == "outside":
+            values[1]["x"] = 2
+        elif malformation == "dimension":
+            values[1]["dimension"] = "minecraft:the_nether"
+        elif malformation == "properties":
+            values[0]["properties"] = {"age": 3}
+        else:
+            values[0]["x"] = True
+        _ApiHandler.response_body = {"blocks": values}
+        with pytest.raises(boxloom.ProtocolError):
+            boxloom.get_blocks(boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(1, 64, 0))
+
+    def test_get_blocks_propagates_world_errors(self):
+        _ApiHandler.response_status = 404
+        _ApiHandler.response_body = {"error": {"code": "DIMENSION_NOT_FOUND", "message": "not loaded"}}
+        with pytest.raises(boxloom.ApiError) as error:
+            boxloom.get_blocks(boxloom.BlockPos(0, 64, 0), boxloom.BlockPos(1, 64, 0))
+        assert error.value.status == 404
+        assert error.value.code == "DIMENSION_NOT_FOUND"
+
     def test_fill_posts_an_inclusive_block_region(self):
         _ApiHandler.response_body = {
             "changedBlocks": 8,

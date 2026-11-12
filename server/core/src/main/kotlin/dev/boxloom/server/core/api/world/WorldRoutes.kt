@@ -7,6 +7,8 @@ import dev.boxloom.server.core.EntitySort
 import dev.boxloom.server.core.FillRequest
 import dev.boxloom.server.core.FillMode
 import dev.boxloom.server.core.GetBlockRequest
+import dev.boxloom.server.core.GetBlockResult
+import dev.boxloom.server.core.GetBlocksRequest
 import dev.boxloom.server.core.GetEntitiesRequest
 import dev.boxloom.server.core.JsonSupport
 import dev.boxloom.server.core.KillEntitiesRequest
@@ -31,6 +33,7 @@ internal class WorldRoutes(
 ) {
     fun register(router: Router) {
         router.get("/world/blocks") { exchange, _ -> getBlock(exchange) }
+        router.get("/world/blocks/region") { exchange, _ -> getBlocks(exchange) }
         router.post("/world/blocks") { exchange, _ -> setBlock(exchange) }
         router.post("/world/blocks/fill") { exchange, _ -> fill(exchange) }
         router.get("/world/entities") { exchange, _ -> getEntities(exchange) }
@@ -108,7 +111,32 @@ internal class WorldRoutes(
             HttpExchangeSupport.requireQueryInteger(parameters, "z"),
         )
         val result = operations.await(minecraft.getBlock(request))
+        HttpExchangeSupport.sendJson(exchange, 200, blockJson(result).toString())
+    }
+
+    private fun getBlocks(exchange: HttpExchange) {
+        val parameters = HttpExchangeSupport.queryParameters(exchange)
+        HttpExchangeSupport.requireOnlyQueryParameters(parameters, GET_BLOCKS_FIELDS)
+        val request = GetBlocksRequest(
+            HttpExchangeSupport.requireQueryString(parameters, "dimension"),
+            HttpExchangeSupport.requireQueryInteger(parameters, "x1"),
+            HttpExchangeSupport.requireQueryInteger(parameters, "y1"),
+            HttpExchangeSupport.requireQueryInteger(parameters, "z1"),
+            HttpExchangeSupport.requireQueryInteger(parameters, "x2"),
+            HttpExchangeSupport.requireQueryInteger(parameters, "y2"),
+            HttpExchangeSupport.requireQueryInteger(parameters, "z2"),
+        )
+        val blocks = operations.await(minecraft.getBlocks(request))
         val response = buildJsonObject {
+            put("blocks", buildJsonArray {
+                blocks.forEach { add(blockJson(it)) }
+            })
+        }
+        HttpExchangeSupport.sendJson(exchange, 200, response.toString())
+    }
+
+    private fun blockJson(result: GetBlockResult) =
+        buildJsonObject {
             put("dimension", result.dimension)
             put("x", result.x)
             put("y", result.y)
@@ -117,10 +145,7 @@ internal class WorldRoutes(
             put("properties", buildJsonObject {
                 result.properties.forEach { (name, value) -> put(name, value) }
             })
-        }.toString()
-
-        HttpExchangeSupport.sendJson(exchange, 200, response)
-    }
+        }
 
     private fun setBlock(exchange: HttpExchange) {
         HttpExchangeSupport.requireJsonContentType(exchange)
@@ -279,6 +304,7 @@ internal class WorldRoutes(
         private val GET_ENTITIES_FIELDS =
             setOf("dimension", "entity", "radius", "sort", "limit") + ENTITY_CENTER_FIELDS
         private val GET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z")
+        private val GET_BLOCKS_FIELDS = setOf("dimension", "x1", "y1", "z1", "x2", "y2", "z2")
         private val SET_BLOCK_FIELDS = setOf("dimension", "x", "y", "z", "block", "properties")
         private val FILL_FIELDS = setOf(
             "dimension",

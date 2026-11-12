@@ -1077,6 +1077,89 @@ paths:
           $ref: '#/components/responses/WorldNotLoaded'
         '504':
           $ref: '#/components/responses/Timeout'
+  /v1/world/blocks/region:
+    get:
+      operationId: getBlocks
+      summary: Get all blocks in an inclusive cuboid
+      description: >-
+        All query parameters are required; repeated or unknown parameters are rejected.
+        Both corners are included and may be supplied in either order on each
+        axis. The region must contain at most 32,768 blocks. Returns exactly one
+        snapshot per position, including air, from the minimum corner with X
+        changing fastest, then Y, then Z. All reads run in one server-thread
+        operation, using the same world reads as getBlock; chunks may be loaded
+        or generated. Positions outside world bounds or build height follow
+        getBlock behavior.
+      parameters:
+        - name: dimension
+          in: query
+          required: true
+          schema:
+            type: string
+          example: minecraft:overworld
+        - name: x1
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: y1
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: z1
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: x2
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: y2
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: z2
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Complete snapshots of the requested region in X, Y, Z order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetBlocksResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The requested dimension is not loaded, or the route does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/WorldNotLoaded'
+        '504':
+          $ref: '#/components/responses/Timeout'
   /v1/world/blocks/fill:
     post:
       operationId: fill
@@ -2013,6 +2096,22 @@ components:
           type: string
         properties:
           $ref: '#/components/schemas/BlockProperties'
+    GetBlocksResult:
+      type: object
+      additionalProperties: false
+      required:
+        - blocks
+      properties:
+        blocks:
+          type: array
+          minItems: 1
+          maxItems: 32768
+          description: >-
+            One entry per position, including air. Length equals the inclusive
+            cuboid volume. Ordered from the minimum corner with X changing
+            fastest, then Y, then Z; every entry has the same resolved dimension.
+          items:
+            $ref: '#/components/schemas/GetBlockResult'
     SetBlockResult:
       type: object
       description: Actual block and complete state at the position after the attempt, including a no-op or a position outside build height. Properties-only changes count as changed.

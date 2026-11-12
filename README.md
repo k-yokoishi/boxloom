@@ -134,6 +134,23 @@ none did. `result.slots` reports all destination slots and their added counts.
 Items received in the main inventory or offhand must be moved to the hotbar
 in Minecraft before selecting them.
 
+Read an inclusive block region, including air and state properties:
+
+```python
+from boxloom import BlockPos, get_blocks
+
+region = get_blocks(BlockPos(0, 64, 0), BlockPos(2, 65, 2))
+print(len(region))  # 18
+for block in region:
+    print(block.position, block.block, block.properties)
+```
+
+Both corners are included and may be given in either order. Results start at the
+minimum corner, with X changing fastest, then Y, then Z. At most 32,768 blocks
+may be read per call, in one server-thread operation. Reads follow `get_block()`
+behavior and may load or generate chunks. `BoxloomClient.get_blocks()` has the
+same signature.
+
 Fill an inclusive block region:
 
 ```python

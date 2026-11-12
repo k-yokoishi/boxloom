@@ -727,6 +727,48 @@ print(result.block, result.properties)
 
 </Operation>
 
+## `get_blocks`
+
+<Operation id="get_blocks">
+
+```python
+get_blocks(
+    start: BlockPos,
+    end: BlockPos,
+    *,
+    dimension: str = "minecraft:overworld",
+) -> List[Block]
+```
+
+**Parameters**
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `start`, `end` | `BlockPos` | required | Opposite corners, both inclusive. Each coordinate is a 32-bit integer. |
+| `dimension` | `str` | `"minecraft:overworld"` | Namespaced ID of a loaded dimension. |
+
+**Returns** — `List[Block]` with exactly `(abs(end.x-start.x)+1) * (abs(end.y-start.y)+1) * (abs(end.z-start.z)+1)` entries.
+Each immutable `Block` has the same fields as `get_block()`: `dimension`,
+`position`, `block`, and read-only `properties`. Air is included. A single position
+returns a one-element list. Invalid arguments and regions exceeding 32,768 blocks
+are rejected before sending a request. Malformed or incomplete responses raise
+`ProtocolError`.
+
+**Example**
+
+```python
+from boxloom import BlockPos, get_blocks
+
+region = get_blocks(BlockPos(0, 64, 0), BlockPos(2, 65, 2))
+print(len(region))  # 3 * 2 * 3 = 18
+for block in region:
+    print(block.position, block.block, block.properties)
+```
+
+The same signature is available on `BoxloomClient.get_blocks()`.
+
+</Operation>
+
 ## `set_block`
 
 <Operation id="set_block">

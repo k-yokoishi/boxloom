@@ -18,6 +18,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -927,6 +928,104 @@ class BoxloomHttpServerTest {
     }
 
     @Test
+    fun `gets a block region with authentication and complete block snapshots`() {
+        val calls = mutableListOf<GetBlocksRequest>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun getBlocks(request: GetBlocksRequest): CompletableFuture<List<GetBlockResult>> {
+                calls += request
+                return CompletableFuture.completedFuture(listOf(
+                    GetBlockResult(request.dimension, -1, 64, 0, "minecraft:oak_log", mapOf("axis" to "x")),
+                    GetBlockResult(request.dimension, 0, 64, 0, "minecraft:air"),
+                ))
+            }
+        }
+        withServer(authToken = "test-secret", minecraft = minecraft) { server, _ ->
+            val path = "/v1/world/blocks/region?dimension=minecraft%3Athe_nether&x1=0&y1=64&z1=0&x2=-1&y2=64&z2=0"
+            assertEquals(401, get(server, path).statusCode())
+            assertEquals(403, get(server, path, "wrong").statusCode())
+            assertEquals(405, post(server, "/v1/world/blocks/region", "{}", "test-secret").statusCode())
+            assertTrue(calls.isEmpty())
+            val response = get(server, path, "test-secret")
+            assertEquals(200, response.statusCode())
+            val blocks = Json.parseToJsonElement(response.body()).jsonObject.getValue("blocks").jsonArray
+            assertEquals(2, blocks.size)
+            assertEquals("minecraft:oak_log", blocks[0].jsonObject.getValue("block").jsonPrimitive.content)
+            assertEquals("x", blocks[0].jsonObject.getValue("properties").jsonObject.getValue("axis").jsonPrimitive.content)
+            assertEquals("minecraft:air", blocks[1].jsonObject.getValue("block").jsonPrimitive.content)
+            assertEquals("{}", blocks[1].jsonObject.getValue("properties").toString())
+            assertEquals(listOf(GetBlocksRequest("minecraft:the_nether", 0, 64, 0, -1, 64, 0)), calls)
+        }
+    }
+
+    @Test
+    fun `rejects invalid block region queries before dispatch`() {
+        val fields = linkedMapOf("dimension" to "minecraft:overworld", "x1" to "0", "y1" to "64",
+            "z1" to "0", "x2" to "1", "y2" to "65", "z2" to "1")
+        fun query(values: Map<String, String>) = values.entries.joinToString("&") { "${it.key}=${it.value}" }
+        val valid = query(fields)
+        val invalid = fields.keys.map { query(fields - it) } + listOf(
+            "$valid&x1=2", "$valid&unknown=true", query(fields + ("dimension" to "")),
+            query(fields + ("x2" to "1.5")), query(fields + ("y2" to "true")),
+            query(fields + ("z2" to "2147483648")), query(fields + ("z1" to "-2147483649")),
+            query(fields + ("x2" to "32768")),
+            query(fields + mapOf("x1" to "-2147483648", "x2" to "2147483647")),
+            query(fields + mapOf("x1" to "-2147483648", "y1" to "-2147483648", "z1" to "-2147483648",
+                "x2" to "2147483647", "y2" to "2147483647", "z2" to "2147483647")),
+        )
+        withServer(authToken = null) { server, _ ->
+            for (parameters in invalid) {
+                val response = get(server, "/v1/world/blocks/region?$parameters")
+                assertEquals(400, response.statusCode(), parameters)
+                assertContains(response.body(), "INVALID_REQUEST")
+            }
+        }
+    }
+
+    @Test
+    fun `accepts single blocks reversed corners and the block region size boundary`() {
+        val calls = mutableListOf<GetBlocksRequest>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun getBlocks(request: GetBlocksRequest): CompletableFuture<List<GetBlockResult>> {
+                calls += request
+                return CompletableFuture.completedFuture(emptyList())
+            }
+        }
+        withServer(authToken = null, minecraft = minecraft) { server, _ ->
+            for ((first, second) in listOf(0 to 0, 0 to 32767, 32767 to 0,
+                Int.MIN_VALUE to Int.MIN_VALUE + 32767, Int.MAX_VALUE to Int.MAX_VALUE - 32767)) {
+                val path = "/v1/world/blocks/region?dimension=minecraft:overworld&x1=$first&y1=64&z1=0&x2=$second&y2=64&z2=0"
+                assertEquals(200, get(server, path).statusCode())
+            }
+            assertEquals(5, calls.size)
+        }
+    }
+
+    @Test
+    fun `block region failures use existing world errors and timeouts`() {
+        for ((status, code) in listOf(400 to "INVALID_DIMENSION", 404 to "DIMENSION_NOT_FOUND", 503 to "WORLD_NOT_LOADED")) {
+            val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+                override fun getBlocks(request: GetBlocksRequest): CompletableFuture<List<GetBlockResult>> =
+                    CompletableFuture.failedFuture(ApiException(status, code, "World unavailable"))
+            }
+            withServer(authToken = null, minecraft = minecraft) { server, _ ->
+                val response = get(server, "/v1/world/blocks/region?dimension=missing&x1=0&y1=0&z1=0&x2=0&y2=0&z2=0")
+                assertEquals(status, response.statusCode())
+                assertContains(response.body(), code)
+            }
+        }
+        val pending = CompletableFuture<List<GetBlockResult>>()
+        val minecraft = object : MinecraftOperations by TestMinecraftOperations {
+            override fun getBlocks(request: GetBlocksRequest) = pending
+        }
+        withServer(authToken = null, minecraft = minecraft, requestTimeout = Duration.ofMillis(100)) { server, _ ->
+            val response = get(server, "/v1/world/blocks/region?dimension=minecraft:overworld&x1=0&y1=0&z1=0&x2=0&y2=0&z2=0")
+            assertEquals(504, response.statusCode())
+            assertContains(response.body(), "TIMEOUT")
+            assertTrue(pending.isCancelled)
+        }
+    }
+
+    @Test
     fun `fills a block region`() {
         var capturedRequest: FillRequest? = null
         val minecraft = object : MinecraftOperations by TestMinecraftOperations {
@@ -1780,6 +1879,9 @@ class BoxloomHttpServerTest {
         override fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult> =
             throw AssertionError("Unexpected get-block request")
 
+        override fun getBlocks(request: GetBlocksRequest): CompletableFuture<List<GetBlockResult>> =
+            throw AssertionError("Unexpected get-blocks request")
+
         override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")
 
@@ -1859,6 +1961,9 @@ class BoxloomHttpServerTest {
 
         override fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult> =
             throw AssertionError("Unexpected get-block request")
+
+        override fun getBlocks(request: GetBlocksRequest): CompletableFuture<List<GetBlockResult>> =
+            throw AssertionError("Unexpected get-blocks request")
 
         override fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult> =
             throw AssertionError("Unexpected set-block request")

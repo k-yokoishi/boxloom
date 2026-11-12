@@ -5,7 +5,7 @@ from typing_extensions import assert_type
 from boxloom import (
     Block, BlockAttackEvent, BlockPos, BoxloomClient, Entity, FillResult,
     PlayerDeathEvent, PlayerLocation, SetBlockResult, SummonResult, Vec3,
-    blocks, entities, fill, get_block, get_entities, get_player_location,
+    blocks, entities, fill, get_block, get_blocks, get_entities, get_player_location,
     kill_entities, set_block, summon, teleport_player,
 )
 
@@ -30,6 +30,8 @@ def check_coordinates(client: BoxloomClient, event: BlockAttackEvent) -> None:
     assert_type(get_player_location("Steve").position, Vec3)
     assert_type(teleport_player("Steve", position), PlayerLocation)
     assert_type(client.teleport_player("Steve", position).position, Vec3)
+    assert_type(get_blocks(block, block), list[Block])
+    assert_type(client.get_blocks(block, block)[0], Block)
     assert_type(get_block(block), Block)
     assert_type(client.get_block(block).position, BlockPos)
     assert_type(set_block(block, blocks.STONE), SetBlockResult)
@@ -65,6 +67,8 @@ def check_invalid_usage(client: BoxloomClient) -> None:
     vector = Vec3(0, 64, 0)
     block = BlockPos(0, 64, 0)
     fill(block, block, blocks.AIR, mode="break")  # type: ignore[arg-type]
+    get_blocks(vector, block)  # type: ignore[arg-type]
+    client.get_blocks(block, vector)  # type: ignore[arg-type]
     get_block(vector)  # type: ignore[arg-type]
     client.set_block(vector, blocks.STONE)  # type: ignore[arg-type]
     fill(block, vector, blocks.STONE)  # type: ignore[arg-type]

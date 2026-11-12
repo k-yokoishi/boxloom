@@ -60,6 +60,7 @@ from .models import (
 _USERNAME = re.compile(r"^[A-Za-z0-9_]{3,16}$")
 _UUID = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 _MAX_FILL_BLOCKS = 32_768
+_MAX_GET_BLOCKS = 32_768
 
 
 class BoxloomClient:
@@ -673,6 +674,66 @@ class BoxloomClient:
             block=_require_string(payload, "block"),
             properties=_block_properties(payload),
         )
+
+    def get_blocks(
+        self,
+        start: BlockPos,
+        end: BlockPos,
+        *,
+        dimension: str = "minecraft:overworld",
+    ) -> List[Block]:
+        """Read an inclusive cuboid, including air, with X changing fastest, then Y, then Z.
+
+        Corners may be supplied in either order. At most 32,768 blocks are read
+        in one server-thread operation, using the same reads as get_block().
+        """
+        if not isinstance(start, BlockPos) or not isinstance(end, BlockPos):
+            raise TypeError("start and end must be BlockPos values")
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise ValueError("dimension must be a non-empty namespaced ID")
+        min_x, max_x = sorted((start.x, end.x))
+        min_y, max_y = sorted((start.y, end.y))
+        min_z, max_z = sorted((start.z, end.z))
+        size_x, size_y = max_x - min_x + 1, max_y - min_y + 1
+        volume = size_x * size_y * (max_z - min_z + 1)
+        if volume > _MAX_GET_BLOCKS:
+            raise ValueError(
+                f"get_blocks region must contain at most {_MAX_GET_BLOCKS} blocks"
+            )
+        query = urlencode({
+            "dimension": dimension,
+            "x1": start.x, "y1": start.y, "z1": start.z,
+            "x2": end.x, "y2": end.y, "z2": end.z,
+        })
+        payload = self._get(f"/v1/world/blocks/region?{query}")
+        values = payload.get("blocks")
+        if not isinstance(values, list) or len(values) != volume:
+            raise ProtocolError("response field 'blocks' must be an array matching the region volume")
+        result = []
+        resolved_dimension: Optional[str] = None
+        for index, value in enumerate(values):
+            if not isinstance(value, dict):
+                raise ProtocolError(f"response field 'blocks[{index}]' must be an object")
+            if "properties" not in value:
+                raise ProtocolError(f"response field 'blocks[{index}].properties' is required")
+            block = Block(
+                dimension=_require_string(value, "dimension"),
+                position=_require_block_pos(value),
+                block=_require_string(value, "block"),
+                properties=_block_properties(value),
+            )
+            expected_position = BlockPos(
+                min_x + index % size_x,
+                min_y + (index // size_x) % size_y,
+                min_z + index // (size_x * size_y),
+            )
+            if block.position != expected_position:
+                raise ProtocolError("response blocks must cover the region in X, Y, Z order")
+            if resolved_dimension is not None and block.dimension != resolved_dimension:
+                raise ProtocolError("response blocks must belong to the same dimension")
+            resolved_dimension = block.dimension
+            result.append(block)
+        return result
 
     def fill(
         self,

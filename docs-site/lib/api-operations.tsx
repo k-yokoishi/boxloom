@@ -337,6 +337,23 @@ export const apiOperations = {
     ),
     errors: [invalidDimension, dimensionNotFound],
   },
+  get_blocks: {
+    description: (
+      <p>
+        Read every block in the inclusive cuboid between two block positions,
+        including air and complete state properties. Corners may be supplied in
+        either order on each axis; at most 32,768 blocks may be read. The list
+        starts at the minimum corner with X changing fastest, then Y, then Z.
+        All reads run in one server-thread operation. Like get_block, reads may
+        load or generate chunks; positions outside world bounds or build height
+        follow get_block behavior.
+      </p>
+    ),
+    errors: [
+      { status: 400, code: 'INVALID_REQUEST', meaning: 'A query parameter is invalid or the region covers more than 32,768 blocks.' },
+      invalidDimension, dimensionNotFound,
+    ],
+  },
   set_block: {
     description: (
       <p>
