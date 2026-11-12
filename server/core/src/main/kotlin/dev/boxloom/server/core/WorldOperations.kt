@@ -8,6 +8,8 @@ interface WorldOperations {
 
     fun getBlock(request: GetBlockRequest): CompletableFuture<GetBlockResult>
 
+    fun getBlocks(request: GetBlocksRequest): CompletableFuture<List<GetBlockResult>>
+
     fun setBlock(request: SetBlockRequest): CompletableFuture<SetBlockResult>
 
     fun fill(request: FillRequest): CompletableFuture<FillResult>
@@ -34,6 +36,32 @@ data class GetBlockResult(
     val block: String,
     val properties: Map<String, String> = emptyMap(),
 )
+
+/** Inclusive cuboid, read from its minimum corner with X changing fastest, then Y, then Z. */
+data class GetBlocksRequest(
+    val dimension: String,
+    val x1: Int,
+    val y1: Int,
+    val z1: Int,
+    val x2: Int,
+    val y2: Int,
+    val z2: Int,
+) {
+    init {
+        var volume = 1L
+        val spans = listOf(
+            kotlin.math.abs(x2.toLong() - x1.toLong()) + 1L,
+            kotlin.math.abs(y2.toLong() - y1.toLong()) + 1L,
+            kotlin.math.abs(z2.toLong() - z1.toLong()) + 1L,
+        )
+        for (span in spans) {
+            if (span > 32_768 / volume) {
+                throw JsonSupport.invalid("Get blocks region must contain at most 32768 blocks")
+            }
+            volume *= span
+        }
+    }
+}
 
 data class SetBlockRequest(
     val dimension: String,

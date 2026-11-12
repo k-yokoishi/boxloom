@@ -615,6 +615,48 @@ curl --fail-with-body \
 
 </Operation>
 
+## `get_blocks`
+
+<Operation id="get_blocks">
+
+<ApiEndpoint method="GET" path="/v1/world/blocks/region" />
+
+**Query parameters** — all required; repeated or unknown parameters are rejected.
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `dimension` | string | Namespaced ID of a loaded dimension. |
+| `x1`, `y1`, `z1` | integer | First inclusive corner; 32-bit integers. |
+| `x2`, `y2`, `z2` | integer | Second inclusive corner; 32-bit integers. |
+
+**Response** — `200 application/json`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `blocks` | array | Exactly one `get_block` snapshot per position: `dimension`, `x`, `y`, `z`, `block`, and `properties`. Includes air. |
+
+**Example**
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  "$BOXLOOM_BASE_URL/v1/world/blocks/region?dimension=minecraft:overworld&x1=0&y1=64&z1=0&x2=1&y2=64&z2=0"
+```
+
+```json
+{
+  "blocks": [
+    {"dimension": "minecraft:overworld", "x": 0, "y": 64, "z": 0, "block": "minecraft:oak_log", "properties": {"axis": "x"}},
+    {"dimension": "minecraft:overworld", "x": 1, "y": 64, "z": 0, "block": "minecraft:air", "properties": {}}
+  ]
+}
+```
+
+The volume is `(abs(x2-x1)+1) * (abs(y2-y1)+1) * (abs(z2-z1)+1)`.
+Volumes above 32,768 return `400 INVALID_REQUEST` before any world reads.
+
+</Operation>
+
 ## `set_block`
 
 <Operation id="set_block">

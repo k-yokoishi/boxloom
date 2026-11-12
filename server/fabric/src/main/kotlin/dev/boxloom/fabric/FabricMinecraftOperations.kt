@@ -14,6 +14,7 @@ import dev.boxloom.server.core.FillMode
 import dev.boxloom.server.core.FillResult
 import dev.boxloom.server.core.GetBlockRequest
 import dev.boxloom.server.core.GetBlockResult
+import dev.boxloom.server.core.GetBlocksRequest
 import dev.boxloom.server.core.GetTimeRequest
 import dev.boxloom.server.core.KillEntitiesRequest
 import dev.boxloom.server.core.KillEntityRequest
@@ -308,6 +309,33 @@ internal class FabricMinecraftOperations(
                 blockId.toString(),
                 BlockStates.properties(state),
             )
+        }
+
+    override fun getBlocks(request: GetBlocksRequest): CompletableFuture<List<GetBlockResult>> =
+        onServerThread { server ->
+            val dimensionId = parseIdentifier(request.dimension, "dimension")
+            val dimensionKey: ResourceKey<Level> =
+                ResourceKey.create(Registries.DIMENSION, dimensionId)
+            val level = server.getLevel(dimensionKey)
+                ?: throw ApiException(
+                    404,
+                    "DIMENSION_NOT_FOUND",
+                    "Dimension '${request.dimension}' is not loaded",
+                )
+            val dimension = dimensionKey.identifier().toString()
+            val first = BlockPos(request.x1, request.y1, request.z1)
+            val second = BlockPos(request.x2, request.y2, request.z2)
+            BlockPos.betweenClosed(first, second).map { position ->
+                val state = level.getBlockState(position)
+                GetBlockResult(
+                    dimension,
+                    position.x,
+                    position.y,
+                    position.z,
+                    BuiltInRegistries.BLOCK.getKey(state.block).toString(),
+                    BlockStates.properties(state),
+                )
+            }
         }
 
     override fun fill(request: FillRequest): CompletableFuture<FillResult> =

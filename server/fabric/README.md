@@ -17,6 +17,7 @@ The mod exposes Minecraft operations and a live player event stream:
 - Teleport a connected player to absolute coordinates
 - Set a connected player's game mode to Creative or Survival
 - Get one block and its complete state properties from a loaded dimension
+- Get every block and its complete state properties in an inclusive cuboid
 - Set one block with optional string state properties
 - Fill an inclusive block region
 - Summon one entity with optional NBT
@@ -218,6 +219,23 @@ Stop the server while preserving its world volume with:
 ```bash
 docker compose down
 ```
+
+## Read a block region
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $BOXLOOM_AUTH_TOKEN" \
+  "$BOXLOOM_BASE_URL/v1/world/blocks/region?dimension=minecraft:overworld&x1=0&y1=64&z1=0&x2=2&y2=65&z2=2"
+```
+
+The two corners are inclusive and may be supplied in either order. The response
+is `{"blocks": [...]}`, with exactly one snapshot per position, including air.
+Each entry contains `dimension`, `x`, `y`, `z`, `block`, and all state `properties`,
+as in the single-block read. Entries begin at the minimum corner with X changing
+fastest, then Y, then Z. All reads run in one server-thread operation, and chunks
+may be loaded or generated as with `get_block`. Positions outside world bounds
+or build height follow the single-block read behavior. A region over 32,768
+blocks returns `400 INVALID_REQUEST` before any world reads.
 
 ## Try the API
 

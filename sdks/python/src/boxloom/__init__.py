@@ -102,6 +102,7 @@ __all__ = [
     "events",
     "fill",
     "get_block",
+    "get_blocks",
     "get_entities",
     "get_player_location",
     "get_player",
@@ -450,6 +451,19 @@ def get_block(
     """Return information about a block in a loaded Minecraft dimension."""
 
     return _default_client().get_block(position, dimension=dimension)
+
+
+def get_blocks(
+    start: BlockPos,
+    end: BlockPos,
+    *,
+    dimension: str = "minecraft:overworld",
+) -> List[Block]:
+    """Read up to 32,768 blocks in an inclusive cuboid, including air.
+
+    Corners may be supplied in either order. X changes fastest, then Y, then Z.
+    """
+    return _default_client().get_blocks(start, end, dimension=dimension)
 
 
 def fill(
